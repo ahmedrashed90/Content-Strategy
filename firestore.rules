@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.uid == '__SET_OWNER_UID__';
+    }
+
+    // Historical baseline: owner can create it ONCE; immutable thereafter.
+    match /baselines/{baselineId} {
+      allow get: if isOwner();
+      allow list: if false;
+      allow create: if isOwner()
+        && baselineId == 'baseline-2026-v1'
+        && request.resource.data.id == 'baseline-2026-v1'
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.platforms is map
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
