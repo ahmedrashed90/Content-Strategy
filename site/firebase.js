@@ -33,14 +33,18 @@ export async function logout() {
   return firebaseModules.authSdk.signOut(auth);
 }
 
-export async function getStoredBaseline() {
+const ALLOWED_BASELINES = new Set(['baseline-2026-v1', 'baseline-2026-v2']);
+export async function getStoredBaseline(baselineId = 'baseline-2026-v2') {
+  if (!ALLOWED_BASELINES.has(baselineId)) throw Error('Unsupported baseline ID');
   const { doc, getDoc } = firebaseModules.dbSdk;
-  const snapshot = await getDoc(doc(firestore, 'baselines', 'baseline-2026-v1'));
+  const snapshot = await getDoc(doc(firestore, 'baselines', baselineId));
   return snapshot.exists() ? snapshot.data() : null;
 }
 
+// Always creates the new, immutable four-platform record. Never changes v1.
 export async function createStoredBaseline(seed, uid) {
+  if (seed?.id !== 'baseline-2026-v2' || seed?.schemaVersion !== 2) throw Error('Unexpected seed version');
   const { doc, setDoc, serverTimestamp } = firebaseModules.dbSdk;
-  const reference = doc(firestore, 'baselines', 'baseline-2026-v1');
+  const reference = doc(firestore, 'baselines', 'baseline-2026-v2');
   await setDoc(reference, { ...seed, ownerUid: uid, createdAt: serverTimestamp() });
 }

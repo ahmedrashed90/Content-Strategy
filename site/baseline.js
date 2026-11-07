@@ -1,5 +1,5 @@
 // Public UI schema: NO private social-account metrics live in published JS.
-// The reviewed data belongs to ../data/MZJ-baseline-2026-v1.json (outside site).
+// The reviewed data belongs to ../data/MZJ-baseline-2026-v2.json (outside site).
 export const PLATFORM_ORDER = ['facebook','instagram','tiktok','snapchat'];
 
 const empty = (name, notes = []) => ({
@@ -12,9 +12,9 @@ const empty = (name, notes = []) => ({
 });
 
 export const INITIAL_BASELINE = Object.freeze({
-  id: 'baseline-2026-v1',
-  schemaVersion: 1,
-  registrationDate: '2026-11-06',
+  id: 'baseline-2026-v2',
+  schemaVersion: 2,
+  registrationDate: '2026-11-07',
   title: 'المرجع الأول قبل تطبيق استراتيجية المحتوى الجديدة',
   status: 'pre-strategy',
   platforms: {

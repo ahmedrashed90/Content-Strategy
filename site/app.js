@@ -20,7 +20,10 @@ const state = {
   view: 'overview',
   platform: 'facebook',
   modal: null,
-  mobileNav: false
+  mobileNav: false,
+  legacyExists: false,
+  upgradeRulesNeeded: false,
+  dataError: ''
 };
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -44,7 +47,8 @@ function toast(message) {
 }
 
 function statusTag() {
-  if (state.baselineStatus === 'saved') return `<span class="note-tag positive">${icon('shield','ic-sm')} محفوظ ومؤمن في Firestore</span>`;
+  if (state.baselineStatus === 'saved') return `<span class="note-tag positive">${icon('shield','ic-sm')} المراجع الأربع محفوظة في Firestore</span>`;
+  if (state.baselineStatus === 'saved-v1') return `<span class="note-tag pending">${icon('alert','ic-sm')} المرجع القديم محفوظ — يلزم إضافة Snapchat</span>`;
   if (state.baselineStatus === 'saving') return `<span class="note-tag pending">${icon('refresh','ic-sm')} جارٍ حفظ المرجع</span>`;
   if (state.baselineStatus === 'not-saved') return `<span class="note-tag pending">${icon('alert','ic-sm')} المرجع لم يُستورد بعد</span>`;
   if (state.baselineStatus === 'ready-to-save') return `<span class="note-tag pending">${icon('alert','ic-sm')} جاهز للتثبيت بعد المراجعة</span>`;
@@ -91,7 +95,7 @@ function authView() {
       <div class="intro-mark">MZJ / SOCIAL INTELLIGENCE</div>
       <h2>الأرقام تعرفنا<br>من أين نبدأ.</h2>
       <p>بداية استراتيجية مستمرة أساسها الأرقام الحقيقية، ومقارنة أداء الحسابات قبل وبعد — للوصول في النهاية إلى مبيعات قابلة للقياس.</p>
-      <div class="auth-stat-row"><div class="auth-stat"><strong>03</strong><span>منصات لديها بيانات مرجعية</span></div><div class="auth-stat"><strong>01</strong><span>حساب إداري واحد فقط</span></div></div>
+      <div class="auth-stat-row"><div class="auth-stat"><strong>04</strong><span>منصات لديها بيانات مرجعية</span></div><div class="auth-stat"><strong>01</strong><span>حساب إداري واحد فقط</span></div></div>
     </div></aside>
   </div>`;
 }
@@ -119,12 +123,22 @@ function setupView() {
   </main>`;
 }
 
+function upgradePanel() {
+  return `<section class="card panel" style="margin-top:18px;border-color:#a7775d">
+    <div class="panel-head"><div><h2 class="panel-title">استكمال Snapchat — المرجع v2</h2><p class="panel-desc">المرجع القديم v1 محفوظ كما هو؛ سننشئ وثيقة جديدة تضم الحسابات الأربع، بدون تعديل أو حذف أي تاريخ.</p></div>${icon('database','ic-lg')}</div>
+    <div class="notice ${state.upgradeRulesNeeded?'warning':''}">${icon('info','ic-sm')} ${state.upgradeRulesNeeded ? 'قواعد Firestore القديمة لا تسمح بعد بقراءة المرجع v2؛ انسخ الملف firestore.rules من السورس الجديد وانشره أولًا.' : 'انشر قواعد Firestore المرفقة مع الإصدار الجديد قبل تثبيت المرجع.'}</div>
+    <div class="uid-box" style="margin:12px 0">data/MZJ-baseline-2026-v2.json</div>
+    <div class="field"><label for="baseline-file">اختر ملف المرجع الجديد من جهازك</label><input id="baseline-file" type="file" accept=".json,application/json" /></div>
+    <p class="panel-desc" style="margin-top:12px">بعد اختيار الملف، راجع الأرقام ثم اضغط «تثبيت المرجع في Firebase»؛ لن يحدث الحفظ تلقائيًا.</p>
+  </section>`;
+}
+
 function importBaselinePage() {
   return `<main class="setup-screen">
     <div class="brand" style="border-bottom:0;padding-bottom:8px"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span></div>
-    <div class="setup-heading"><div class="page-eyebrow">${icon('database','ic-sm')} تأسيس المرجع التاريخي</div><h1>استيراد بيانات الحسابات لأول مرة</h1><p class="page-description">الحساب مُفعّل، وبيانات الأداء ليست ضمن ملفات الموقع العامة لحماية خصوصيتها. نستورد ملف المرجع المرفق ثم نثبته في Firestore تحت حسابك فقط.</p></div>
+    <div class="setup-heading"><div class="page-eyebrow">${icon('database','ic-sm')} تأسيس المرجع التاريخي</div><h1>استيراد المرجع المكتمل للمنصات الأربع</h1><p class="page-description">الحساب مُفعّل، وبيانات الأداء ليست ضمن ملفات الموقع العامة لحماية خصوصيتها. نستورد ملف المرجع المرفق ثم نثبته في Firestore تحت حسابك فقط.</p></div>
     <div class="card panel"><div class="panel-head"><div><h2 class="panel-title">ملف المرجع الجاهز</h2><p class="panel-desc">موجود في السورس خارج مجلد الموقع في المسار التالي</p></div>${icon('file','ic-lg')}</div>
-      <div class="uid-box" style="text-align:center">data/MZJ-baseline-2026-v1.json</div>
+      <div class="uid-box" style="text-align:center">data/MZJ-baseline-2026-v2.json</div>
       <div class="field" style="margin-top:15px"><label for="baseline-file">اختر ملف المرجع JSON من جهازك</label><input id="baseline-file" type="file" accept=".json,application/json" style="direction:rtl;text-align:right" /></div>
       <div class="notice">${icon('shield','ic-sm')} بيانات الحسابات لن تُرفع لأي نظام آخر، والحفظ لا يتم إلا عندما تراجع الأرقام وتؤكّد تثبيتها.</div>
       <div class="header-buttons" style="margin-top:16px"><button class="btn" data-action="logout">${icon('logout','ic-sm')} خروج</button><button class="btn" data-nav="settings">${icon('settings','ic-sm')} الإعدادات</button></div>
@@ -134,7 +148,7 @@ function importBaselinePage() {
 }
 
 async function isValidSeed(data) {
-  if (!data || typeof data !== 'object' || data.id !== 'baseline-2026-v1' || data.schemaVersion !== 1 || data.status !== 'pre-strategy') return false;
+  if (!data || typeof data !== 'object' || data.id !== 'baseline-2026-v2' || data.schemaVersion !== 2 || data.status !== 'pre-strategy') return false;
   if (!Array.isArray(data.methodology) || !data.platforms || typeof data.platforms !== 'object') return false;
   if (!PLATFORM_ORDER.every(key => data.platforms[key] && data.platforms[key].name && Array.isArray(data.platforms[key].notes))) return false;
   // SHA-256 of the reviewed canonical seed. The file itself is not bundled
@@ -142,7 +156,7 @@ async function isValidSeed(data) {
   const canonical = new TextEncoder().encode(JSON.stringify(data));
   const digest = await crypto.subtle.digest('SHA-256', canonical);
   const signature = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2, '0')).join('');
-  return signature === '36e84a086bdcafe3801b7934b1d837bc8228d4a0977244b9c0b70c312a91b8ea';
+  return signature === '5323fbb326113fb1d5f1bfd8106dbb2f0bab4d0d21b50266d9f020c7eec92f9e';
 }
 
 function navButton(id, title, symbol, extra = '') {
@@ -167,33 +181,38 @@ function topbar() {
   const viewName = ({overview:'نظرة عامة',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان'})[state.view];
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
-    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${dateText(state.baseline.registrationDate)}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> النسخة التأسيسية 1.0</span></div>
+    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${dateText(state.baseline.registrationDate)}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> النسخة التأسيسية 1.1</span></div>
   </header>`;
 }
 
 function platformTile(key) {
   const p = platformData(key);
   const empty = p.followers == null;
+  const movementText = key === 'snapchat' && !empty
+    ? `<strong dir="ltr">${pct(p.followersChangePercent)}</strong>`
+    : `<strong class="${p.netFollows < 0?'warn-text':'positive-text'}" dir="ltr">${empty ? '—' : signed(p.netFollows)}</strong>`;
   return `<button class="platform-tile ${empty ? 'empty':''}" data-action="platform" data-platform="${key}" aria-label="فتح تفاصيل ${esc(p.name)}">
     <div class="platform-head"><div class="platform-identity">${platformLogo(key)}<div><div class="platform-name">${esc(p.name)}</div><div class="platform-caption">${empty ? 'البيانات غير متاحة' : 'متابعو الحساب'}</div></div></div>${icon('arrow','ic-sm')}</div>
     <div class="platform-stat"><bdi dir="ltr">${empty ? '—' : num(p.followers,p.followersApprox)}</bdi></div>
-    <div class="platform-foot"><span class="label">${empty ? 'بانتظار بيانات موثوقة' : 'صافي حركة المتابعين'}</span><strong class="${p.netFollows < 0?'warn-text':'positive-text'}" dir="ltr">${empty ? '—' : signed(p.netFollows)}</strong></div>
+    <div class="platform-foot"><span class="label">${empty ? 'بانتظار بيانات موثوقة' : key === 'snapchat' ? 'تغير المتابعين حسب Snapchat' : 'صافي حركة المتابعين'}</span>${movementText}</div>
   </button>`;
 }
 
 function viewsPanel() {
   const facebook = platformData('facebook');
   const instagram = platformData('instagram');
+  const snapchatStories = platformData('snapchat').profileStories;
   const segment = (p) => {
+    const nonPaidName = p.isSnapchat ? 'غير إعلاني' : 'عضوي';
     const o = p.organicViews / p.views * 100;
     const paid = p.paidViews / p.views * 100;
     return `<div class="view-row">
       <div class="view-row-top"><strong>${esc(p.name)}</strong><small>إجمالي <bdi dir="ltr">${num(p.views)}</bdi> مشاهدة</small></div>
-      <div class="stacked" role="img" aria-label="${p.name}: ${pct(o)} عضوي، ${pct(paid)} ممول"><div class="organic" style="width:${o}%"></div><div class="paid" style="width:${paid}%"></div></div>
-      <div class="legend"><span><i class="legend-dot organic"></i> عضوي <bdi dir="ltr">${num(p.organicViews)}</bdi> (${pct(Math.round(o*10)/10)})</span><span><i class="legend-dot paid"></i> ممول <bdi dir="ltr">${num(p.paidViews)}</bdi> (${pct(Math.round(paid*10)/10)})</span></div>
+      <div class="stacked" role="img" aria-label="${p.name}: ${pct(o)} ${nonPaidName}، ${pct(paid)} ممول"><div class="organic" style="width:${o}%"></div><div class="paid" style="width:${paid}%"></div></div>
+      <div class="legend"><span><i class="legend-dot organic"></i> ${nonPaidName} <bdi dir="ltr">${num(p.organicViews)}</bdi> (${pct(Math.round(o*10)/10)})</span><span><i class="legend-dot paid"></i> ممول <bdi dir="ltr">${num(p.paidViews)}</bdi> (${pct(Math.round(paid*10)/10)})</span></div>
     </div>`;
   };
-  return `<section class="card panel"><div class="panel-head"><div><h2 class="panel-title">توزيع المشاهدات: عضوي وممول</h2><p class="panel-desc">بيانات Meta فقط — نفس الفترة التقريبية، بدون خلطها مع TikTok</p></div><span class="rounded-icon">${icon('eye')}</span></div>${segment(facebook)}${segment(instagram)}<div class="notice">${icon('info','ic-sm')} لا تتوفر لدينا بيانات مؤكدة لفصل المشاهدات العضوية والممولة في TikTok حتى الآن.</div></section>`;
+  return `<section class="card panel"><div class="panel-head"><div><h2 class="panel-title">توزيع المشاهدات: عضوي وممول</h2><p class="panel-desc">مقارنات داخل كل منصة وبفترات مختلفة، بدون جمع النتائج بينها</p></div><span class="rounded-icon">${icon('eye')}</span></div>${segment(facebook)}${segment(instagram)}${snapchatStories ? `<div class="divider"></div><p class="panel-desc" style="margin:15px 0">Snapchat — قصص الملف الشخصي فقط (${esc(platformData('snapchat').period)})</p>${segment({name:'Snapchat · قصص الملف الشخصي',isSnapchat:true,views:snapchatStories.views,organicViews:snapchatStories.nonAdViews,paidViews:snapchatStories.paidViews})}` : ''}<div class="notice">${icon('info','ic-sm')} سناب: الرسم يخص قصص الملف فقط، ولا يشمل القصص العامة أو Spotlight. ولا يتوفر فصل مؤكد للعضوي والممول في TikTok.</div></section>`;
 }
 function followerPanel() {
   const keys = ['facebook','instagram','tiktok'];
@@ -205,7 +224,7 @@ function followerPanel() {
        const p = platformData(key);
        return `<div class="country-row"><div class="country-label">${p.name}</div><div class="country-track"><div class="country-progress" style="width:${p.saudiFollowersPercent || 0}%"></div></div><strong class="country-value">${pct(p.saudiFollowersPercent)}</strong></div>`;
     }).join('')}
-    <p class="panel-desc" style="margin-top:15px">المقارنة وصفية؛ بعض نوافذ Meta وTikTok مختلفة ولا تعني اتجاهًا زمنيًا موحدًا.</p>
+    <p class="panel-desc" style="margin-top:15px">Snapchat عرض تغير المتابعين +0.0% فقط، ولم يوفر عدد الصافي؛ لذلك لم نضفه إلى مخطط صافي المتابعين. باقي النوافذ لا تعني فترة زمنية واحدة.</p>
   </section>`;
 }
 
@@ -214,17 +233,20 @@ function insightCards() {
   const ig = platformData('instagram');
   const tt = platformData('tiktok');
   const v = tt.featuredVideo;
+  const snap = platformData('snapchat');
   return `<div class="insights">
     <article class="card insight"><div class="insight-number">INSIGHT / 01</div><h3>فيسبوك: الوصول يعتمد أساسًا على التمويل</h3><p>من إجمالي <bdi dir="ltr">${num(fb.views)}</bdi> مشاهدة، هناك <bdi dir="ltr">${num(fb.paidViews)}</bdi> مشاهدة ممولة مقابل <bdi dir="ltr">${num(fb.organicViews)}</bdi> عضوية. سنحتاج لاحقًا لقياس قدرة المحتوى الجديد على رفع العضوي.</p></article>
     <article class="card insight"><div class="insight-number">INSIGHT / 02</div><h3>إنستغرام: الحفاظ على الجمهور أولوية</h3><p>سُجّل صافي <bdi dir="ltr">${signed(ig.netFollows)}</bdi> متابعًا خلال لقطة المرجع، مع <bdi dir="ltr">${num(ig.unfollows)}</bdi> إلغاء متابعة مقابل <bdi dir="ltr">${num(ig.follows)}</bdi> متابعة جديدة.</p></article>
     <article class="card insight"><div class="insight-number">INSIGHT / 03</div><h3>تيك توك: بداية الفيديو تستحق الاختبار</h3><p>الفيديو المرجعي عن توسان بلغ متوسط مشاهدة <bdi dir="ltr">${num(v.averageWatchSeconds)}</bdi> ثانية ونسبة إكمال <bdi dir="ltr">${pct(v.fullWatchPercent)}</bdi>. هذه أرقام لفيديو واحد، وليست لجميع فيديوهات الحساب.</p></article>
+    ${snap.profileStories ? `<article class="card insight"><div class="insight-number">INSIGHT / 04</div><h3>سناب شات: افصل العضوي عن المدفوع</h3><p>قصص الملف سجلت <bdi dir="ltr">${num(snap.profileStories.views)}</bdi> مشاهدة، منها <bdi dir="ltr">${num(snap.profileStories.paidViews)}</bdi> مدفوعة. أما القصص العامة وSpotlight فلهما تقارير منفصلة.</p></article>` : ''}
   </div>`;
 }
 
 function overviewPage() {
+  const readyCount = PLATFORM_ORDER.filter(k => platformData(k).followers != null).length;
   return `<section class="hero card">
     <div class="hero-info"><div class="hero-eyebrow">${icon('flag','ic-sm')} MZJ | ما قبل الاستراتيجية</div><h1>بداية واضحة. قرارات أدق.</h1><p>هذا هو مرجع الحسابات الذي سنقيس عليه لاحقًا. نحفظ النتائج كما رُصدت، ونفصل اختلاف فترات القياس قبل أن نبدأ المحتوى الجديد.</p><div style="margin-top:19px">${statusTag()}</div></div>
-    <div class="hero-count"><div class="top"><span>جاهزية البيانات المرجعية</span>${icon('database','ic-sm')}</div><div><strong>3</strong><small> / 4 منصات</small></div><div class="hero-track"><div></div></div><div class="hero-foot">Snapchat بانتظار لقطة أداء موثوقة</div></div>
+    <div class="hero-count"><div class="top"><span>جاهزية البيانات المرجعية</span>${icon('database','ic-sm')}</div><div><strong>${readyCount}</strong><small> / 4 منصات</small></div><div class="hero-track"><div style="width:${readyCount/4*100}%"></div></div><div class="hero-foot">${readyCount===4 ? 'اكتملت مرجعية الحسابات الأربع' : 'يلزم استكمال بيانات Snapchat في v2'}</div></div>
   </section>
   <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2><p>عدد المتابعين في مرجع كل منصة — بدون جمع جماهير متداخلة</p></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
@@ -244,19 +266,24 @@ function metricRows() {
     ['المشاهدات الممولة', p => num(p.paidViews)],
     ['التفاعلات الإجمالية*', p => num(p.interactions)],
     ['صافي نمو المتابعين', p => signed(p.netFollows)],
-    ['المتابعون من السعودية', p => pct(p.saudiFollowersPercent)]
+    ['المتابعون من السعودية', p => pct(p.saudiFollowersPercent)],
+    ['زيارات الملف الشخصي', p => num(p.profileViews)],
+    ['مشاهدات قصص الملف — Snapchat فقط', p => num(p.profileStories?.views)],
+    ['من قصص الملف: مشاهدات إعلانية', p => num(p.profileStories?.paidViews)],
+    ['مشاهدات القصص العامة — Snapchat فقط', p => num(p.publicStories?.views)],
+    ['مشاهدات Spotlight — Snapchat فقط', p => num(p.spotlight?.views)]
   ];
   return metrics.map(([name, fn])=> `<tr><td><strong>${name}</strong></td>${PLATFORM_ORDER.map(key=>`<td dir="ltr" style="text-align:right">${fn(platformData(key))}</td>`).join('')}</tr>`).join('');
 }
 
 function baselinePage() {
-  return `<div class="page-header"><div><div class="page-eyebrow">${icon('lock','ic-sm')} المرجع التاريخي · الإصدار الأول</div><h1 class="page-title">بيانات الحسابات قبل الاستراتيجية</h1><p class="page-description">توثيق المؤشرات الأصلية مع مصادرها ومددها، لا يُحدَّث تلقائيًا ولا يُستبدل بعد بدء النشر.</p></div>
+  return `<div class="page-header"><div><div class="page-eyebrow">${icon('lock','ic-sm')} المرجع التاريخي · إصدار ${state.baseline.schemaVersion || 2}</div><h1 class="page-title">بيانات الحسابات قبل الاستراتيجية</h1><p class="page-description">توثيق المؤشرات الأصلية مع مصادرها ومددها، لا يُحدَّث تلقائيًا ولا يُستبدل بعد بدء النشر.</p></div>
     <div class="header-buttons"><button class="btn" data-action="download-json">${icon('download','ic-sm')} تصدير JSON</button><button class="btn" data-action="print">${icon('print','ic-sm')} طباعة</button></div>
   </div>
   <div class="mini-grid">
-    <div class="card mini-card"><div class="label">المنصات المرصودة</div><div class="value">03</div><div class="sub">Facebook · Instagram · TikTok</div></div>
-    <div class="card mini-card"><div class="label">المنصات بانتظار بيانات</div><div class="value">01</div><div class="sub">Snapchat</div></div>
-    <div class="card mini-card"><div class="label">إصدار المرجع</div><div class="value" dir="ltr" style="text-align:right">v1.0</div><div class="sub">معرّف ثابت داخل النظام</div></div>
+    <div class="card mini-card"><div class="label">المنصات المرصودة</div><div class="value">${PLATFORM_ORDER.filter(k=>platformData(k).followers!=null).length.toString().padStart(2,'0')}</div><div class="sub">Facebook · Instagram · TikTok · Snapchat</div></div>
+    <div class="card mini-card"><div class="label">المنصات بانتظار بيانات</div><div class="value">${PLATFORM_ORDER.filter(k=>platformData(k).followers==null).length.toString().padStart(2,'0')}</div><div class="sub">${platformData('snapchat').followers != null ? 'مرجع المنصات الأربع جاهز' : 'Snapchat بانتظار استيراد الإصدار الجديد'}</div></div>
+    <div class="card mini-card"><div class="label">إصدار المرجع</div><div class="value" dir="ltr" style="text-align:right">v${state.baseline.schemaVersion || 2}.0</div><div class="sub">معرّف ثابت داخل النظام</div></div>
     <div class="card mini-card"><div class="label">تاريخ إعداد السجل</div><div class="value" style="font-size:18px;margin-top:12px">${dateText(state.baseline.registrationDate)}</div><div class="sub">لا يساوي فترة قياس المؤشرات</div></div>
   </div>
   <div class="section-heading"><div><h2>المقاييس الأصلية</h2><p>— تعني غير متاح، و≈ تعني قيمة تقريبية</p></div>${statusTag()}</div>
@@ -264,20 +291,21 @@ function baselinePage() {
   <div class="notice">${icon('info','ic-sm')} * إجمالي تفاعلات Meta هو ${num(platformData('facebook').interactions)} لفيسبوك و${num(platformData('instagram').interactions)} لإنستغرام، وليس التفاعل العضوي وحده. مؤشرات تفاعل TikTok متاحة في شكل لا يماثل تعريف المؤشرين السابقين، لذلك لا توجد قيمة مفترضة في هذا الصف.</div>
   <div class="section-heading"><div><h2>المصادر وفترات القياس</h2><p>الفروق بين الفترات موثّقة في السجل حتى لا تُستخدم أرقام غير قابلة للمقارنة</p></div></div>
   <div class="card panel"><div class="source-list">${PLATFORM_ORDER.map(key=>{
-    const p = platformData(key); const valid = p.views != null;
+    const p = platformData(key); const valid = p.followers != null;
     return `<div class="source-item"><div>${platformLogo(key)} <strong style="margin-right:8px">${esc(p.name)}</strong><p>${esc(p.source)}</p></div><div class="period">${esc(p.period)}<div class="table-note">${esc(p.countAccuracy)}</div></div><span class="note-tag ${valid?'positive':'pending'}">${valid?'بيانات مرجعية':'لم تكتمل'}</span></div>`;
   }).join('')}</div></div>
   <div class="section-heading"><div><h2>حالة التثبيت في Firebase</h2><p>التثبيت النهائي يتم مرة واحدة فقط مع حماية الوثيقة بقواعد Firestore</p></div></div>
   <div class="card panel">
-    <div class="panel-head"><div><h2 class="panel-title">مرجع محمي من الاستبدال</h2><p class="panel-desc">المسار: <bdi dir="ltr" class="mono">baselines/baseline-2026-v1</bdi></p></div>${statusTag()}</div>
-    <p class="page-description" style="margin:0 0 13px">${state.baselineStatus === 'saved'?'المرجع محفوظ بالفعل في Firestore، والتعديل أو الحذف ممنوعان في القواعد.':'الأرقام المراجعة موجودة في النسخة التأسيسية، ويمكنك تثبيتها بعد إكمال إعداد قواعد Firestore الخاصة بحسابك.'}</p>
+    <div class="panel-head"><div><h2 class="panel-title">مرجع محمي من الاستبدال</h2><p class="panel-desc">المسار: <bdi dir="ltr" class="mono">baselines/${esc(state.baseline.id)}</bdi></p></div>${statusTag()}</div>
+    <p class="page-description" style="margin:0 0 13px">${state.baselineStatus === 'saved' ? 'المرجع المكتمل للمنصات الأربع محفوظ في Firestore، والتعديل أو الحذف ممنوعان في القواعد.' : state.baselineStatus === 'saved-v1' ? 'المرجع القديم ما زال محفوظًا، ولم يتم حفظ المرجع المكتمل بعد.' : 'الملف الجديد جاهز للمراجعة. لن تحفظ أي أرقام إلا بعد موافقتك.'}</p>
     <div class="header-buttons">${state.baselineStatus === 'saved'
       ? `<span class="note-tag positive">${icon('check','ic-sm')} تم التثبيت — لا يمكن تعديل النسخة</span>`
-      : `<button class="btn btn-primary" data-action="open-save-modal" ${state.baselineStatus === 'preview' || state.baselineStatus === 'saving' ? 'disabled':''}>${icon('lock','ic-sm')} تثبيت المرجع في Firebase</button>`}
+      : `<button class="btn btn-primary" data-action="open-save-modal" ${state.baselineStatus !== 'ready-to-save' ? 'disabled':''}>${icon('lock','ic-sm')} تثبيت المرجع في Firebase</button>`}
       <button class="btn" data-nav="settings">${icon('settings','ic-sm')} إعدادات الربط</button>
     </div>
-    ${state.baselineStatus === 'denied' ? `<div class="notice warning">${icon('alert','ic-sm')} قواعد Firestore الحالية تمنع الوصول أو لا تتوافق مع UID المصرح له. راجع شاشة الإعدادات ثم انشر القواعد.</div>`:''}
+    ${state.baselineStatus === 'denied' || state.dataError ? `<div class="notice warning">${icon('alert','ic-sm')} ${esc(state.dataError || 'قواعد Firestore تمنع الوصول، راجع نشر قواعد الإصدار v2.')}</div>`:''}
   </div>
+  ${state.baselineStatus === 'saved-v1' ? upgradePanel() : ''}
   <div class="section-heading"><div><h2>قواعد توثيق البيانات</h2></div></div>
   <div class="card panel"><ul class="methodology">${state.baseline.methodology.map(t=>`<li>${icon('check','ic-sm')}<span>${esc(t)}</span></li>`).join('')}</ul></div>
   ${renderFooter()}`;
@@ -290,7 +318,16 @@ function platformPage() {
   const key = state.platform;
   const p = platformData(key);
   const empty = p.followers == null;
-  const metrics = empty ? [] : [
+  const metrics = empty ? [] : key === 'snapchat' ? [
+    detailMetric('المتابعون',num(p.followers),'تغير معروض +0.0% في آخر 28 يومًا'),
+    detailMetric('زيارات الملف الشخصي',num(p.profileViews),`${signed(p.profileViewsChangePercent)}% مقارنة بالفترة السابقة`),
+    detailMetric('مشاهدات قصص الملف',num(p.profileStories.views),`منها ${num(p.profileStories.paidViews)} مشاهدة من الإعلانات`),
+    detailMetric('قصص الملف — دون إعلانات',num(p.profileStories.nonAdViews),'حسب الفرق المعروض، وليست مشاهدات جميع محتويات سناب'),
+    detailMetric('مشاهدات القصص العامة',num(p.publicStories.views),`${signed(p.publicStories.viewsChangePercent)}% مقارنة بالفترة السابقة`),
+    detailMetric('مشاهدات Spotlight',num(p.spotlight.views),`${signed(p.spotlight.viewsChangePercent)}% مقارنة بالفترة السابقة`),
+    detailMetric('متوسط مشاهدة القصص العامة',`${num(p.publicStories.averageWatchSeconds)} ثوانٍ`,'محتوى القصص العامة فقط'),
+    detailMetric('متوسط مشاهدة Spotlight',`${num(p.spotlight.averageWatchSeconds)} ثوانٍ`,'محتوى Spotlight فقط')
+  ] : [
     detailMetric('المتابعون',num(p.followers,p.followersApprox),p.followersApprox?'رقم تقريبي':'عدد الحسابات المتابعة'),
     detailMetric('إجمالي المشاهدات',num(p.views,p.viewsApprox),p.viewsApprox?'رقم تقريبي':'إجمالي الفترة المرجعية'),
     detailMetric('صافي المتابعين',signed(p.netFollows),'من نافذة القياس الأصلية'),
@@ -310,10 +347,84 @@ function platformPage() {
   return `<div class="page-header"><div><div class="page-eyebrow">${icon('chart','ic-sm')} تحليل المنصات</div><h1 class="page-title">تفاصيل بيانات كل حساب</h1><p class="page-description">المؤشرات المحفوظة من المراجعة السابقة — مع تفصيل نطاق كل رقم.</p></div><button class="btn" data-nav="baseline">${icon('database','ic-sm')} المرجع الكامل</button></div>
   <div class="platform-tabs" role="tablist" aria-label="اختر المنصة">${PLATFORM_ORDER.map(k=>`<button role="tab" class="platform-tab ${key===k?'active':''}" aria-selected="${key===k}" data-platform="${k}" data-action="platform-tab">${esc(platformData(k).name)}</button>`).join('')}</div>
   <section class="card detail-hero"><div><div class="page-eyebrow">${esc(p.name)} | خط الأساس</div><h2>${esc(p.name)}</h2><p>${esc(p.source)}</p><p><strong>فترة القياس:</strong> ${esc(p.period)}</p></div>${platformLogo(key,'logo')}</section>
-  ${empty ? `<div class="compare-placeholder" style="margin-top:16px"><div class="rounded-icon">${icon('database','ic-lg')}</div><h2>لا توجد بيانات Snapchat مرجعية معتمدة</h2><p>لم تصلنا أرقام أداء موثوقة لهذه المنصة أثناء التحليل السابق، ولذلك لن نعرض أرقامًا تخمينية. يمكن توثيقها ضمن إصدار مرجعي مُراجع لاحقًا.</p></div>` : `<div class="detail-grid">${metrics.join('')}</div>`}
-  ${key === 'tiktok' ? tiktokExtras(p) : ''}
+  ${empty ? `<div class="compare-placeholder" style="margin-top:16px"><div class="rounded-icon">${icon('database','ic-lg')}</div><h2>بيانات Snapchat لم تُستورد بعد</h2><p>مرجع الإصدار القديم v1 لا يتضمن بيانات Snapchat. اختر ملف v2 من المرجع الأساسي حتى تظهر البيانات مع الاحتفاظ بالنسخة التاريخية.</p></div>` : `<div class="detail-grid">${metrics.join('')}</div>`}
+  ${key === 'tiktok' ? tiktokExtras(p) : key === 'snapchat' && !empty ? snapchatExtras(p) : ''}
   ${!empty ? `<div class="section-heading"><div><h2>ملاحظات المصدر</h2><p>سياق الأرقام قبل بدء الاستراتيجية</p></div></div><div class="card panel"><ul class="methodology">${p.notes.map(note=>`<li>${icon('info','ic-sm')}<span>${esc(note)}</span></li>`).join('')}</ul></div>`:''}
   ${renderFooter()}`;
+}
+
+
+function snapchatExtras(p) {
+  const pub = p.publicStories;
+  const spot = p.spotlight;
+  const profile = p.profileStories;
+  const traffic = p.trafficSources;
+  const ages = p.engagedStoryAudience.agePercent;
+  const delta = x => x == null ? '—' : `${signed(x)}%`;
+  const row = (label, value) => `<div class="setting-row"><span class="k">${label}</span><strong class="v" dir="ltr">${value}</strong></div>`;
+  const agesEntries = [['35+','35 سنة فأكثر'],['25-34','25–34 سنة'],['21-24','21–24 سنة'],['18-20','18–20 سنة'],['13-17','13–17 سنة']];
+  return `<div class="section-heading"><div><h2>التفصيل المرجعي لـ Snapchat Insights</h2><p>الفترة ${esc(p.period)} · لا نجمع مساحات العرض المختلفة في رقم مشاهدات واحد</p></div></div>
+    <div class="two-cols">
+      <section class="card panel"><h3 class="panel-title">قصص الملف الشخصي · Profile Stories</h3>
+        ${row('المشاهدات',num(profile.views))}
+        ${row('من الإعلانات',num(profile.paidViews))}
+        ${row('تغير المشاهدات',`أكثر من +${num(profile.viewsChangeUpperBoundPercent)}%`)}
+        ${row('مشاهدات غير المتابعين',pct(profile.nonFollowerViewsPercent))}
+        ${row('غير إعلانية (الفرق)',num(profile.nonAdViews))}
+        ${row('حصة المشاهدات الممولة',pct(Math.round(profile.paidViews/profile.views*1000)/10))}
+        ${row('المشاهدون',num(profile.viewers))}
+        ${row('المشاهدون القادمون من إعلانات',num(profile.viewersFromAds))}
+        ${row('متوسط المشاهدة',`${num(profile.averageWatchSeconds)} ثوانٍ`)}
+        ${row('تغير متوسط المشاهدة',delta(profile.averageWatchChangePercent))}
+        <div class="notice warning">${icon('alert','ic-sm')} إجمالي وقت المشاهدة الظاهر في الصورة <bdi dir="ltr">${num(profile.totalWatchMinutesReported)}</bdi> دقيقة، لكنه لا يتوافق حسابيًا مع حجم المشاهدات. القيمة محفوظة كمعلومة تحتاج تحققًا، ولا تُستخدم للحسابات.</div>
+      </section>
+      <section class="card panel"><h3 class="panel-title">القصص العامة · Public Stories</h3>
+        ${row('المشاهدات',num(pub.views))}
+        ${row('تغير المشاهدات',delta(pub.viewsChangePercent))}
+        ${row('المشاهدات من غير المتابعين',pct(pub.nonFollowerViewsPercent))}
+        ${row('المشاهدون',num(pub.viewers))}
+        ${row('تغير المشاهدين',delta(pub.viewersChangePercent))}
+        ${row('متوسط المشاهدة',`${num(pub.averageWatchSeconds)} ثوانٍ`)}
+        ${row('تغير متوسط المشاهدة',delta(pub.averageWatchChangePercent))}
+        ${row('إجمالي وقت المشاهدة',`${num(pub.totalWatchMinutes)} دقيقة`)}
+        ${row('تغير إجمالي وقت المشاهدة',delta(pub.totalWatchChangePercent))}
+      </section>
+      <section class="card panel"><h3 class="panel-title">Spotlight · أداء الفيديوهات القصيرة</h3>
+        ${row('المشاهدات',num(spot.views))}
+        ${row('تغير المشاهدات',delta(spot.viewsChangePercent))}
+        ${row('المشاهدون',num(spot.viewers))}
+        ${row('تغير المشاهدين',delta(spot.viewersChangePercent))}
+        ${row('متوسط وقت المشاهدة',`${num(spot.averageWatchSeconds)} ثوانٍ`)}
+        ${row('تغير متوسط المشاهدة',delta(spot.averageWatchChangePercent))}
+        ${row('معدل المشاهدة',pct(spot.averageViewRatePercent))}
+        ${row('إجمالي وقت المشاهدة',`${num(spot.totalWatchMinutes)} دقيقة`)}
+        ${row('تغير إجمالي وقت المشاهدة',delta(spot.totalWatchChangePercent))}
+        ${row('إضافات للمفضلة',num(spot.favorites))}
+        ${row('تغير المفضلة',delta(spot.favoritesChangePercent))}
+        ${row('مشاركات',num(spot.shares))}
+        ${row('تغير المشاركات',delta(spot.sharesChangePercent))}
+        ${row('متابعون جدد من Spotlight',num(spot.follows))}
+        <div class="notice">${icon('info','ic-sm')} أعلى فيديوهات الحساب تاريخيًا: ${p.historicalTopSpotlight.viewsApprox.map(v => num(v,true)).join('، ')} مشاهدة؛ ليست حصيلة فترة الـ28 يومًا.</div>
+      </section>
+      <section class="card panel"><h3 class="panel-title">الملف الشخصي ومصادر الزيارة</h3>
+        ${row('إجمالي المتابعين',num(p.followers))}
+        ${row('تغير المتابعين المعروض',delta(p.followersChangePercent))}
+        ${row('زيارات الملف',num(p.profileViews))}
+        ${row('تغير زيارات الملف',delta(p.profileViewsChangePercent))}
+        ${row('زيارات الملف من الإعلانات',num(p.profileViewsFromAds))}
+        ${row('زيارات مصدرها Spotlight',pct(traffic.spotlightPercent))}
+        ${row('زيارات مصدرها Discover',pct(traffic.discoverPercent))}
+        ${row('زيارات مصدرها Chat',pct(traffic.chatPercent))}
+        ${row('زيارات من مصادر أخرى',pct(traffic.otherPercent))}
+        ${row('زيارات من البحث',`أقل من ${num(traffic.searchPercentUpperBound)}%`)}
+        <div class="notice">${icon('info','ic-sm')} نسب مصادر الزيارات معروضة بعد التقريب في Snapchat، ولا يلزم أن يكون مجموعها 100% بالضبط.</div>
+      </section>
+    </div>
+    <div class="section-heading"><div><h2>الجمهور المتفاعل مع القصص</h2><p>توزيع أعمار الجمهور المتفاعل في آخر 28 يومًا، وليس أعمار جميع متابعي الحساب</p></div></div>
+    <section class="card panel" style="max-width:680px">
+      ${agesEntries.map(([key,label])=>`<div class="country-row"><div class="country-label">${label}</div><div class="country-track"><div class="country-progress" style="width:${ages[key]}%"></div></div><strong class="country-value">${pct(ages[key])}</strong></div>`).join('')}
+      <div class="notice">${icon('alert','ic-sm')} فلتر الجنس في لقطة الشاشة غير مؤكد؛ لا نعتبر هذه النسب وصفًا لجميع المتابعين.</div>
+    </section>`;
 }
 
 function tiktokExtras(p) {
@@ -345,7 +456,7 @@ function comparisonPage() {
   <div class="compare-placeholder">
     <div class="rounded-icon">${icon('compare','ic-lg')}</div><h2>لن نختلق أرقامًا لمرحلة لم تبدأ بعد</h2>
     <p>بعد وصول وتحليل إجابات الـ45 سؤال، سنستكمل الخطة التشغيلية، ونسجل تاريخ بدء الاستراتيجية الجديدة، ثم نضيف النتائج الفعلية في مراحل القياس المتفق عليها.</p>
-    <div class="compare-preview"><div class="compare-preview-box"><small>قبل الاستراتيجية</small><strong>المرجع الأصلي v1</strong><div style="margin-top:9px">${statusTag()}</div></div>${icon('compare','ic-lg')}<div class="compare-preview-box"><small>بعد بدء الاستراتيجية</small><strong style="color:#a68a7b">بانتظار نتائج حقيقية</strong><div style="margin-top:9px"><span class="note-tag pending">لم يبدأ القياس</span></div></div></div>
+    <div class="compare-preview"><div class="compare-preview-box"><small>قبل الاستراتيجية</small><strong>مرجع ${state.baseline.schemaVersion === 2 ? 'المنصات الأربع v2' : 'الإصدار القديم v1'}</strong><div style="margin-top:9px">${statusTag()}</div></div>${icon('compare','ic-lg')}<div class="compare-preview-box"><small>بعد بدء الاستراتيجية</small><strong style="color:#a68a7b">بانتظار نتائج حقيقية</strong><div style="margin-top:9px"><span class="note-tag pending">لم يبدأ القياس</span></div></div></div>
   </div>
   <div class="section-heading"><div><h2>متى نضيف نتائج المقارنة؟</h2><p>فترات تشغيل ومراجعة وليست تواريخ إطلاق مفترضة</p></div></div>
   <div class="mini-grid">
@@ -366,7 +477,7 @@ function settingsPage() {
     </section>
     <section class="card panel"><div class="panel-head"><div><h2 class="panel-title">حماية Firestore</h2><p class="panel-desc">السماح لصاحب UID الوحيد فقط</p></div><span class="rounded-icon">${icon('shield')}</span></div>
       <div class="setting-row"><span class="k">مالك النظام</span><strong class="v">حساب واحد</strong></div>
-      <div class="setting-row"><span class="k">صلاحية القراءة</span><strong class="v">مرجع واحد فقط</strong></div>
+      <div class="setting-row"><span class="k">صلاحية القراءة</span><strong class="v">مرجع v1 التاريخي ومرجع v2 المكتمل فقط</strong></div>
       <div class="setting-row"><span class="k">إنشاء المرجع</span><strong class="v">مرة واحدة</strong></div>
       <div class="setting-row"><span class="k">التعديل والحذف</span><strong class="v warn-text">ممنوعان</strong></div>
     </section>
@@ -375,22 +486,22 @@ function settingsPage() {
   <div class="section-heading"><div><h2>معرّف صاحب الحساب</h2><p>يجب أن يطابق UID المحدد في كود المشروع وقواعد Firestore المنشورة</p></div></div>
   <div class="card panel"><div class="uid-box" style="margin-top:0">${esc(state.user?.uid || '')}</div><button class="btn" data-action="copy-uid">${icon('copy','ic-sm')} نسخ UID</button></div>
   <div class="section-heading"><div><h2>ما الذي تم تنفيذه الآن؟</h2></div></div>
-  <div class="card panel"><ul class="methodology"><li>${icon('check','ic-sm')}<span>تسجيل دخول بحساب واحد، وعدم إتاحة إنشاء مستخدمين من السيستم.</span></li><li>${icon('check','ic-sm')}<span>مرجع ثابت لفيسبوك وإنستغرام وتيك توك، وسناب شات بدون أرقام مفترضة.</span></li><li>${icon('check','ic-sm')}<span>إمكانية تثبيت بيانات المرجع في Firestore مع منع استبدالها.</span></li><li>${icon('clock','ic-sm')}<span>بنك الأفكار والإنتاج والنشر وربط النتائج البيعية مؤجل إلى ما بعد تحليل الـ45 إجابة.</span></li></ul></div>
+  <div class="card panel"><ul class="methodology"><li>${icon('check','ic-sm')}<span>تسجيل دخول بحساب واحد، وعدم إتاحة إنشاء مستخدمين من السيستم.</span></li><li>${icon('check','ic-sm')}<span>مرجع كامل للمنصات الأربع بعد تثبيت بيانات Snapchat في الإصدار v2.</span></li><li>${icon('check','ic-sm')}<span>إمكانية إنشاء المرجع v2 مرة واحدة مع بقاء v1 محفوظًا بلا تعديل.</span></li><li>${icon('clock','ic-sm')}<span>بنك الأفكار والإنتاج والنشر وربط النتائج البيعية مؤجل إلى ما بعد تحليل الـ45 إجابة.</span></li></ul></div>
   ${renderFooter()}`;
 }
 
 function modalView() {
   if (state.modal !== 'save') return '';
   return `<div class="modal-overlay" role="presentation" data-action="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-head"><div class="rounded-icon">${icon('lock','ic-lg')}</div><h2 id="modal-title">تثبيت المرجع الأول نهائيًا</h2></div>
-    <p>سيُحفظ الإصدار <bdi dir="ltr">baseline-2026-v1</bdi> في Firestore. القواعد المقترحة تمنع تعديله أو حذفه بعد الحفظ. تأكد أنك راجعت الأرقام وفترات القياس؛ تعديل المرجع لاحقًا يتطلب إصدارًا جديدًا.</p>
+    <div class="modal-head"><div class="rounded-icon">${icon('lock','ic-lg')}</div><h2 id="modal-title">تثبيت المرجع المكتمل للمنصات الأربع</h2></div>
+    <p>سيُحفظ الإصدار <bdi dir="ltr">baseline-2026-v2</bdi> في Firestore. القواعد تمنع تحديثه أو حذفه، ولا تمس الإصدار التاريخي v1 حتى لو كان محفوظًا سابقًا. تأكد من بيانات الحسابات الأربع وفترات قياسها.</p>
     <div class="notice">${icon('info','ic-sm')} لا يوجد أي اتصال بنظام التسويق الحالي أو CRM في هذه العملية.</div>
     <div class="modal-actions"><button class="btn" data-action="close-modal">إلغاء</button><button class="btn btn-primary" data-action="save-baseline" ${state.storing?'disabled':''}>${icon('lock','ic-sm')} ${state.storing?'جارٍ الحفظ':'تأكيد وتثبيت المرجع'}</button></div>
   </div></div>`;
 }
 
 function renderFooter() {
-  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإصدار التأسيسي 1.0</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
+  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإصدار التأسيسي 1.1</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
 }
 
 function render() {
@@ -423,19 +534,42 @@ async function boot() {
         state.baselineStatus = 'loading';
         render();
         try {
-          const stored = await getStoredBaseline();
+          let completed = null;
+          let previous = null;
+          let v2Error = null;
+          try { completed = await getStoredBaseline('baseline-2026-v2'); }
+          catch (err) { v2Error = err; }
+          if (!completed) {
+            try { previous = await getStoredBaseline('baseline-2026-v1'); }
+            catch (err) {
+              if (v2Error) throw v2Error;
+              // Missing legacy access is nonfatal when v2 access works.
+            }
+          }
           if (state.user?.uid !== user.uid) return;
-          if (stored) {
-            state.baseline = { ...INITIAL_BASELINE, ...stored };
+          state.legacyExists = Boolean(previous);
+          state.upgradeRulesNeeded = Boolean(v2Error);
+          state.pendingSeed = null;
+          state.dataError = '';
+          if (completed) {
+            state.baseline = completed;
             state.baselineStatus = 'saved';
+          } else if (previous) {
+            state.baseline = previous;
+            state.baselineStatus = 'saved-v1';
+            state.view = 'baseline';
+          } else if (v2Error) {
+            state.baseline = INITIAL_BASELINE;
+            state.baselineStatus = 'denied';
+            state.dataError = 'قواعد Firestore تمنع قراءة المرجع الجديد. انشر firestore.rules المرفق ثم أعد تحميل الصفحة.';
           } else {
             state.baseline = INITIAL_BASELINE;
-            state.pendingSeed = null;
             state.baselineStatus = 'not-saved';
           }
         } catch(err) {
           if (state.user?.uid !== user.uid) return;
           state.baselineStatus = 'denied';
+          state.dataError = 'تعذر الوصول إلى Firestore؛ تحقق من حسابك ونشر قواعد v2.';
           console.warn('Firestore access failed:', err.code || err.message);
         }
       } else {
@@ -495,27 +629,31 @@ function downloadJson(data, file) {
 }
 
 async function saveBaseline() {
-  if (!state.user || !isOwnerConfigured || state.user.uid !== OWNER_UID || state.storing || state.baselineStatus === 'saved' || isLocalPreview) return;
+  if (!state.user || !isOwnerConfigured || state.user.uid !== OWNER_UID || state.storing || state.baselineStatus !== 'ready-to-save' || isLocalPreview) return;
   state.storing = true;
   state.baselineStatus = 'saving';
   render();
   try {
     if (!state.pendingSeed || !await isValidSeed(state.pendingSeed)) throw Error('Missing valid baseline data');
     await createStoredBaseline(state.pendingSeed, state.user.uid);
-    const stored = await getStoredBaseline();
-    state.baseline = { ...INITIAL_BASELINE, ...(stored || {}) };
+    const stored = await getStoredBaseline('baseline-2026-v2');
+    if (!stored) throw Error('v2 was not found after creating');
+    state.baseline = stored;
     state.baselineStatus = 'saved';
     state.pendingSeed = null;
+    state.dataError = '';
+    state.upgradeRulesNeeded = false;
     state.modal = null;
-    toast('تم تثبيت المرجع في Firestore بنجاح');
+    toast('تم تثبيت مرجع المنصات الأربع في Firestore بنجاح');
   } catch(err) {
     console.warn('Save failed:', err.code || err.message);
+    state.baselineStatus = 'ready-to-save';
     if (err.code === 'permission-denied') {
-      state.baselineStatus = 'denied';
-      toast('تم رفض الحفظ. تأكد من نشر Firestore Rules الخاصة بمالك النظام.');
+      state.dataError = 'رفض Firestore عملية إنشاء المرجع v2. انشر قواعد firestore.rules الجديدة ثم أعد المحاولة، ولا تحذف v1.';
+      toast('قواعد Firestore ترفض إنشاء المرجع v2. راجع قواعد النسخة الجديدة.');
     } else {
-      state.baselineStatus = 'not-saved';
-      toast('تعذر إتمام الحفظ. راجع اتصال Firebase وحالة القواعد.');
+      state.dataError = 'تعذر إتمام الحفظ. تحقق من اتصال Firebase، ولم نفقد الملف المستورد.';
+      toast('تعذر إتمام الحفظ. الملف ما زال جاهزًا لإعادة المحاولة.');
     }
     state.modal = null;
   } finally { state.storing = false; render(); }
@@ -536,6 +674,7 @@ app.addEventListener('change', async event => {
     const data = JSON.parse(await file.text());
     if (!await isValidSeed(data)) { toast('ملف المرجع غير صحيح أو يختلف عن الإصدار الذي تمت مراجعته.'); return; }
     state.pendingSeed = data;
+    state.dataError = '';
     state.baseline = data;
     state.baselineStatus = 'ready-to-save';
     state.view = 'baseline';
@@ -575,9 +714,9 @@ app.addEventListener('click', async event => {
   if (action === 'logout') { await logout(); return; }
   if (action === 'copy-uid') { await copyValue(state.user?.uid || ''); return; }
   if (action === 'copy-setup-command') { await copyValue(`node scripts/configure-owner.mjs ${state.user?.uid || ''}`); return; }
-  if (action === 'download-json') { downloadJson(state.baseline,'MZJ-Baseline-2026-v1.json'); return; }
+  if (action === 'download-json') { downloadJson(state.baseline,'MZJ-Baseline-2026-v2.json'); return; }
   if (action === 'print') { window.print(); return; }
-  if (action === 'open-save-modal') { if (state.baselineStatus!=='saved' && state.baselineStatus!=='preview') { state.modal = 'save'; render(); } return; }
+  if (action === 'open-save-modal') { if (state.baselineStatus==='ready-to-save' && state.pendingSeed) { state.modal = 'save'; render(); } return; }
   if (action === 'close-modal') { state.modal = null; render(); return; }
   if (action === 'save-baseline') { await saveBaseline(); return; }
 });

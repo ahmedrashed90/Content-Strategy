@@ -3,19 +3,29 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner() {
       return request.auth != null
-        && request.auth.uid == '__SET_OWNER_UID__';
+        && request.auth.uid == 'Wu4KHDIXQedFUMsSDt9yYLKSfhx1';
     }
 
-    // Historical baseline: owner can create it ONCE; immutable thereafter.
-    match /baselines/{baselineId} {
+    // Original historical reference remains readable but immutable.
+    match /baselines/baseline-2026-v1 {
+      allow get: if isOwner();
+      allow list, create, update, delete: if false;
+    }
+
+    // Completed four-platform baseline: create once, never replace.
+    match /baselines/baseline-2026-v2 {
       allow get: if isOwner();
       allow list: if false;
       allow create: if isOwner()
-        && baselineId == 'baseline-2026-v1'
-        && request.resource.data.id == 'baseline-2026-v1'
+        && request.resource.data.id == 'baseline-2026-v2'
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.schemaVersion == 1
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.status == 'pre-strategy'
         && request.resource.data.platforms is map
+        && request.resource.data.platforms.facebook is map
+        && request.resource.data.platforms.instagram is map
+        && request.resource.data.platforms.tiktok is map
+        && request.resource.data.platforms.snapchat is map
         && request.resource.data.createdAt == request.time;
       allow update, delete: if false;
     }
