@@ -26,6 +26,7 @@ const context = vm.createContext({
   INITIAL_BASELINE: {id:'baseline-2026-v2',schemaVersion:2,registrationDate:'2026-11-07',platforms:{}},
   PLATFORM_ORDER:['facebook','instagram','tiktok','snapchat'],
   FIREBASE_CONFIG:{projectId:'new-marketing-eaf85'},OWNER_UID:user.uid,
+  newBridgeState:()=>({stock:[],executors:[],taskTypes:[],formats:[],loading:false}),
   connectFirebase:async()=>{}, listenToAuth: cb=>Promise.resolve().then(()=>cb(user)),
   loadPublishingPlan: async()=>null,
   loginWithEmail:async()=>{}, logout:async()=>{},

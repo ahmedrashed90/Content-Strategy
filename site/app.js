@@ -3,6 +3,7 @@ import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,planPage,tasksPage,ideasPage,postDetailPage,assetDetailPage,getIdea,taskCodes,toBriefText,teamHandoffText,validatePlanSeed } from './planner.js';
+import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
 
 const app = document.getElementById('app');
 const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
@@ -37,7 +38,8 @@ const state = {
   ideaKind: 'all',
   ideaSearch: '',
   selectedPostId: null,
-  selectedAssetCode: null
+  selectedAssetCode: null,
+  bridge: newBridgeState()
 };
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -181,7 +183,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','نظرة عامة','grid')}${navButton('plan','خطة النشر','calendar')}${navButton('tasks','تسليمات الفريق','clock')}${navButton('ideas','الأفكار والبريفات','file')}${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','نظرة عامة','grid')}${navButton('plan','خطة النشر','calendar')}${navButton('tasks','تسليمات الفريق','clock')}${navButton('ideas','الأفكار والبريفات','file')}${navButton('bridge','ربط سيستم التسويق','compare')}${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
     <nav class="nav-group">${navButton('settings','الإعدادات والأمان','settings')}</nav>
     <div class="sidebar-bottom">
@@ -192,10 +194,10 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'نظرة عامة',plan:'خطة النشر',tasks:'تسليمات الفريق',ideas:'الأفكار والبريفات',post:'تفاصيل النشر',asset:'البريف الإبداعي',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان'})[state.view] || 'نظرة عامة';
+  const viewName = ({overview:'نظرة عامة',plan:'خطة النشر',tasks:'تسليمات الفريق',ideas:'الأفكار والبريفات',post:'تفاصيل النشر',asset:'البريف الإبداعي',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'ربط سيستم التسويق'})[state.view] || 'نظرة عامة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
-    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${dateText(state.baseline.registrationDate)}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> النسخة التشغيلية 1.2</span></div>
+    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${dateText(state.baseline.registrationDate)}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> النسخة التشغيلية 1.3</span></div>
   </header>`;
 }
 
@@ -521,7 +523,7 @@ function modalView() {
 }
 
 function renderFooter() {
-  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · خطة الإنتاج والنشر 1.2</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
+  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · خطة الإنتاج والنشر 1.3</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
 }
 
 function render() {
@@ -534,8 +536,8 @@ function render() {
     return;
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
-  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','post','asset'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage };
+  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','post','asset','bridge'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -777,6 +779,28 @@ async function savePostEditor(form){
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ تعديلات النشر والتكليف';}}
 }
 
+async function submitBridgeApproval(form) {
+  if (state.bridge.busy || isLocalPreview) return;
+  const selected = [...state.bridge.chosenStocks];
+  state.bridge.busy=true;
+  try {
+    await approveBridgeIdea(state, form.elements.namedItem('carMode').value, selected);
+    toast('\u062a\u0645 \u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0641\u0643\u0631\u0629 \u0648\u0627\u0644\u0633\u064a\u0627\u0631\u0627\u062a.');
+    render();
+  } catch(error) { toast(error?.message || 'Approval failed'); }
+  finally { state.bridge.busy=false; }
+}
+async function submitBridgeAssignment(form) {
+  if (state.bridge.busy || isLocalPreview) return;
+  state.bridge.busy=true;
+  try {
+    const result=await assignBridgeIdea(state,form);
+    toast(`\u062a\u0645 \u0625\u0646\u0634\u0627\u0621 \u062a\u0627\u0633\u0643 ${result.taskNo} \u0648\u0631\u0628\u0637\u0647.`);
+    render();
+  } catch(error) { toast(error?.message || '\u062a\u0639\u0630\u0631 \u0627\u0644\u0631\u0628\u0637. \u0623\u0639\u062f \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 \u0648\u0644\u0646 \u064a\u062a\u0643\u0631\u0631 \u0627\u0644\u062a\u0627\u0633\u0643.'); }
+  finally { state.bridge.busy=false; }
+}
+
 app.addEventListener('submit', event => {
   if(event.target.id==='login-form'){
     event.preventDefault();handleLogin(event.target);return;
@@ -784,12 +808,28 @@ app.addEventListener('submit', event => {
   if(event.target.id==='asset-editor'){
     event.preventDefault();saveAssetEditor(event.target);return;
   }
+  if(event.target.id==='bridge-approval'){
+    event.preventDefault();void submitBridgeApproval(event.target);return;
+  }
+  if(event.target.id==='bridge-assign'){
+    event.preventDefault();void submitBridgeAssignment(event.target);return;
+  }
   if(event.target.id==='post-editor'){
     event.preventDefault();savePostEditor(event.target);return;
   }
 });
 
 app.addEventListener('change', async event => {
+  if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value);render();return;}
+  if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
+  if(event.target.matches?.('input[name="cars"]')){
+    const value=event.target.value;
+    if(event.target.checked){if(!state.bridge.chosenStocks.includes(value))state.bridge.chosenStocks.push(value);}
+    else{state.bridge.chosenStocks=state.bridge.chosenStocks.filter(v=>v!==value);}
+    const summary=document.querySelector('.bridge-stock-summary strong');
+    if(summary)summary.textContent=String(state.bridge.chosenStocks.length);
+    return;
+  }
   if(event.target.id==='publishing-plan-file'){
     const file=event.target.files?.[0]; if(!file)return;
     if(file.size>950_000){toast('ملف JSON أكبر من الحد المدعوم.');return;}
@@ -836,6 +876,7 @@ app.addEventListener('change', async event => {
 
 app.addEventListener('click', async event => {
   const nav = event.target.closest('[data-nav]');
+  if(nav?.dataset.nav==='bridge' && !state.bridge.stock.length && !state.bridge.loading){void reloadBridge(state.bridge).then(render);}
   if (nav) {
     state.view = nav.dataset.nav;
     state.mobileNav = false;
@@ -845,6 +886,10 @@ app.addEventListener('click', async event => {
     return;
   }
   const control = event.target.closest('[data-action]');
+  if(control?.dataset.action==='bridge-reload'){state.bridge.error='';void reloadBridge(state.bridge).then(render);return;}
+  if(control?.dataset.action==='bridge-check-task'){void checkBridgeTask(state).then(()=>{toast('\u062a\u0645 \u062a\u062d\u062f\u064a\u062b \u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0643\u0644\u064a\u0641');render()}).catch(error=>toast(error.message||'\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u062d\u0627\u0644\u0629'));return;}
+  if(control?.dataset.action==='bridge-stock-filter'){state.bridge.stockSearch=document.getElementById('bridge-stock-search')?.value||'';render();return;}
+  if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
   if(action==='confirm-plan-import'){await importPublishingPlan();return;}

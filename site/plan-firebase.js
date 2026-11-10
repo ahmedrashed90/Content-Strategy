@@ -68,3 +68,15 @@ export async function updateManyAssets(codes,changes) {
   });
   await batch.commit();
 }
+
+// One atomic write links every slide or media asset to the same real Marketing task.
+export async function linkMarketingTask(links) {
+  const {db,api}=await sdk();
+  const batch=api.writeBatch(db);
+  for(const link of links)batch.update(api.doc(db,...base,'assets',link.code),{
+    marketingTaskId:link.taskId,marketingTaskNo:link.taskNo,
+    marketingItemId:link.itemId,marketingExecutorName:link.executorName,
+    marketingLinkedAt:api.serverTimestamp(),updatedAt:api.serverTimestamp()
+  });
+  await batch.commit();
+}

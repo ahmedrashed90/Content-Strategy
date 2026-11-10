@@ -1,4 +1,4 @@
-# MZJ | Content Strategy & Publishing Planner v1.2.0
+# MZJ | Content Strategy & Publishing Planner v1.3.0
 
 **سيستم مستقل لمستخدم واحد** لإدارة خطة إنتاج ونشر أول 28 يومًا، إضافة إلى مرجع أداء الحسابات الأربع المحفوظ سابقًا. لا يغير بيانات CRM أو نظام التسويق الحالي، ولا ينشر تلقائيًا على المنصات.
 
@@ -98,3 +98,8 @@ node scripts/qa-render.mjs
 ## ضوابط نشر المحتوى
 
 المواصفات والفئات والتوفر والأسعار وشروط التمويل يجب أن تُراجع من المصدر المعتمد قبل النشر؛ لا يُكتب رقم أو وعد غير موثّق. لا تُعرض بيانات العملاء أو صورهم أو لوحاتهم دون موافقة. المنصة لا تحول أي مشاهدة تلقائيًا إلى مبيعة، ولا تعدّل خطوط الأساس التاريخية.
+
+
+## Marketing API integration (v1.3)
+
+Read `MZJ-STRATEGY-API-DEPLOY-README.md` for the secure read-only stock/executors API, explicit Create Task action, environment variables and deployment order. The original 28-day plan and baseline remain intact.

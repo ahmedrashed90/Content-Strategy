@@ -467,3 +467,28 @@ td strong { color: var(--brown); }
 @media(max-width:1350px){.plan-week-days{grid-template-columns:repeat(4,minmax(0,1fr))}.plan-day{border-bottom:1px solid var(--line-soft)}}
 @media(max-width:1050px){.plan-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.p-ideas-grid,.p-task-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.p-two-columns{grid-template-columns:1fr}.p-detail-side{grid-row:auto}}
 @media(max-width:700px){.plan-kpis,.plan-setup-grid,.p-ideas-grid,.p-task-grid{grid-template-columns:1fr}.plan-week-days{grid-template-columns:repeat(2,minmax(0,1fr))}.plan-day{min-height:130px}.p-form-grid{grid-template-columns:1fr}.p-filter{align-items:stretch}.p-filter input,.p-filter select{flex:1;min-width:0;width:100%}.p-actions{width:100%}.p-actions .btn{flex:1;white-space:normal}}
+
+/* Marketing task bridge */
+.bridge-form{margin-top:16px;padding:0;max-width:100%}
+.bridge-formats{border:1px solid var(--line);background:var(--cream-soft);border-radius:11px;padding:12px;display:grid;gap:9px;min-width:0}
+.bridge-formats legend{font-weight:900;font-size:12px;padding:0 8px}
+.bridge-formats .p-check{display:flex;flex-direction:row;align-items:center;gap:9px;font-size:12px;line-height:1.8}
+.bridge-formats .p-check input{width:17px;height:17px;flex:0 0 auto;accent-color:var(--brown)}
+.bridge-form select[multiple]{min-height:190px;max-width:100%;font-size:12px}
+.bridge-form select[multiple] option{padding:7px;line-height:1.9}
+.bridge-status{border:1px solid var(--line);background:var(--cream-soft);padding:13px;border-radius:11px;line-height:2;font-size:12px}
+.bridge-status strong{font-size:13px}
+@media(max-width:700px){.bridge-form .btn{white-space:normal;text-align:center;width:100%}}
+
+.bridge-car-list{border:1px solid var(--line);border-radius:12px;max-height:360px;overflow:auto;display:grid;gap:0;background:var(--paper)}
+.bridge-car-option{display:flex!important;align-items:center;flex-direction:row;gap:12px;padding:12px;border-bottom:1px solid var(--line-soft);font-size:12px;cursor:pointer;line-height:1.8}
+.bridge-car-option:last-child{border-bottom:0}
+.bridge-car-option:hover{background:var(--cream-soft)}
+.bridge-car-option input{width:18px;height:18px;accent-color:var(--brown);flex-shrink:0}
+.bridge-car-copy{min-width:0;display:grid;gap:2px;overflow-wrap:anywhere}
+.bridge-car-copy strong{font-size:12px;color:var(--brown)}
+.bridge-car-copy small{font-size:11px;color:var(--muted)}
+.bridge-stock-summary{background:var(--cream-soft);padding:10px 12px;border-radius:9px;font-size:11px;color:var(--brown);line-height:1.8}
+
+.bridge-idea-label{display:grid;gap:8px;min-width:0;margin-top:12px;font-size:12px;font-weight:900}
+.bridge-idea-label select{display:block;width:100%;min-width:0;max-width:100%;border:1px solid #d8c5bb;background:var(--paper);color:var(--brown);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:12px;line-height:1.9}

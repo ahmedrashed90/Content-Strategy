@@ -176,7 +176,7 @@ export function assetDetailPage(state){
   const codes=taskCodes(plan,idea.code);
   const main=plan.assets.find(a=>a.code===codes[0]);
   const carousel=idea.kind==='carousel';
-  const actions=`<button class="btn" data-nav="ideas">بنك الأفكار</button><button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn btn-primary" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف TXT</button>`;
+  const actions=`<button class="btn" data-action="bridge-open-asset" data-id="${e(idea.code)}">ربط الفكرة بالتسويق</button><button class="btn" data-nav="ideas">بنك الأفكار</button><button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn btn-primary" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف TXT</button>`;
   return pageHeader('بريف إنتاج كامل',`${idea.code} · ${idea.title}`,'يمكن تسليم النص لفريق المونتاج كما هو، وتعديل التكليف والتسليم والحالة من النموذج المجاور.',actions)
    +`<div class="p-two-columns"><div>${briefCard(plan,idea.code)}<div class="notice">راجع السيارة والفئة والهوية والموافقات قبل الإنتاج والنشر؛ البريف لا يثبت سعرًا أو عرضًا غير معتمد.</div></div><div class="p-detail-side"><form class="card panel p-edit-form" id="asset-editor"><h2>إسناد الفكرة</h2><input type="hidden" name="assetCode" value="${e(idea.code)}"/>
    <label>المنفذ<select name="executor">${PEOPLE.map(n=>option(n,n,main?.executor||'عبدالله')).join('')}</select></label>
