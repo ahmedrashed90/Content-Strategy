@@ -1,6 +1,7 @@
 // The content plan is independent from the immutable social-account baseline.
 // The seed JSON is never bundled into public /site JS or HTML.
 import { connectFirebase } from './firebase.js';
+import { validISODate } from './idea-import.js';
 
 export const PLAN_ID = 'mzj-2026-launch-cycle-01';
 const base = ['contentPlans', PLAN_ID];
@@ -21,7 +22,7 @@ export async function loadPublishingPlan() {
   ]);
   return { ...found.data(),
     assets: assets.docs.map(doc=>doc.data()).sort((a,b)=>a.code.localeCompare(b.code)),
-    posts: posts.docs.map(doc=>doc.data()).sort((a,b)=>a.day-b.day)
+    posts: posts.docs.map(doc=>doc.data()).sort((a,b)=>String(a.publicationDate||'').localeCompare(String(b.publicationDate||'')) || String(a.time||'').localeCompare(String(b.time||'')) || String(a.id).localeCompare(String(b.id)))
   };
 }
 
@@ -79,4 +80,28 @@ export async function linkMarketingTask(links) {
     marketingLinkedAt:api.serverTimestamp(),updatedAt:api.serverTimestamp()
   });
   await batch.commit();
+}
+
+// Adds new ideas WITHOUT modifying existing posts, assets, or root plan metadata.
+export async function importPublishingIdeas(ideas){
+  if(!Array.isArray(ideas)||!ideas.length||ideas.length>80)throw Error('invalid-batch');
+  const {db,api}=await sdk();
+  for(const idea of ideas){
+    if(!/^[A-Za-z0-9_-]{3,44}$/.test(idea.code)||!['video','image'].includes(idea.kind)||!['','محمود','بلال','عبدالله'].includes(idea.executor)||idea.status!=='لم يبدأ'||idea.reviewStatus!=='بانتظار المراجعة')throw Error('invalid-idea');
+    if((await api.getDoc(api.doc(db,...base,'assets',idea.code))).exists())throw Error('idea-already-exists');
+  }
+  const batch=api.writeBatch(db);
+  for(const idea of ideas)batch.set(api.doc(db,...base,'assets',idea.code),{...idea,createdAt:api.serverTimestamp()});
+  await batch.commit();
+  return loadPublishingPlan();
+}
+
+// New publishing slots, independently of the initial fixed 28-day seed.
+export async function createPublishingPost(post){
+  if(!post?.id||!post?.ideaCode||!validISODate(post.publicationDate)||!Array.isArray(post.platforms)||!post.platforms.length||post.status!=='مخطط')throw Error('invalid-post');
+  const {db,api}=await sdk();
+  const ref=api.doc(db,...base,'posts',post.id);
+  if((await api.getDoc(ref)).exists())throw Error('post-already-exists');
+  await api.setDoc(ref,{...post,createdAt:api.serverTimestamp()});
+  return post;
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#4A211C" />
-  <meta name="description" content="MZJ | مرجع أداء حسابات التواصل الاجتماعي قبل استراتيجية المحتوى الجديدة" />
+  <meta name="description" content="MZJ | منظومة MZJ المستقلة لخطة النشر وتكليف الفريق، مع مرجع أداء الحسابات الأربع" />
   <title>MZJ | استراتيجية المحتوى</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -375,6 +375,374 @@ td strong { color: var(--brown); }
   .section-heading { margin: 14px 0 8px; }
   .source-item { break-inside: avoid; }
 }
+
+/* MZJ independent monthly content calendar - v1.2 */
+.p-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.plan-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:17px 0 23px}
+.plan-kpi{padding:18px 20px;min-height:100px;display:flex;flex-direction:column;gap:4px;justify-content:center}
+.plan-kpi small{color:var(--muted);font-size:12px;font-weight:800}
+.plan-kpi strong{font-size:31px;font-weight:900;color:var(--brown)}
+.plan-setup-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin:22px 0}
+.p-info{background:var(--cream-soft);border:1px solid var(--line);border-radius:13px;padding:17px;display:grid;gap:8px}
+.p-info strong{font-size:14px}
+.p-info small{font-size:11px;color:var(--muted)}
+.plan-drop{display:grid;gap:10px;padding:20px;border:2px dashed #dfc3b6;border-radius:13px;background:var(--cream-soft)}
+.plan-drop label{font-weight:900;font-size:13px}
+.plan-drop input{max-width:100%;font:inherit;direction:rtl}
+.plan-drop small{color:var(--muted);font-size:11px;word-break:break-all}
+.plan-empty{display:grid;gap:15px;max-width:980px;margin:0 auto}
+.p-preview{border:1px solid #c7decf;background:#f1f8f2;border-radius:13px;margin-top:17px;padding:18px;display:grid;justify-items:start;gap:10px}
+.p-preview p{margin:0;font-size:13px;line-height:1.8}
+.p-error{color:var(--negative);font-size:13px;font-weight:800}
+.plan-weeks{display:grid;gap:18px}
+.plan-week{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.plan-week>header{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding:13px 19px;background:var(--cream-soft)}
+.plan-week>header strong{font-size:14px;font-weight:900}
+.plan-week>header span{font-size:11px;color:var(--muted)}
+.plan-week-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0}
+.plan-day{min-width:0;min-height:155px;padding:14px 10px 12px;display:flex;flex-direction:column;align-items:stretch;gap:9px;text-align:right;background:transparent;border:0;border-left:1px solid var(--line-soft);color:var(--brown-deep);font-family:inherit}
+.plan-day:last-child{border-left:0}
+.plan-day:hover{background:var(--cream);color:var(--brown)}
+.plan-day-date{display:flex;justify-content:space-between;align-items:center;font-size:11px;font-weight:900;color:var(--brown-light)}
+.plan-day strong{font-size:12px;line-height:1.5;font-weight:900;overflow-wrap:anywhere}
+.plan-day-meta{font-size:10px;color:var(--muted);line-height:1.4}
+.plan-day-foot{margin-top:auto;font-size:10px;color:#794e43;font-weight:800}
+.p-filter{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:15px 0}
+.p-filter label{color:var(--muted);font-size:12px;font-weight:800}
+.p-filter input,.p-filter select{height:41px;max-width:100%;border:1px solid var(--line);border-radius:10px;padding:7px 12px;background:var(--paper);color:var(--brown);font-size:12px}
+.p-filter input{min-width:220px;flex:1}
+.p-table-wrap{overflow:auto}
+.p-table{border-collapse:collapse;width:100%;min-width:1240px;font-size:12px;table-layout:fixed}
+.p-table th{background:var(--cream);color:var(--brown);font-size:11px;white-space:nowrap;font-weight:900;text-align:right;padding:14px 12px;border-bottom:1px solid #deccbe}
+.p-table td{vertical-align:top;text-align:right;border-bottom:1px solid var(--line-soft);padding:14px 11px;line-height:1.75;overflow-wrap:anywhere}
+.p-table tr:last-child td{border-bottom:0}
+.p-table th:nth-child(1),.p-table td:nth-child(1){width:110px}
+.p-table th:nth-child(2),.p-table td:nth-child(2){width:160px}
+.p-table th:nth-child(3),.p-table td:nth-child(3){width:128px}
+.p-table th:nth-child(4),.p-table td:nth-child(4){width:170px}
+.p-table th:nth-child(5),.p-table td:nth-child(5){width:175px}
+.p-table th:nth-child(6),.p-table td:nth-child(6){width:150px}
+.p-table th:nth-child(7),.p-table td:nth-child(7){width:72px}
+.p-table th:nth-child(8),.p-table td:nth-child(8){width:94px}
+.p-table th:nth-child(9),.p-table td:nth-child(9){width:79px}
+.p-table td small{display:block;color:var(--muted);font-size:10px}
+.p-truncate{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;color:#6b5a51}
+.p-link{border:0;background:transparent;text-align:right;font:inherit;font-weight:900;color:var(--brown-light);cursor:pointer;padding:0;line-height:1.7}
+.p-link:hover{text-decoration:underline}
+.plan-pill{display:inline-block;border-radius:8px;padding:4px 7px;margin:0 0 4px 3px;background:#f0e5dc;border:1px solid #e9d5c5;font-size:10px;font-weight:900;color:#774b42;white-space:nowrap}
+.plan-pill.p-platform{background:#f8f1e8;border-color:#e8dcd0}
+.plan-pill.p-code{background:var(--brown);color:var(--cream);border-color:var(--brown)}
+.plan-pill.p-ready{color:#27654b;background:#e6f3ea;border-color:#c8decf}
+.plan-pill.p-error{color:#a74747;background:#fbecee;border-color:#e9cbcb}
+.plan-pill.p-neutral{color:#776353;background:#f7f0e9}
+.p-small{font-size:11px!important;padding:7px 11px!important;white-space:normal!important;text-align:center;line-height:1.5}
+.plan-delivery{padding:18px;margin:14px 0 20px}
+.plan-delivery h2{display:flex;align-items:center;gap:11px;font-size:17px;margin:0 0 15px}
+.plan-delivery h2 small{font-size:12px;color:var(--muted)}
+.p-task-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.p-task{border:1px solid var(--line);border-radius:13px;background:var(--cream-soft);padding:16px;display:flex;flex-direction:column;gap:13px}
+.p-task h3{font-size:14px;line-height:1.55;margin:5px 0 3px}
+.p-task p{font-size:12px;margin:0;color:var(--muted)}
+.p-task-bottom{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto}
+.p-code{font-family:ui-monospace,Consolas,monospace;font-weight:900;letter-spacing:.3px}
+.p-ideas-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.p-idea{padding:19px;min-height:190px;display:flex;flex-direction:column}
+.p-idea-head{display:flex;align-items:center;gap:8px}
+.p-idea h2{font-size:16px;line-height:1.6;margin:8px 0}
+.p-idea p{margin:0 0 15px;line-height:1.8;color:var(--muted);font-size:12px}
+.p-idea-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto}
+.p-idea-footer small{color:var(--brown-light);font-weight:900}
+.p-two-columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:18px;align-items:start}
+.p-detail-side{display:grid;gap:16px;min-width:0}
+.p-brief-card h2{font-size:21px;margin:10px 0 15px}
+.p-brief-card h3{font-size:15px;color:var(--brown);margin:20px 0 9px}
+.p-brief-card p{font-size:12px;line-height:2;overflow-wrap:anywhere}
+.p-quote,.p-voice{background:var(--cream-soft);border-right:3px solid var(--brown);padding:12px 14px;border-radius:8px;font-size:13px!important;line-height:2.1!important}
+.p-voice{font-size:14px!important;font-weight:700}
+.p-scene{padding:14px 15px;border-radius:12px;border:1px solid var(--line);background:#fdf7f0;margin:12px 0}
+.p-scene strong{color:var(--brown);font-size:13px}
+.p-scene p{margin:6px 0;line-height:1.8}
+.p-edit-form{display:grid;gap:13px;min-width:0}
+.p-edit-form h2{margin:0;font-size:18px}
+.p-edit-form h3{margin:14px 0 2px;font-size:14px}
+.p-edit-form label{display:grid;gap:7px;font-size:12px;font-weight:900;color:#694c41}
+.p-edit-form input:not([type=checkbox]),.p-edit-form select,.p-edit-form textarea{display:block;width:100%;min-width:0;border-radius:10px;border:1px solid #d8c5bb;padding:12px 13px;background:#fffdf9;color:var(--brown);font-family:inherit;font-size:12px;font-weight:500;line-height:1.75;resize:vertical}
+.p-edit-form input:focus,.p-edit-form select:focus,.p-edit-form textarea:focus{outline:2px solid #b99b8c;outline-offset:1px}
+.p-edit-form input[type=date],.p-edit-form input[type=time]{direction:ltr;text-align:left}
+.p-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.p-help{font-size:11px!important;color:var(--muted)!important;line-height:1.85;margin:0}
+.p-platform-edit{padding:13px;border:1px solid var(--line);border-radius:11px;background:var(--cream-soft);display:grid;gap:10px}
+.p-platform-edit .p-check{display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--brown);font-size:13px}
+.p-platform-edit .p-check input{accent-color:var(--brown);width:17px;height:17px}
+.p-head-inline{display:flex;gap:7px;flex-wrap:wrap}
+.p-mini-item{border-top:1px solid var(--line);padding-top:9px;font-size:11px;color:var(--muted)}
+@media(max-width:1350px){.plan-week-days{grid-template-columns:repeat(4,minmax(0,1fr))}.plan-day{border-bottom:1px solid var(--line-soft)}}
+@media(max-width:1050px){.plan-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.p-ideas-grid,.p-task-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.p-two-columns{grid-template-columns:1fr}.p-detail-side{grid-row:auto}}
+@media(max-width:700px){.plan-kpis,.plan-setup-grid,.p-ideas-grid,.p-task-grid{grid-template-columns:1fr}.plan-week-days{grid-template-columns:repeat(2,minmax(0,1fr))}.plan-day{min-height:130px}.p-form-grid{grid-template-columns:1fr}.p-filter{align-items:stretch}.p-filter input,.p-filter select{flex:1;min-width:0;width:100%}.p-actions{width:100%}.p-actions .btn{flex:1;white-space:normal}}
+
+/* Marketing task bridge */
+.bridge-form{margin-top:16px;padding:0;max-width:100%}
+.bridge-formats{border:1px solid var(--line);background:var(--cream-soft);border-radius:11px;padding:12px;display:grid;gap:9px;min-width:0}
+.bridge-formats legend{font-weight:900;font-size:12px;padding:0 8px}
+.bridge-formats .p-check{display:flex;flex-direction:row;align-items:center;gap:9px;font-size:12px;line-height:1.8}
+.bridge-formats .p-check input{width:17px;height:17px;flex:0 0 auto;accent-color:var(--brown)}
+.bridge-form select[multiple]{min-height:190px;max-width:100%;font-size:12px}
+.bridge-form select[multiple] option{padding:7px;line-height:1.9}
+.bridge-status{border:1px solid var(--line);background:var(--cream-soft);padding:13px;border-radius:11px;line-height:2;font-size:12px}
+.bridge-status strong{font-size:13px}
+@media(max-width:700px){.bridge-form .btn{white-space:normal;text-align:center;width:100%}}
+
+.bridge-car-list{border:1px solid var(--line);border-radius:12px;max-height:360px;overflow:auto;display:grid;gap:0;background:var(--paper)}
+.bridge-car-option{display:flex!important;align-items:center;flex-direction:row;gap:12px;padding:12px;border-bottom:1px solid var(--line-soft);font-size:12px;cursor:pointer;line-height:1.8}
+.bridge-car-option:last-child{border-bottom:0}
+.bridge-car-option:hover{background:var(--cream-soft)}
+.bridge-car-option input{width:18px;height:18px;accent-color:var(--brown);flex-shrink:0}
+.bridge-car-copy{min-width:0;display:grid;gap:2px;overflow-wrap:anywhere}
+.bridge-car-copy strong{font-size:12px;color:var(--brown)}
+.bridge-car-copy small{font-size:11px;color:var(--muted)}
+.bridge-stock-summary{background:var(--cream-soft);padding:10px 12px;border-radius:9px;font-size:11px;color:var(--brown);line-height:1.8}
+
+.bridge-idea-label{display:grid;gap:8px;min-width:0;margin-top:12px;font-size:12px;font-weight:900}
+.bridge-idea-label select{display:block;width:100%;min-width:0;max-width:100%;border:1px solid #d8c5bb;background:var(--paper);color:var(--brown);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:12px;line-height:1.9}
+
+/* MZJ v1.4 — flexible calendar and reusable idea imports */
+.calendar-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:22px 0}
+.calendar-summary>div{display:flex;flex-direction:column;justify-content:center;gap:9px;min-height:110px;padding:19px 23px;background:#F3E8DC;border:1px solid #E2D0C2;border-radius:16px;position:relative;overflow:hidden}
+.calendar-summary>div:first-child{background:#4A211C;color:#F3E8DC;border-color:#4A211C}
+.calendar-summary>div:after{content:"";position:absolute;top:-35px;left:-25px;width:105px;height:105px;border:1px solid currentColor;opacity:.07;border-radius:50%}
+.calendar-summary-label{font-size:12px;font-weight:800;opacity:.86}
+.calendar-summary strong{font-size:32px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.calendar-workspace{background:var(--card);border:1px solid var(--line);border-radius:19px;overflow:hidden;box-shadow:var(--shadow)}
+.calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:20px 22px;background:#F3E8DC;border-bottom:1px solid #E7D3C4}
+.calendar-eyebrow{font-size:10px;letter-spacing:.25px;color:var(--brown-light);font-weight:900}
+.calendar-toolbar h2{font-size:21px;margin:4px 0 0;font-weight:900;color:var(--brown)}
+.calendar-month-controls{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.calendar-month-controls .btn{padding:9px 12px;min-width:37px;font-size:15px}
+.calendar-month-controls input{height:38px;padding:6px 10px;border:1px solid #D8C4B7;border-radius:9px;background:var(--paper);color:var(--brown);font-size:12px;direction:ltr}
+.calendar-filters{display:grid;grid-template-columns:repeat(4,minmax(105px,1fr)) minmax(140px,1.3fr) auto auto;align-items:end;gap:10px;padding:18px 20px;border-bottom:1px solid var(--line-soft)}
+.calendar-filters label{display:flex;flex-direction:column;gap:6px;color:var(--brown-light);font-size:11px;font-weight:900;min-width:0}
+.calendar-filters select,.calendar-filters input{width:100%;height:41px;min-width:0;padding:0 11px;background:#F9F2E9;border:1px solid #E3D3C8;border-radius:10px;color:var(--brown);font-size:12px;font-family:inherit}
+.calendar-filters button{height:41px;min-width:55px}
+.calendar-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,30%);min-height:540px}
+.calendar-main{min-width:0;padding:18px;align-self:start}
+.calendar-weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-bottom:5px;text-align:center;color:#83675B;font-size:11px;font-weight:900}
+.calendar-weekdays span{padding:12px 2px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.calendar-cell{font:inherit;appearance:none;display:flex;flex-direction:column;min-width:0;min-height:120px;gap:6px;padding:9px 7px 8px;background:#FBF7F0;border:1px solid #EEE3D8;border-radius:10px;color:var(--brown-deep);text-align:right;transition:background .15s,border-color .15s,box-shadow .15s}
+.calendar-cell-outside{background:#F6F0E8;opacity:.36;border:1px dashed #E7D8CC}
+.calendar-cell:hover{background:#F3E8DC;border-color:#B89485}
+.calendar-cell-active{background:#F3E8DC;border-color:#4A211C!important;box-shadow:inset 0 0 0 1px #4A211C}
+.calendar-cell-today .calendar-date-number{color:#4A211C}
+.calendar-date-number{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:900;line-height:1}
+.calendar-date-number i{font-size:9px;font-style:normal;background:#4A211C;color:#F3E8DC;border-radius:6px;padding:4px 5px}
+.calendar-cell-posts{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+.calendar-cell-chip{display:block;padding:5px 6px;border-radius:6px;background:#E9DBCE;font-size:10px;font-weight:700;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:3px solid #98796C}
+.calendar-cell-chip b{font-size:9px;margin-left:3px}
+.calendar-chip-published{border-color:#2B7657;background:#E3EFE7}
+.calendar-chip-ready{border-color:#5E745D;background:#EAF1E6}
+.calendar-chip-late{border-color:#A54A4A;background:#F6E7E6}
+.calendar-chip-working{border-color:#A38868;background:#F0E8DA}
+.calendar-cell-footer,.calendar-more{font-size:9px;color:#80695D;font-weight:800}
+.calendar-side{border-right:1px solid #E7D8CC;background:#F9F3EA;display:flex;flex-direction:column;min-width:0;max-height:690px}
+.calendar-side-heading{padding:21px 20px 15px;border-bottom:1px solid #E8DACC}
+.calendar-side-heading h2{font-size:18px;margin:6px 0 4px;font-weight:900;line-height:1.5;color:#4A211C}
+.calendar-side-heading p{font-size:12px;color:var(--muted);margin:0}
+.calendar-side-scroll{overflow:auto;padding:15px;display:grid;gap:12px;align-content:start;flex:1}
+.calendar-entry{border:1px solid #E5D6C9;border-radius:12px;padding:14px;background:var(--card);box-shadow:0 4px 18px #4a211c08}
+.calendar-entry-head{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.calendar-entry-head .plan-pill{margin:0}
+.calendar-type{font-size:11px;font-weight:900;color:var(--brown)}
+.calendar-entry h3{font-size:14px;line-height:1.65;margin:11px 0;color:var(--brown-deep)}
+.calendar-entry-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#7B655C}
+.calendar-entry-meta span:not(:last-child):after{content:"•";margin-right:8px;opacity:.5}
+.calendar-platforms{margin:12px 0 4px}
+.calendar-entry-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.calendar-entry-actions .btn{flex:1}
+.calendar-entry-late{border-right:3px solid #A54A4A}
+.calendar-entry-published{border-right:3px solid #2B7657}
+.calendar-empty-day{display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:center;text-align:center;min-height:180px;color:var(--brown-light)}
+.calendar-empty-day strong{font-size:13px}
+.calendar-empty-day p{font-size:11px;color:var(--muted);line-height:1.7;max-width:205px;margin:0}
+.calendar-add-day{margin:0 15px 16px;white-space:normal}
+.calendar-agenda{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.calendar-agenda-row{display:grid;grid-template-columns:65px minmax(170px,1.5fr) minmax(150px,.9fr) minmax(95px,.5fr) auto;gap:14px;padding:17px 20px;align-items:center;border-bottom:1px solid var(--line-soft)}
+.calendar-agenda-row:last-child{border-bottom:0}
+.calendar-agenda-date{border-radius:10px;padding:9px 6px;background:#F3E8DC;display:flex;flex-direction:column;align-items:center;gap:4px;color:#4A211C}
+.calendar-agenda-date strong{font-size:21px;line-height:1;font-weight:900}
+.calendar-agenda-date span{font-size:10px}
+.calendar-agenda-title{font-weight:900;font-size:13px;line-height:1.6}
+.calendar-agenda-meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:6px}
+.calendar-agenda-platforms .plan-pill{margin:0 2px 4px 0}
+.calendar-agenda-empty{padding:36px 20px;text-align:center;color:var(--muted);font-size:13px}
+.idea-import-panel{display:grid;gap:17px;margin:18px 0 26px;border:1px solid #D6BEB0}
+.idea-import-panel h2{margin:0;font-size:19px;color:var(--brown)}
+.idea-import-main .plan-drop{cursor:pointer}
+.idea-import-main input[type=file]{max-width:100%}
+.idea-import-preview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.idea-import-preview>div{padding:15px;background:#F3E8DC;border:1px solid #E5D4C9;border-radius:12px;display:grid;gap:8px}
+.idea-import-preview strong{font-size:11px;color:#79594C}
+.idea-import-preview b{font-size:24px;color:var(--brown)}
+.idea-import-list{border:1px solid var(--line);border-radius:11px;max-height:270px;overflow:auto}
+.idea-import-list>div{padding:11px 14px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--line-soft)}
+.idea-import-list>div:last-child{border-bottom:0}
+.idea-import-list>div span{font-family:monospace;font-size:11px;color:var(--brown-light);font-weight:900}
+.idea-import-list>div strong{font-size:12px;flex:1;min-width:140px}
+.idea-import-list>div small{font-size:11px;color:var(--muted)}
+.idea-import-default{display:grid;gap:8px;font-weight:800;font-size:12px;color:var(--brown)}
+.idea-import-default select{max-width:360px;width:100%;border:1px solid var(--line);padding:12px;background:var(--paper);border-radius:10px}
+.idea-media-count{font-size:11px;font-weight:900;color:var(--brown);background:#F3E8DC;border-radius:7px;padding:7px 10px;align-self:flex-start;margin:-5px 0 12px}
+.calendar-schedule-form{max-width:800px;margin:20px auto;gap:17px}
+.calendar-schedule-platforms{border:1px solid var(--line);background:#F9F2E9;border-radius:12px;padding:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.calendar-schedule-platforms legend{font-size:12px;font-weight:900;padding:0 8px;color:var(--brown)}
+.calendar-schedule-platforms label{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:12px}
+.calendar-schedule-platforms input{accent-color:var(--brown)}
+@media(max-width:1420px){.calendar-filters{grid-template-columns:repeat(4,minmax(110px,1fr))}.calendar-filters .calendar-search{grid-column:span 2}.calendar-filters button{align-self:end}.calendar-body{grid-template-columns:minmax(0,1fr) 295px}.calendar-cell{min-height:112px}}
+@media(max-width:1140px){.calendar-body{grid-template-columns:1fr}.calendar-side{border-right:0;border-top:1px solid var(--line);max-height:none}.calendar-side-scroll{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-height:440px}.calendar-side-heading{padding:17px 20px}.calendar-agenda-row{grid-template-columns:55px 1.5fr 1fr auto}.calendar-agenda-row>div:nth-child(4){display:none}}
+@media(max-width:780px){.calendar-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.calendar-summary>div{padding:13px;min-height:85px}.calendar-summary strong{font-size:25px}.calendar-toolbar{padding:17px;align-items:start;flex-direction:column}.calendar-month-controls{width:100%}.calendar-filters{grid-template-columns:repeat(2,minmax(0,1fr));padding:13px}.calendar-filters .calendar-search{grid-column:1/-1}.calendar-main{padding:10px 6px}.calendar-weekdays span{font-size:9px;padding:9px 1px}.calendar-grid{gap:3px}.calendar-cell{min-height:75px;padding:7px 4px 5px;border-radius:7px;gap:5px}.calendar-date-number{font-size:12px}.calendar-date-number i{font-size:7px;padding:2px 3px}.calendar-cell-chip{font-size:0;height:6px;padding:0;white-space:nowrap;line-height:1;background:var(--brown-light)}.calendar-cell-chip b{display:none}.calendar-chip-published{background:#2B7657}.calendar-chip-late{background:#A54A4A}.calendar-chip-ready{background:#5E745D}.calendar-cell-footer{font-size:8px}.calendar-more{font-size:8px}.calendar-side-scroll{grid-template-columns:1fr;max-height:none}.calendar-agenda-row{grid-template-columns:51px minmax(0,1fr) auto;padding:13px 12px;gap:9px}.calendar-agenda-row>div:nth-child(3),.calendar-agenda-row>div:nth-child(4){display:none}.calendar-agenda-date strong{font-size:18px}.calendar-agenda-title{font-size:12px}.calendar-agenda-meta{font-size:10px;gap:7px}.idea-import-preview{grid-template-columns:repeat(3,minmax(0,1fr))}.idea-import-preview>div{padding:10px}.idea-import-preview b{font-size:20px}.idea-import-list>div strong{min-width:100px}.calendar-schedule-platforms{grid-template-columns:1fr}}
+@media(max-width:390px){.calendar-month-controls .btn{padding:8px 9px}.calendar-month-controls input{max-width:140px}.calendar-cell{min-height:65px}.calendar-cell-footer{font-size:7px}.calendar-date-number i{display:none}}
+@media print{.calendar-filters,.calendar-month-controls,.calendar-side,.calendar-add-day,.calendar-entry-actions,.idea-import-panel{display:none!important}.calendar-body{display:block}.calendar-main{width:100%}.calendar-agenda{break-inside:auto}.calendar-agenda-row{break-inside:avoid}}
+
+/* v1.5 — unified MZJ editorial workspace; dark brown + light cream only */
+:root{
+  --brown:#4A211C;--brown-deep:#341713;--brown-light:#6B4037;
+  --cream:#F3E8DC;--cream-soft:#F7EEE5;--paper:#F8F0E7;
+  --card:#FAF3EA;--muted:#866D63;--line:#DCC8BA;--line-soft:#EBDDD0;
+  --shadow:0 9px 26px rgba(74,33,28,.06);--radius:19px;
+}
+body{background:radial-gradient(circle at 78% 1%,rgba(109,72,58,.075),transparent 450px),var(--cream);color:var(--brown-deep)}
+button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
+:focus-visible{outline:2px solid var(--brown)!important;outline-offset:3px}
+.sidebar{width:268px;overflow-y:auto;scrollbar-width:thin;background:var(--brown);border-left:1px solid var(--brown-deep);box-shadow:-14px 0 45px rgba(74,33,28,.09);padding:25px 17px 18px}
+.brand{padding:13px 5px 25px;border-bottom-color:rgba(243,232,220,.16)}
+.wordmark{font-size:41px;color:var(--cream);letter-spacing:-5px;text-shadow:0 2px 7px rgba(0,0,0,.07)}
+.brand-ar{color:var(--cream);font-size:12px}.brand-sub{color:#CBAF9F;font-size:11px}
+.sidebar .menu-label{color:#D3B8A8;letter-spacing:.1px;padding-top:22px;padding-bottom:9px}
+.nav-group{gap:4px}
+.nav-btn{color:#E2CFC3;font-size:13px;border-radius:11px;padding:12px 13px}
+.nav-btn:hover{color:var(--cream);background:rgba(243,232,220,.12)}
+.nav-btn.active{color:var(--brown);background:var(--cream);box-shadow:0 4px 12px rgba(25,7,3,.15)}
+.nav-btn .nav-end{color:#C7A99A}.nav-btn.active .nav-end{color:var(--brown-light)}
+.sidebar-bottom{border-color:rgba(243,232,220,.17);padding-top:15px}
+.owner-card{background:rgba(243,232,220,.095);border-color:rgba(243,232,220,.2)}
+.avatar{background:var(--cream);color:var(--brown)}
+.owner-info strong{color:var(--cream)}.owner-info small{color:#E1CABE}
+.logout-btn{color:#E0C7B7}.logout-btn:hover{color:var(--cream)}
+.main{margin-right:268px}
+.topbar{background:rgba(247,238,229,.95);border-color:#E7D5C7;min-height:69px;padding:16px 34px}
+.crumbs{color:#987F74}.crumbs b{color:var(--brown);font-weight:900}
+.small-pill{background:#F3E7DC;border-color:#E2CCBD;font-size:11px;padding:8px 10px}
+.content{max-width:1620px;padding-top:31px}
+.card{border-color:#E4D2C5;background:var(--card);box-shadow:var(--shadow)}
+.page-eyebrow{color:#7F5A4C;letter-spacing:.2px}
+.page-title{font-size:clamp(25px,2.5vw,37px);letter-spacing:-.7px;margin:5px 0 7px}
+.page-description{color:#80675C;line-height:1.85;font-size:13px}
+.page-header{gap:18px}
+.btn{background:#F1E3D6;border-color:#DCC7B7;color:var(--brown);font-weight:800}
+.btn:hover{border-color:#AB8779}
+.btn-primary{background:var(--brown);border-color:var(--brown);color:var(--cream)}
+.btn-danger{background:#F0DAD5;color:#833B38;border-color:#DBB9B3}
+.btn-tonal{background:#EAD8C8}
+.p-actions{row-gap:8px}
+
+/* Executive overview */
+.workspace-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 225px;gap:28px;align-items:center;min-height:247px;background:linear-gradient(124deg,#4A211C 0%,#603A30 100%);border-color:#4A211C;color:var(--cream);padding:35px 39px;overflow:hidden}
+.workspace-hero:before{content:'';position:absolute;width:380px;height:380px;border:1px solid rgba(243,232,220,.13);border-radius:50%;left:-190px;top:-140px;box-shadow:0 0 0 54px rgba(243,232,220,.035),0 0 0 120px rgba(243,232,220,.025)}
+.workspace-hero-copy,.workspace-hero-aside{position:relative;z-index:1}
+.workspace-eyebrow{color:#E5D0C0;font-weight:900;font-size:11px;display:flex;align-items:center;gap:7px}
+.workspace-hero h1{font-size:clamp(28px,2.7vw,43px);line-height:1.3;letter-spacing:-.7px;max-width:740px;margin:12px 0 11px}
+.workspace-hero p{color:#E2CCC1;font-size:13px;line-height:1.9;max-width:630px;margin:0}
+.workspace-hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:21px}
+.workspace-main-cta{background:var(--cream);border-color:var(--cream);color:var(--brown)}
+.workspace-outline-cta{background:transparent;border:1px solid rgba(243,232,220,.45);color:var(--cream)}
+.workspace-outline-cta:hover{background:rgba(243,232,220,.1)}
+.workspace-hero-aside{border:1px solid rgba(243,232,220,.23);background:rgba(243,232,220,.08);border-radius:15px;padding:18px 19px;display:grid;gap:6px}
+.workspace-progress-icon{width:38px;height:38px;display:grid;place-items:center;background:rgba(243,232,220,.15);border-radius:12px;margin-bottom:4px}
+.workspace-hero-aside strong{font-size:30px;line-height:1.2;direction:ltr;text-align:right;color:var(--cream)}
+.workspace-hero-aside span{font-size:11px;color:#E4CEC2}.workspace-hero-aside small{font-size:10px;color:#D7BDAD}
+.workspace-progress{height:7px;border-radius:9px;background:rgba(243,232,220,.24);margin:9px 0 4px;overflow:hidden}
+.workspace-progress i{display:block;height:100%;background:#EAD5C4;border-radius:9px;transition:width .2s ease}
+.workspace-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:16px 0}
+.workspace-kpi{text-align:right;cursor:pointer;padding:20px 21px;display:flex;flex-direction:column;gap:6px;min-height:143px;transition:border-color .16s,transform .16s}
+.workspace-kpi:hover{transform:translateY(-2px);border-color:#A98B7F}
+.workspace-kpi-head{display:flex;justify-content:space-between;gap:10px;align-items:center;color:#6B4C42;font-size:12px;font-weight:900}
+.workspace-kpi-head .ic{color:#927568}.workspace-kpi strong{font-size:32px;line-height:1.3;color:var(--brown)}.workspace-kpi small{font-size:11px;line-height:1.7;color:var(--muted)}
+.workspace-actions-strip{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:17px 22px;background:#EBD9CA;border:1px solid #DBC3B3;border-radius:16px;margin:17px 0 24px}
+.workspace-actions-strip>div{display:flex;flex-direction:column;gap:5px}.workspace-actions-strip b{font-size:14px}.workspace-actions-strip span{font-size:12px;color:#765A4D}
+.baseline-overview{display:flex;justify-content:space-between;gap:20px;align-items:center;margin:23px 0;padding:22px 26px}
+.baseline-overview h2{font-size:18px;margin:9px 0 6px}.baseline-overview p{margin:0;font-size:12px;color:var(--muted);line-height:1.8}
+.baseline-overview-right{display:flex;align-items:center;gap:12px;flex-shrink:0}.baseline-overview-right strong{font-size:24px}.baseline-overview-right strong small{font-size:13px;color:var(--muted)}.baseline-overview-right span{font-size:11px;color:var(--muted)}
+
+/* Idea approval workbench */
+.ideas-workflow-banner{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:20px 23px;margin:20px 0 15px;background:#EBD9CA;border:1px solid #DAC0AF;border-radius:17px}
+.ideas-workflow-banner>div{display:grid;gap:6px}.ideas-workflow-banner span{font-size:11px;color:#77584C;font-weight:800}.ideas-workflow-banner strong{font-size:14px;line-height:1.8;color:var(--brown)}.ideas-workflow-banner i{font-style:normal;opacity:.55;margin-inline:4px}
+.ideas-review-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0 22px}
+.ideas-review-tile{border:1px solid #E2CCBC;border-radius:13px;text-align:right;background:var(--card);color:var(--brown);padding:14px 16px;min-height:95px;display:flex;flex-direction:column;justify-content:space-between;gap:8px;transition:.15s}
+.ideas-review-tile span{font-size:12px;font-weight:800}.ideas-review-tile strong{font-size:25px;line-height:1.1}.ideas-review-tile:hover{background:#EEDFD2}.ideas-review-tile.is-selected{border-color:var(--brown);background:#E9D4C4;box-shadow:inset 0 0 0 1px var(--brown)}
+.ideas-filters{margin-bottom:21px}.ideas-v15-grid{gap:14px}
+.idea-review-card{border-top:4px solid #9D7C6C;min-height:310px;display:flex;flex-direction:column;padding:20px}
+.idea-review-card h2{font-size:16px;line-height:1.6;margin:13px 0 8px}.idea-review-card>p{font-size:12px;line-height:1.9;color:var(--muted);min-height:51px;margin:0 0 14px}
+.idea-review-meta{display:grid;gap:8px;margin-top:auto;padding:13px 0;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);color:#80655B;font-size:11px}
+.idea-review-meta>span{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.idea-review-meta strong{color:var(--brown);font-size:12px}
+.idea-review-meta .plan-pill{font-size:10px}.idea-review-card .p-idea-footer{padding:14px 0 0;gap:10px;align-items:flex-start;flex-direction:column}
+.idea-review-card .p-idea-footer .p-actions{width:100%}.idea-review-card .p-idea-footer .btn{flex:1}
+.idea-linked-indicator{color:#765B50;font-size:11px;font-weight:800;line-height:1.5}
+.ideas-no-results{grid-column:1/-1;text-align:center;padding:32px}
+.review-workflow-steps,.bridge-workflow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+.review-workflow-steps span,.bridge-workflow span{padding:13px 15px;text-align:center;border:1px solid #DBC5B6;border-radius:12px;background:#F0E3D7;color:#8A7064;font-size:12px;font-weight:800}
+.review-workflow-steps .active,.bridge-workflow .is-done{background:#E2CBBB;color:#4A211C;border-color:#A88B7C}
+.review-workflow-steps .done{background:#4A211C;color:#F3E8DC;border-color:#4A211C}
+.idea-detail-v15{grid-template-columns:minmax(0,1.3fr) minmax(320px,.8fr);align-items:start}
+.idea-detail-v15 .p-detail-side{display:grid;gap:14px}.idea-approval-panel{border-top:4px solid var(--brown)}
+.review-panel-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.review-panel-heading h2{font-size:18px;margin:8px 0 0}
+.review-stamp{font-size:11px;color:var(--muted);padding:9px 0;border-bottom:1px solid var(--line-soft);margin-bottom:12px}
+.review-decision-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:5px}.review-decision-actions .btn{white-space:normal;min-height:45px}
+.review-next-step{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;background:#EAD9CA;border-radius:11px;padding:14px;margin-top:15px}
+.review-next-step>div{display:grid;gap:5px}.review-next-step strong{font-size:13px}.review-next-step small{font-size:11px;color:#76594E}
+.bridge-v15-columns{grid-template-columns:minmax(0,1.07fr) minmax(350px,.93fr);align-items:start}
+.bridge-v15-columns>section{min-width:0}.bridge-v15-columns h2{font-size:19px;margin:10px 0 15px}
+.bridge-idea-snapshot{background:#F0E1D5;border:1px solid #E4CDBB;padding:12px 13px;border-radius:11px;display:flex;gap:9px;flex-wrap:wrap;margin-top:14px;font-size:11px;color:var(--brown)}
+.bridge-idea-snapshot span{padding-inline:5px}.bridge-stock-summary{background:#EAD9CA;border-radius:10px;padding:12px}
+.bridge-car-option{background:#F6EBE1}.bridge-car-option:has(input:checked){background:#E8D3C2;border-color:#A88879}
+.bridge-submit{width:100%;min-height:47px;font-size:13px}.bridge-v15-columns .notice{line-height:1.8}
+
+/* Monthly planning interface refinements */
+.calendar-workspace{box-shadow:0 10px 28px rgba(74,33,28,.06)}
+.calendar-toolbar{background:linear-gradient(135deg,#F3E7DD,#EBD9CC)}
+.calendar-summary>div{background:#FAF3EA;border-color:#E2CEBF}.calendar-summary>div:nth-child(1){border-top:3px solid #4A211C}
+.calendar-summary strong{color:var(--brown)}
+.calendar-filters{background:#F7ECE1}
+.calendar-filters select,.calendar-filters input{background:#F1E3D6}
+.calendar-cell{background:#F8EFE6;border-color:#E5D6C9}.calendar-cell:hover{background:#EEDCCF}
+.calendar-cell-active{background:#E8D3C4}
+.calendar-cell-filled{border-color:#D4BDAE}.calendar-cell-chip{background:#E9D6C8}
+.calendar-side{background:#F3E7DA}.calendar-entry{background:#FAF0E6}
+.calendar-agenda{box-shadow:0 7px 23px rgba(74,33,28,.045)}
+.calendar-agenda-row:hover{background:#F3E8DC}
+.idea-import-panel{background:#F8EFE7}.plan-drop{background:#F3E7DC}
+
+@media(max-width:1200px){
+ .workspace-hero{grid-template-columns:minmax(0,1fr) 200px}.workspace-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .ideas-review-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .idea-detail-v15,.bridge-v15-columns{grid-template-columns:1fr}
+}
+@media(max-width:700px){
+ .sidebar{width:min(290px,84vw)}.main{margin-right:0}
+ .workspace-hero{grid-template-columns:1fr;padding:25px 21px;gap:18px}.workspace-hero-aside{width:100%}
+ .workspace-hero h1{font-size:27px}.workspace-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .workspace-kpi{padding:14px;min-height:128px}.workspace-kpi strong{font-size:27px}
+ .workspace-actions-strip,.baseline-overview,.ideas-workflow-banner{flex-direction:column;align-items:stretch;padding:17px}
+ .baseline-overview-right{flex-wrap:wrap}.ideas-review-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .review-workflow-steps,.bridge-workflow{gap:5px}.review-workflow-steps span,.bridge-workflow span{font-size:10px;padding:10px 6px}
+ .review-decision-actions{grid-template-columns:1fr}.bridge-idea-snapshot{flex-direction:column}
+ .workspace-hero-actions{align-items:stretch}.workspace-hero-actions .btn{flex:1;white-space:normal}
+}
+@media print{.workspace-actions-strip,.review-decision-actions,.ideas-review-kpis,.bridge-workflow,.review-workflow-steps{display:none!important}}
+.review-history{border-top:1px solid var(--line-soft);margin-top:15px;padding-top:12px}
+.review-history h3{margin:2px 0 12px;font-size:13px}
+.review-history-item{border-right:2px solid #C9A794;margin-bottom:10px;padding:8px 12px;background:#F1E5DB;border-radius:8px;display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.review-history-item small{font-size:10px;color:var(--muted)}
+.review-history-item p{width:100%;margin:1px 0;color:#67483E;white-space:pre-wrap;font-size:11px;line-height:1.8}
 </style>
 </head>
 <body>
@@ -416,7 +784,9 @@ td strong { color: var(--brown); }
   <aside class="sidebar " aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام"><button class="nav-btn active" data-nav="overview" aria-current="page"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-grid"></use></svg> <span>نظرة عامة</span></button><button class="nav-btn " data-nav="baseline" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-database"></use></svg> <span>المرجع الأساسي</span></button><button class="nav-btn " data-nav="platforms" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-chart"></use></svg> <span>تحليل المنصات</span></button><button class="nav-btn " data-nav="comparison" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-compare"></use></svg> <span>مقارنة الأداء</span><span class="nav-end">قريبًا</span></button></nav>
+    <nav class="nav-group" aria-label="الأقسام"><button class="nav-btn active" data-nav="overview" aria-current="page"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-grid"></use></svg> <span>لوحة القيادة</span></button><button class="nav-btn " data-nav="ideas" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-file"></use></svg> <span>مراجعة الأفكار</span></button><button class="nav-btn " data-nav="plan" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-calendar"></use></svg> <span>تقويم النشر والتنشيط</span></button><button class="nav-btn " data-nav="tasks" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-clock"></use></svg> <span>التسليمات والإنتاج</span></button><button class="nav-btn " data-nav="bridge" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-compare"></use></svg> <span>إنشاء التكليفات</span></button></nav>
+    <div class="menu-label">البيانات والتحليل</div>
+    <nav class="nav-group" aria-label="بيانات الأداء"><button class="nav-btn " data-nav="baseline" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-database"></use></svg> <span>المرجع الأساسي</span></button><button class="nav-btn " data-nav="platforms" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-chart"></use></svg> <span>تحليل المنصات</span></button><button class="nav-btn " data-nav="comparison" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-compare"></use></svg> <span>مقارنة الأداء</span><span class="nav-end">قريبًا</span></button></nav>
     <div class="menu-label">النظام</div>
     <nav class="nav-group"><button class="nav-btn " data-nav="settings" ><svg class="ic ic-sm" aria-hidden="true"><use href="#i-settings"></use></svg> <span>الإعدادات والأمان</span></button></nav>
     <div class="sidebar-bottom">
@@ -424,12 +794,12 @@ td strong { color: var(--brown); }
       <span class="minor" style="display:block;text-align:center;margin-top:12px">عرض تجريبي محلي فقط</span>
     </div>
   </aside><div class="main"><header class="topbar">
-    <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة"><svg class="ic " aria-hidden="true"><use href="#i-menu"></use></svg></button><div class="crumbs"><span>MZJ</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg><span>استراتيجية المحتوى</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg><b>نظرة عامة</b></div></div>
-    <div class="top-actions"><span class="small-pill"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-calendar"></use></svg> <span>7 نوفمبر 2026</span></span><span class="small-pill"><span class="dot "></span> النسخة التأسيسية 1.1</span></div>
-  </header><div class="content"><section class="hero card">
-    <div class="hero-info"><div class="hero-eyebrow"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-flag"></use></svg> MZJ | ما قبل الاستراتيجية</div><h1>بداية واضحة. قرارات أدق.</h1><p>هذا هو مرجع الحسابات الذي سنقيس عليه لاحقًا. نحفظ النتائج كما رُصدت، ونفصل اختلاف فترات القياس قبل أن نبدأ المحتوى الجديد.</p><div style="margin-top:19px"><span class="note-tag pending"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-eye"></use></svg> معاينة محلية — غير محفوظ</span></div></div>
-    <div class="hero-count"><div class="top"><span>جاهزية البيانات المرجعية</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-database"></use></svg></div><div><strong>4</strong><small> / 4 منصات</small></div><div class="hero-track"><div style="width:100%"></div></div><div class="hero-foot">اكتملت مرجعية الحسابات الأربع</div></div>
-  </section>
+    <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة"><svg class="ic " aria-hidden="true"><use href="#i-menu"></use></svg></button><div class="crumbs"><span>MZJ</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg><span>استراتيجية المحتوى</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg><b>لوحة القيادة</b></div></div>
+    <div class="top-actions"><span class="small-pill"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-calendar"></use></svg> <span>11 نوفمبر 2026</span></span><span class="small-pill"><span class="dot "></span> مركز إدارة المحتوى</span></div>
+  </header><div class="content"><section class="workspace-hero card"><div class="workspace-hero-copy"><div class="workspace-eyebrow"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-shield"></use></svg> مركز التحكم في المحتوى | MZJ</div><h1>من فكرة قوية إلى تاسك جاهز للتنفيذ.</h1><p>راجع الأفكار، اعتمد المحتوى المناسب، اختر سيارات الاستوك والمنفذ وموعد التسليم، ثم أنشئ التكليف داخل سيستم التسويق.</p><div class="workspace-hero-actions"><button class="btn workspace-main-cta" data-nav="ideas">فتح مراجعة الأفكار <svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button><button class="btn workspace-outline-cta" data-nav="plan">تقويم النشر والتنشيط</button></div></div><div class="workspace-hero-aside"><div class="workspace-progress-icon"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-check"></use></svg></div><strong>0 / 0</strong><span>فكرة معتمدة من بنك الأفكار</span><div class="workspace-progress"><i style="width:0%"></i></div><small>لا يتم إنشاء تكليف لفكرة غير معتمدة</small></div></section>
+  <section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى"><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>في انتظار المراجعة</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-clock"></use></svg></div><strong>0</strong><small>افتح البريف وحدد قرار الفكرة</small></button><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>الأفكار المعتمدة</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-check"></use></svg></div><strong>0</strong><small>جاهزة لاختيار السيارات والتكليف</small></button><button class="card workspace-kpi" data-nav="bridge"><div class="workspace-kpi-head"><span>مرتبطة بتاسك</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-compare"></use></svg></div><strong>0</strong><small>تكليفات مسجلة في سيستم التسويق</small></button><button class="card workspace-kpi" data-nav="plan"><div class="workspace-kpi-head"><span>مواعيد النشر</span><svg class="ic ic-sm" aria-hidden="true"><use href="#i-calendar"></use></svg></div><strong>0</strong><small>افتح تقويم النشر الشهري</small></button></section>
+  <div class="workspace-actions-strip"><div><b>خط سير المحتوى</b><span>استيراد JSON ← مراجعة الفكرة ← اعتمادها ← السيارات والمنفذ والتسليم ← التكليف</span></div><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
+  <section class="card panel baseline-overview"><div><div class="page-eyebrow"><svg class="ic ic-sm" aria-hidden="true"><use href="#i-database"></use></svg> البيانات المرجعية محفوظة</div><h2>مرجع أداء المنصات قبل الاستراتيجية</h2><p>نتابع نتائج المنصات الأربع ونقارنها بعد بدء التنفيذ، بدون تغيير الأرقام التاريخية.</p></div><div class="baseline-overview-right"><strong>4 <small>/ 4</small></strong><span>منصات جاهزة للمقارنة</span><button class="btn" data-nav="baseline">عرض المرجع</button></div></section>
   <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2><p>عدد المتابعين في مرجع كل منصة — بدون جمع جماهير متداخلة</p></div><button class="btn btn-text" data-nav="platforms">التفاصيل <svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button></div>
   <div class="platform-grid"><button class="platform-tile " data-action="platform" data-platform="facebook" aria-label="فتح تفاصيل Facebook">
     <div class="platform-head"><div class="platform-identity"><span class="platform-logo facebook " aria-hidden="true"><span aria-hidden="true">f</span></span><div><div class="platform-name">Facebook</div><div class="platform-caption">متابعو الحساب</div></div></div><svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></div>
@@ -465,15 +835,15 @@ td strong { color: var(--brown); }
     <div class="country-row"><div class="country-label">Facebook</div><div class="country-track"><div class="country-progress" style="width:66.5%"></div></div><strong class="country-value">66.5%</strong></div><div class="country-row"><div class="country-label">Instagram</div><div class="country-track"><div class="country-progress" style="width:26.6%"></div></div><strong class="country-value">26.6%</strong></div><div class="country-row"><div class="country-label">TikTok</div><div class="country-track"><div class="country-progress" style="width:63.8%"></div></div><strong class="country-value">63.8%</strong></div>
     <p class="panel-desc" style="margin-top:15px">Snapchat عرض تغير المتابعين +0.0% فقط، ولم يوفر عدد الصافي؛ لذلك لم نضفه إلى مخطط صافي المتابعين. باقي النوافذ لا تعني فترة زمنية واحدة.</p>
   </section></div>
-  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2><p>ملاحظات أولية تساعدنا عند تحليل إجابات الإدارة، وليست استنتاجات بيعية نهائية</p></div></div>
+  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2><p>ملاحظات مرجعية تُقارن بالمحتوى المنشور لاحقًا، وليست أرقام مبيعات</p></div></div>
   <div class="insights">
     <article class="card insight"><div class="insight-number">INSIGHT / 01</div><h3>فيسبوك: الوصول يعتمد أساسًا على التمويل</h3><p>من إجمالي <bdi dir="ltr">151,928</bdi> مشاهدة، هناك <bdi dir="ltr">148,919</bdi> مشاهدة ممولة مقابل <bdi dir="ltr">3,009</bdi> عضوية. سنحتاج لاحقًا لقياس قدرة المحتوى الجديد على رفع العضوي.</p></article>
     <article class="card insight"><div class="insight-number">INSIGHT / 02</div><h3>إنستغرام: الحفاظ على الجمهور أولوية</h3><p>سُجّل صافي <bdi dir="ltr">−84</bdi> متابعًا خلال لقطة المرجع، مع <bdi dir="ltr">115</bdi> إلغاء متابعة مقابل <bdi dir="ltr">31</bdi> متابعة جديدة.</p></article>
     <article class="card insight"><div class="insight-number">INSIGHT / 03</div><h3>تيك توك: بداية الفيديو تستحق الاختبار</h3><p>الفيديو المرجعي عن توسان بلغ متوسط مشاهدة <bdi dir="ltr">1.61</bdi> ثانية ونسبة إكمال <bdi dir="ltr">0.1%</bdi>. هذه أرقام لفيديو واحد، وليست لجميع فيديوهات الحساب.</p></article>
     <article class="card insight"><div class="insight-number">INSIGHT / 04</div><h3>سناب شات: افصل العضوي عن المدفوع</h3><p>قصص الملف سجلت <bdi dir="ltr">48,861</bdi> مشاهدة، منها <bdi dir="ltr">48,772</bdi> مدفوعة. أما القصص العامة وSpotlight فلهما تقارير منفصلة.</p></article>
   </div>
-  <div class="future-strip"><div><h3>من المرجع إلى التحسن القابل للقياس</h3><p>بعد استلام وتحليل الـ45 إجابة، نستكمل السيستم ونضيف نتائج النشر الجديدة، وتبدأ مقارنة الأداء الفعلي دون التلاعب بالتاريخ.</p></div><button class="btn btn-primary" data-nav="comparison">كيف ستظهر المقارنة؟ <svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button></div>
-  <footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإصدار التأسيسي 1.1</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer></div></div></div></div>
+  <div class="future-strip"><div><h3>من المرجع إلى التحسن القابل للقياس</h3><p>بعد اعتماد المحتوى وبدء النشر، نضيف النتائج الفعلية لكل منصة ونقارنها بالمراجع الأربع دون تغيير أرقامها التاريخية.</p></div><button class="btn btn-primary" data-nav="comparison">كيف ستظهر المقارنة؟ <svg class="ic ic-sm" aria-hidden="true"><use href="#i-arrow"></use></svg></button></div>
+  <footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإنتاج والنشر 1.5</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer></div></div></div></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   
 </body>

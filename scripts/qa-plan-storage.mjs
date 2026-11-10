@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import {validISODate} from '../site/idea-import.js';
 const seed=JSON.parse(fs.readFileSync(new URL('../data/MZJ-Publishing-Plan-2026-11-20-IMPORT.json',import.meta.url),'utf8'));
 const entries=new Map();
 const key=r=>r.path;
@@ -26,9 +27,10 @@ const api={
     };
   }
 };
-globalThis.__MZJ_FAKE__={connectFirebase:async()=>({firestore:{},api:{dbSdk:api}})};
+globalThis.__MZJ_FAKE__={connectFirebase:async()=>({firestore:{},api:{dbSdk:api}}),validISODate};
 const src=fs.readFileSync(new URL('../site/plan-firebase.js',import.meta.url),'utf8')
-  .replace("import { connectFirebase } from './firebase.js';",'const {connectFirebase}=globalThis.__MZJ_FAKE__;');
+  .replace("import { connectFirebase } from './firebase.js';",'const {connectFirebase}=globalThis.__MZJ_FAKE__;')
+  .replace("import { validISODate } from './idea-import.js';",'const {validISODate}=globalThis.__MZJ_FAKE__;');
 const store=await import('data:text/javascript;base64,'+Buffer.from(src).toString('base64'));
 assert.equal(await store.loadPublishingPlan(),null);
 const plan=await store.createPublishingPlan(seed,'Wu4KHDIXQedFUMsSDt9yYLKSfhx1');

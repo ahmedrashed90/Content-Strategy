@@ -14,11 +14,14 @@ state.bridge.executors=[{user_id:'a',department_id:'b',full_name:'محمود',de
 state.bridge.taskTypes=[{id:'type1',name:'إنشاء محتوى'}];
 state.bridge.formats=[{id:'fmt1',name:'ريلز',platform_name:'إنستجرام',width:1080,height:1920,mediaKinds:['video']},{id:'fmt2',name:'فيديو',platform_name:'تيك توك',width:1080,height:1920,mediaKinds:['video']}];
 selectBridgeIdea(state,'V01');
+const blocked=bridgePage(state);
+if(!blocked.includes('هذه الفكرة غير معتمدة بعد')||!blocked.includes('فتح مراجعة الفكرة'))throw Error('Unreviewed idea must be gated before assignment');
+state.plan.assets.find(a=>a.code==='V01').reviewStatus='معتمد';
 const target=bridgePage(state);
-if(!target.includes('هيونداي')||!target.includes('إنشاء تاسك')||!target.includes('V01'))throw Error('Bridge rendering omitted required UI elements');
+if(!target.includes('هيونداي')||!target.includes('إنشاء تاسك')||!target.includes('V01')||!target.includes('name="dueOn"'))throw Error('Approved idea must render car selection, executor and mandatory delivery date');
 const template=fs.readFileSync(path.join(root,'site/index.html'),'utf8');const css=fs.readFileSync(path.join(root,'site/styles.css'),'utf8');
 const body=`<div class="shell"><div class="main" style="margin-right:0"><main class="content">${target}</main></div></div>`;
 const html=template.replace('<div id="app"></div>',`<div id="app">${body}</div>`).replace('<script type="module" src="./app.js"></script>','').replace('<link rel="stylesheet" href="./styles.css" />',`<style>${css}</style>`);
 fs.mkdirSync(path.join(root,'qa'),{recursive:true});
 fs.writeFileSync(path.join(root,'qa/bridge-preview.html'),html);
-console.log('PASS: Bridge UI uses exact five stock fields and renders image/video task form');
+console.log('PASS: Bridge requires idea review first, then shows five stock fields and executor/delivery task form');

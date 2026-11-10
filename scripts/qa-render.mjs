@@ -24,12 +24,12 @@ globalThis.window = {
 await import('../site/app.js');
 const baseline = target.innerHTML;
 const checks = [
-  [baseline.includes('بداية واضحة. قرارات أدق.'), 'Hero loaded'],
+  [baseline.includes('من فكرة قوية إلى تاسك جاهز للتنفيذ.'), 'Executive content workspace hero loaded'],
   [baseline.includes('151,928'), 'Facebook views correct'],
   [baseline.includes('22,884'), 'Instagram followers correct'],
   [baseline.includes('≈ 14,000'), 'Approx TikTok followers marked'],
   [baseline.includes('Snapchat'), 'Snapchat present'],
-  [baseline.includes('4</strong><small> / 4 منصات'), 'Four platforms ready'],
+  [baseline.includes('منصات جاهزة للمقارنة'), 'Four-platform baseline availability shown'],
   [baseline.includes('4,878'), 'Snapchat followers correct'],
   [baseline.includes('48,861'), 'Snapchat story views correct'],
   [baseline.includes('48,772'), 'Snapchat paid story views correct'],

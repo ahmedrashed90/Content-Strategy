@@ -1,8 +1,9 @@
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
-import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets } from './plan-firebase.js';
-import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,planPage,tasksPage,ideasPage,postDetailPage,assetDetailPage,getIdea,taskCodes,toBriefText,teamHandoffText,validatePlanSeed } from './planner.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, importPublishingIdeas, createPublishingPost } from './plan-firebase.js';
+import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
+import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
 
 const app = document.getElementById('app');
@@ -33,9 +34,22 @@ const state = {
   pendingPlan: null,
   planSaving: false,
   planFilter: '',
+  calendarMonth: '',
+  calendarSelectedDate: '',
+  calendarExecutor: 'all',
+  calendarPlatform: 'all',
+  calendarMedia: 'all',
+  calendarStatus: 'all',
+  scheduleIdeaCode: '',
+  scheduleDate: '',
+  ideaImportOpen: false,
+  pendingIdeaBatch: null,
+  ideaImportError: '',
+  importExecutor: '',
   taskPerson: 'الكل',
   taskWeek: 0,
   ideaKind: 'all',
+  ideaReviewFilter: 'all',
   ideaSearch: '',
   selectedPostId: null,
   selectedAssetCode: null,
@@ -183,7 +197,9 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','نظرة عامة','grid')}${navButton('plan','خطة النشر','calendar')}${navButton('tasks','تسليمات الفريق','clock')}${navButton('ideas','الأفكار والبريفات','file')}${navButton('bridge','ربط سيستم التسويق','compare')}${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
+    <div class="menu-label">البيانات والتحليل</div>
+    <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
     <nav class="nav-group">${navButton('settings','الإعدادات والأمان','settings')}</nav>
     <div class="sidebar-bottom">
@@ -194,10 +210,10 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'نظرة عامة',plan:'خطة النشر',tasks:'تسليمات الفريق',ideas:'الأفكار والبريفات',post:'تفاصيل النشر',asset:'البريف الإبداعي',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'ربط سيستم التسويق'})[state.view] || 'نظرة عامة';
+  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
-    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${dateText(state.baseline.registrationDate)}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> النسخة التشغيلية 1.3</span></div>
+    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
   </header>`;
 }
 
@@ -260,16 +276,15 @@ function insightCards() {
 
 function overviewPage() {
   const readyCount = PLATFORM_ORDER.filter(k => platformData(k).followers != null).length;
-  return `<section class="hero card">
-    <div class="hero-info"><div class="hero-eyebrow">${icon('flag','ic-sm')} MZJ | ما قبل الاستراتيجية</div><h1>بداية واضحة. قرارات أدق.</h1><p>هذا هو مرجع الحسابات الذي سنقيس عليه لاحقًا. نحفظ النتائج كما رُصدت، ونفصل اختلاف فترات القياس قبل أن نبدأ المحتوى الجديد.</p><div style="margin-top:19px">${statusTag()}</div></div>
-    <div class="hero-count"><div class="top"><span>جاهزية البيانات المرجعية</span>${icon('database','ic-sm')}</div><div><strong>${readyCount}</strong><small> / 4 منصات</small></div><div class="hero-track"><div style="width:${readyCount/4*100}%"></div></div><div class="hero-foot">${readyCount===4 ? 'اكتملت مرجعية الحسابات الأربع' : 'يلزم استكمال بيانات Snapchat في v2'}</div></div>
-  </section>
-  <section class="card panel" style="margin-top:20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:space-between">
-    <div><div class="page-eyebrow">${icon('calendar','ic-sm')} العمل التنفيذي الجديد</div><h2 class="panel-title" style="margin:7px 0 5px">خطة النشر والتسليم — 28 يومًا</h2>
-    <p class="page-description">16 فيديو، 32 صورة، تسليم الأحد والأربعاء. بداية التكليف 20 نوفمبر، والنشر بعد المراجعة والاعتماد.</p>
-    ${state.plan ? '<span class="note-tag positive">خطة النشر محفوظة في Firestore</span>' : '<span class="note-tag pending">تحتاج استيراد ملف خطة الشهر</span>'}</div>
-    <div class="p-actions"><button class="btn btn-primary" data-nav="plan">${state.plan?'فتح جدول النشر':'استيراد خطة النشر'}</button><button class="btn" data-nav="tasks">تكليفات الفريق</button></div>
-  </section>
+  const ideaList=state.plan?[...state.plan.assets.filter(a=>a.kind!=='carousel_slide'),...(state.plan.carousels||[])]:[];
+  const approvedCount=ideaList.filter(a=>ideaIsApproved(state.plan,a.code)).length;
+  const pendingCount=ideaList.filter(a=>!ideaIsApproved(state.plan,a.code)&&!['مطلوب تعديل','مرفوض'].includes(ideaAssets(state.plan,a.code)[0]?.reviewStatus)).length;
+  const linkedCount=ideaList.filter(a=>ideaIsLinked(state.plan,a.code)).length;
+  const postCount=state.plan?.posts.length||0;
+  return `<section class="workspace-hero card"><div class="workspace-hero-copy"><div class="workspace-eyebrow">${icon('shield','ic-sm')} مركز التحكم في المحتوى | MZJ</div><h1>من فكرة قوية إلى تاسك جاهز للتنفيذ.</h1><p>راجع الأفكار، اعتمد المحتوى المناسب، اختر سيارات الاستوك والمنفذ وموعد التسليم، ثم أنشئ التكليف داخل سيستم التسويق.</p><div class="workspace-hero-actions"><button class="btn workspace-main-cta" data-nav="ideas">فتح مراجعة الأفكار ${icon('arrow','ic-sm')}</button><button class="btn workspace-outline-cta" data-nav="plan">تقويم النشر والتنشيط</button></div></div><div class="workspace-hero-aside"><div class="workspace-progress-icon">${icon('check','ic-lg')}</div><strong>${approvedCount} / ${ideaList.length||0}</strong><span>فكرة معتمدة من بنك الأفكار</span><div class="workspace-progress"><i style="width:${ideaList.length?Math.round(approvedCount/ideaList.length*100):0}%"></i></div><small>لا يتم إنشاء تكليف لفكرة غير معتمدة</small></div></section>
+  <section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى"><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>في انتظار المراجعة</span>${icon('clock','ic-sm')}</div><strong>${pendingCount}</strong><small>افتح البريف وحدد قرار الفكرة</small></button><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>الأفكار المعتمدة</span>${icon('check','ic-sm')}</div><strong>${approvedCount}</strong><small>جاهزة لاختيار السيارات والتكليف</small></button><button class="card workspace-kpi" data-nav="bridge"><div class="workspace-kpi-head"><span>مرتبطة بتاسك</span>${icon('compare','ic-sm')}</div><strong>${linkedCount}</strong><small>تكليفات مسجلة في سيستم التسويق</small></button><button class="card workspace-kpi" data-nav="plan"><div class="workspace-kpi-head"><span>مواعيد النشر</span>${icon('calendar','ic-sm')}</div><strong>${postCount}</strong><small>افتح تقويم النشر الشهري</small></button></section>
+  <div class="workspace-actions-strip"><div><b>خط سير المحتوى</b><span>استيراد JSON ← مراجعة الفكرة ← اعتمادها ← السيارات والمنفذ والتسليم ← التكليف</span></div><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
+  <section class="card panel baseline-overview"><div><div class="page-eyebrow">${icon('database','ic-sm')} البيانات المرجعية محفوظة</div><h2>مرجع أداء المنصات قبل الاستراتيجية</h2><p>نتابع نتائج المنصات الأربع ونقارنها بعد بدء التنفيذ، بدون تغيير الأرقام التاريخية.</p></div><div class="baseline-overview-right"><strong>${readyCount} <small>/ 4</small></strong><span>منصات جاهزة للمقارنة</span><button class="btn" data-nav="baseline">عرض المرجع</button></div></section>
   <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2><p>عدد المتابعين في مرجع كل منصة — بدون جمع جماهير متداخلة</p></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
   <div class="section-heading"><div><h2>قراءة الأداء قبل الانطلاق</h2><p>بيانات حقيقية من اللقطات السابقة، لا مخطط زمني افتراضي</p></div><span class="note-tag">${icon('clock','ic-sm')} مرجع تاريخي</span></div>
@@ -523,7 +538,7 @@ function modalView() {
 }
 
 function renderFooter() {
-  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · خطة الإنتاج والنشر 1.3</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
+  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإنتاج والنشر 1.5</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
 }
 
 function render() {
@@ -536,8 +551,8 @@ function render() {
     return;
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
-  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','post','asset','bridge'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state) };
+  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','schedule','post','asset','bridge'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -732,19 +747,47 @@ async function saveAssetEditor(form){
   const executor=form.elements.namedItem('executor')?.value;
   const status=form.elements.namedItem('status')?.value;
   const comments=form.elements.namedItem('comments')?.value||'';
-  const dueDate=form.elements.namedItem('dueDate')?.value;
-  if(!codes.length||!PEOPLE.includes(executor)||!TASK_STATUSES.includes(status)||(!code.startsWith('C')&&!/^\d{4}-\d{2}-\d{2}$/.test(dueDate))){toast('تحقق من بيانات التكليف.');return;}
-  const changes={executor,status,comments};
-  if(!code.startsWith('C'))changes.dueDate=dueDate;
+  const dueDate=form.elements.namedItem('dueDate')?.value||'';
+  if(!codes.length||ideaAssets(state.plan,code).some(a=>a.marketingTaskId||a.integrationRequestKey)||
+     (executor!==''&&!PEOPLE.includes(executor))||!TASK_STATUSES.includes(status)||
+     (dueDate&&!validISODate(dueDate))){toast('تحقق من معلومات التخطيط؛ لا يمكن تعديل تاسك تم ربطه.');return;}
+  const changes={executor,status,comments,dueDate};
   state.planSaving=true;
   const submit=form.querySelector('button[type=submit]');if(submit){submit.disabled=true;submit.textContent='جارٍ الحفظ…';}
   try{
     if(codes.length>1)await updateManyAssets(codes,changes);
     else await updatePublishingAsset(code,changes);
     state.plan.assets=state.plan.assets.map(a=>codes.includes(a.code)?{...a,...changes}:a);
-    toast('تم حفظ تكليف المنفذ والحالة في Firestore.');render();
-  }catch(err){toast('فشل حفظ التكليف. راجع صلاحيات Firebase والاتصال.');console.warn(err);}
-  finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ التكليف';}}
+    toast('تم حفظ معلومات تخطيط الإنتاج داخل الاستراتيجية.');render();
+  }catch(err){toast('فشل حفظ معلومات التخطيط. راجع صلاحيات Firebase والاتصال.');console.warn(err);}
+  finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ التخطيط داخل الاستراتيجية';}}
+}
+async function saveIdeaReview(form,decision){
+  if(!state.plan||state.planSaving||isLocalPreview)return;
+  const code=form.elements.namedItem('ideaCode')?.value||'';
+  const assets=ideaAssets(state.plan,code);
+  const notes=String(form.elements.namedItem('reviewNotes')?.value||'').trim().slice(0,3000);
+  if(!assets.length||!REVIEW_STATUSES.includes(decision)||decision==='بانتظار المراجعة'){
+    toast('قرار المراجعة غير صالح.');return;
+  }
+  if(assets.some(a=>a.marketingTaskId||a.integrationRequestKey)){
+    toast('لا يمكن تغيير اعتماد فكرة مرتبطة بطلب تاسك.');return;
+  }
+  if((decision==='مطلوب تعديل'||decision==='مرفوض')&&!notes){
+    toast('اكتب ملاحظات المراجعة قبل طلب التعديل أو الرفض.');return;
+  }
+  const timestamp=new Date().toISOString();
+  const history=[...(Array.isArray(assets[0].reviewHistory)?assets[0].reviewHistory:[]).slice(-24),
+    {status:decision,notes,at:timestamp,reviewedByUid:state.user.uid}];
+  const change={reviewStatus:decision,reviewNotes:notes,reviewedAt:timestamp,reviewedByUid:state.user.uid,reviewHistory:history};
+  if(decision!=='معتمد')Object.assign(change,{creativeApprovedAt:null,approvedCarMode:'',approvedVehicles:[]});
+  state.planSaving=true;
+  try{
+    await updateManyAssets(assets.map(a=>a.code),change);
+    state.plan.assets=state.plan.assets.map(a=>assets.some(b=>b.code===a.code)?{...a,...change}:a);
+    toast(decision==='معتمد'?'تم اعتماد الفكرة. يمكنك الآن اختيار السيارات وإنشاء التكليف.':`تم تسجيل قرار المراجعة: ${decision}`);
+  }catch(err){console.warn('Review save failed:',err?.code||err?.message);toast('تعذر حفظ المراجعة. تحقق من قواعد Firestore والاتصال.');}
+  finally{state.planSaving=false;render();}
 }
 async function savePostEditor(form){
   if(!state.plan||state.planSaving||isLocalPreview)return;
@@ -754,7 +797,8 @@ async function savePostEditor(form){
   const executor=val('executor');const status=val('status');
   const date=val('publicationDate');const time=val('time');
   const platforms=Object.keys(PLATFORMS).filter(k=>form.elements.namedItem('platform_'+k)?.checked);
-  if(!idea||!PEOPLE.includes(executor)||!POST_STATUSES.includes(status)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time)||!platforms.length){toast('اختر فكرة ومنصة وتاريخ نشر صالحين.');return;}
+  if(!idea||(executor&&!PEOPLE.includes(executor))||!POST_STATUSES.includes(status)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time)||!platforms.length){toast('اختر فكرة ومنصة وتاريخ نشر صالحين.');return;}
+  if(!ideaIsApproved(state.plan,ideaCode)&&(!post||post.ideaCode!==ideaCode||['جاهز للنشر','منشور'].includes(status))){toast('الفكرة لم تُعتمد بعد. راجعها قبل تجهيز النشر أو تغيير الفكرة.');return;}
   const captionsByPlatform={},hashtagsByPlatform={};
   for(const key of Object.keys(PLATFORMS)){
     captionsByPlatform[key]=val('caption_'+key);
@@ -767,7 +811,7 @@ async function savePostEditor(form){
     actualPublicationDate:post.actualPublicationDate||(status==='منشور'?new Date().toISOString().slice(0,10):null),
     story:{...post.story,frame1:val('storyFrame1'),frame2:val('storyFrame2')}
   };
-  const codes=taskCodes(state.plan,ideaCode);
+  const codes=ideaIsLinked(state.plan,ideaCode)?[]:taskCodes(state.plan,ideaCode);
   state.planSaving=true;
   const submit=form.querySelector('button[type=submit]');if(submit){submit.disabled=true;submit.textContent='جارٍ الحفظ…';}
   try{
@@ -779,13 +823,57 @@ async function savePostEditor(form){
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ تعديلات النشر والتكليف';}}
 }
 
+// Reusable idea import: validate, preview, skip duplicates, then add only new assets.
+async function saveIdeaBatch(){
+  if(!state.pendingIdeaBatch||state.planSaving||!state.user||isLocalPreview)return;
+  const pending=state.pendingIdeaBatch;
+  const entries=pending.items.map(idea=>({...idea,reviewStatus:'بانتظار المراجعة',reviewNotes:'',reviewedAt:null,reviewedByUid:'',reviewHistory:[]}));
+  if(!entries.length){toast('كل الأفكار مكررة؛ لا يوجد شيء جديد للحفظ.');return;}
+  state.planSaving=true;state.ideaImportError='';render();
+  try {
+    const loaded=await importPublishingIdeas(entries);
+    state.plan=loaded;state.pendingIdeaBatch=null;state.ideaImportOpen=false;
+    state.ideaKind='all';state.ideaReviewFilter='بانتظار المراجعة';state.ideaSearch='';
+    toast(`تم حفظ ${entries.length} فكرة جديدة، وتخطي ${pending.duplicates.length} مكررة. لم تتغير المنشورات القديمة.`);
+  }catch(error){
+    console.warn('Idea batch import failed:',error?.code||error?.message);
+    state.ideaImportError=error?.message==='idea-already-exists'?'ظهر كود مكرر أثناء الحفظ. حمّل الصفحة واستورد الدفعة مرة أخرى.':'تعذر حفظ الأفكار الجديدة؛ لم تتغير الأفكار السابقة. تحقق من قواعد Firestore والاتصال.';
+    toast('فشل حفظ دفعة الأفكار الجديدة.');
+  }finally{state.planSaving=false;render();}
+}
+async function saveSchedule(form){
+  if(!state.plan||state.planSaving||isLocalPreview)return;
+  const value=name=>form.elements.namedItem(name)?.value||'';
+  const ideaCode=value('ideaCode'),idea=getIdea(state.plan,ideaCode);
+  const date=value('publicationDate'),time=value('time');
+  const platforms=Object.keys(PLATFORMS).filter(key=>form.elements.namedItem('platform_'+key)?.checked);
+  if(!idea||!ideaIsApproved(state.plan,ideaCode)|| !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T12:00:00Z`)) || !/^\d{2}:\d{2}$/.test(time) || !platforms.length){
+    toast('اعتمد الفكرة أولًا، ثم اختر تاريخًا ووقتًا ومنصة للنشر.');return;
+  }
+  const id=`P${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+  const post={id,publicationDate:date,time,ideaCode,ideaTitle:idea.title,platforms,
+    captionsByPlatform:{...(idea.captionsByPlatform||{})},hashtagsByPlatform:{...(idea.hashtagsByPlatform||{})},
+    status:'مخطط',publishedUrl:'',notes:value('notes').slice(0,2000),actualPublicationDate:null,
+    story:{code:'',frame1:'',frame2:''}
+  };
+  state.planSaving=true;
+  try {
+    await createPublishingPost(post);
+    state.plan.posts.push(post);state.calendarMonth=date.slice(0,7);state.calendarSelectedDate=date;
+    state.plan.posts.sort((a,b)=>a.publicationDate.localeCompare(b.publicationDate)||a.id.localeCompare(b.id));
+    state.view='plan';state.scheduleIdeaCode='';state.scheduleDate='';
+    toast('تمت إضافة موعد النشر إلى التقويم بدون تنفيذ أي نشر تلقائي.');
+  }catch(error){console.warn('Schedule creation failed:',error?.code||error?.message);toast('تعذر حفظ موعد النشر؛ لم تتغير المواعيد القديمة.');}
+  finally{state.planSaving=false;render();}
+}
+
 async function submitBridgeApproval(form) {
   if (state.bridge.busy || isLocalPreview) return;
   const selected = [...state.bridge.chosenStocks];
   state.bridge.busy=true;
   try {
     await approveBridgeIdea(state, form.elements.namedItem('carMode').value, selected);
-    toast('\u062a\u0645 \u0627\u0639\u062a\u0645\u0627\u062f \u0627\u0644\u0641\u0643\u0631\u0629 \u0648\u0627\u0644\u0633\u064a\u0627\u0631\u0627\u062a.');
+    toast('تم حفظ اختيار السيارات للفكرة المعتمدة. يمكنك تجهيز التكليف الآن.');
     render();
   } catch(error) { toast(error?.message || 'Approval failed'); }
   finally { state.bridge.busy=false; }
@@ -808,6 +896,9 @@ app.addEventListener('submit', event => {
   if(event.target.id==='asset-editor'){
     event.preventDefault();saveAssetEditor(event.target);return;
   }
+  if(event.target.id==='idea-review-form'){
+    event.preventDefault();void saveIdeaReview(event.target,event.submitter?.value||'');return;
+  }
   if(event.target.id==='bridge-approval'){
     event.preventDefault();void submitBridgeApproval(event.target);return;
   }
@@ -817,9 +908,32 @@ app.addEventListener('submit', event => {
   if(event.target.id==='post-editor'){
     event.preventDefault();savePostEditor(event.target);return;
   }
+  if(event.target.id==='schedule-editor'){
+    event.preventDefault();void saveSchedule(event.target);return;
+  }
 });
 
 app.addEventListener('change', async event => {
+  if(event.target.id==='calendar-month'){
+    if(/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)){state.calendarMonth=event.target.value;state.calendarSelectedDate='';render();}return;
+  }
+  if(event.target.id==='calendar-platform'){state.calendarPlatform=event.target.value;render();return;}
+  if(event.target.id==='calendar-executor'){state.calendarExecutor=event.target.value;render();return;}
+  if(event.target.id==='calendar-media'){state.calendarMedia=event.target.value;render();return;}
+  if(event.target.id==='calendar-status'){state.calendarStatus=event.target.value;render();return;}
+  if(event.target.id==='idea-import-executor'){state.importExecutor=event.target.value;return;}
+  if(event.target.id==='idea-import-file'){
+    const file=event.target.files?.[0];if(!file)return;
+    if(file.size>1_800_000){state.ideaImportError='الحد الأقصى لملف الأفكار 1.8 ميجابايت.';render();return;}
+    try{
+      const raw=JSON.parse(await file.text());
+      state.pendingIdeaBatch=prepareIdeaBatch(raw,state.plan);
+      state.ideaImportError='';
+      toast(`تمت معاينة ${state.pendingIdeaBatch.items.length} فكرة جديدة، وتخطي ${state.pendingIdeaBatch.duplicates.length} مكررة.`);
+    }catch(err){state.pendingIdeaBatch=null;state.ideaImportError=err?.message||'ملف JSON غير صالح. استخدم النموذج المعتمد.';}
+    render();return;
+  }
+
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value);render();return;}
   if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
   if(event.target.matches?.('input[name="cars"]')){
@@ -844,6 +958,7 @@ app.addEventListener('change', async event => {
   if(event.target.id==='task-person'){state.taskPerson=event.target.value;render();return;}
   if(event.target.id==='task-week'){state.taskWeek=Number(event.target.value)||0;render();return;}
   if(event.target.id==='idea-kind'){state.ideaKind=event.target.value;render();return;}
+  if(event.target.id==='idea-review-filter'){state.ideaReviewFilter=event.target.value;render();return;}
   if(event.target.id==='post-idea-select'){
     const target=getIdea(state.plan,event.target.value); if(!target)return;
     const form=event.target.form;
@@ -892,6 +1007,26 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='calendar-prev'||action==='calendar-next'){
+    const current=state.calendarMonth||[...state.plan.posts].sort((a,b)=>a.publicationDate.localeCompare(b.publicationDate))[0]?.publicationDate.slice(0,7)||nowInRiyadh().slice(0,7);
+    const [y,m]=current.split('-').map(Number);
+    const next=new Date(Date.UTC(y,m-1+(action==='calendar-prev'?-1:1),1,12));
+    state.calendarMonth=`${next.getUTCFullYear()}-${String(next.getUTCMonth()+1).padStart(2,'0')}`;
+    state.calendarSelectedDate='';render();return;
+  }
+  if(action==='calendar-today'){state.calendarMonth=nowInRiyadh().slice(0,7);state.calendarSelectedDate=nowInRiyadh();render();return;}
+  if(action==='calendar-select-day'){state.calendarSelectedDate=control.dataset.date||'';render();return;}
+  if(action==='calendar-new-post'||action==='schedule-idea'){
+    state.scheduleDate=control.dataset.date||state.calendarSelectedDate||nowInRiyadh();
+    state.scheduleIdeaCode=action==='schedule-idea'?(control.dataset.id||''):'';
+    state.view='schedule';render();window.scrollTo({top:0,behavior:'instant'});return;
+  }
+  if(action==='open-idea-import'){state.view='ideas';state.ideaImportOpen=true;state.pendingIdeaBatch=null;state.ideaImportError='';render();window.scrollTo({top:0,behavior:'instant'});return;}
+  if(action==='toggle-idea-import'){state.ideaImportOpen=!state.ideaImportOpen;state.ideaImportError='';render();return;}
+  if(action==='cancel-idea-batch'){state.pendingIdeaBatch=null;state.ideaImportError='';render();return;}
+  if(action==='confirm-idea-batch'){await saveIdeaBatch();return;}
+  if(action==='download-idea-template'){downloadJson(ideaBatchTemplate(),'MZJ-New-Ideas-IMPORT-TEMPLATE.json');return;}
+
   if(action==='confirm-plan-import'){await importPublishingPlan();return;}
   if(action==='open-post'){
     state.selectedPostId=control.dataset.id;state.view='post';render();window.scrollTo({top:0,behavior:'instant'});return;
@@ -900,8 +1035,9 @@ app.addEventListener('click', async event => {
     state.selectedAssetCode=control.dataset.id;state.view='asset';render();window.scrollTo({top:0,behavior:'instant'});return;
   }
   if(action==='apply-plan-filter'){state.planFilter=app.querySelector('#plan-filter')?.value||'';render();return;}
-  if(action==='clear-plan-filter'){state.planFilter='';render();return;}
+  if(action==='clear-plan-filter'){state.planFilter='';state.calendarExecutor='all';state.calendarPlatform='all';state.calendarMedia='all';state.calendarStatus='all';render();return;}
   if(action==='apply-idea-search'){state.ideaSearch=app.querySelector('#idea-search')?.value||'';render();return;}
+  if(action==='ideas-filter-review'){state.ideaReviewFilter=control.dataset.status||'all';render();return;}
   if(action==='copy-brief'){await copyValue(toBriefText(state.plan,control.dataset.id));return;}
   if(action==='download-brief'){
     downloadText(toBriefText(state.plan,control.dataset.id),`MZJ-Brief-${control.dataset.id}.txt`);return;
