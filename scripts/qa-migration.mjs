@@ -27,6 +27,7 @@ const context = vm.createContext({
   PLATFORM_ORDER:['facebook','instagram','tiktok','snapchat'],
   FIREBASE_CONFIG:{projectId:'new-marketing-eaf85'},OWNER_UID:user.uid,
   connectFirebase:async()=>{}, listenToAuth: cb=>Promise.resolve().then(()=>cb(user)),
+  loadPublishingPlan: async()=>null,
   loginWithEmail:async()=>{}, logout:async()=>{},
   getStoredBaseline: async id=> { if (id==='baseline-2026-v2'&&!rulesUpdated) throw Object.assign(Error('denied'),{code:'permission-denied'}); return db[id]||null; },
   createStoredBaseline: async (seed,uid)=> {

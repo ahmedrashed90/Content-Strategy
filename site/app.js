@@ -1,6 +1,8 @@
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets } from './plan-firebase.js';
+import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,planPage,tasksPage,ideasPage,postDetailPage,assetDetailPage,getIdea,taskCodes,toBriefText,teamHandoffText,validatePlanSeed } from './planner.js';
 
 const app = document.getElementById('app');
 const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
@@ -23,7 +25,19 @@ const state = {
   mobileNav: false,
   legacyExists: false,
   upgradeRulesNeeded: false,
-  dataError: ''
+  dataError: '',
+  plan: isLocalPreview ? (globalThis.__MZJ_PREVIEW_PLAN__ || null) : null,
+  planStatus: isLocalPreview ? (globalThis.__MZJ_PREVIEW_PLAN__ ? 'preview' : 'missing') : 'loading',
+  planError: '',
+  pendingPlan: null,
+  planSaving: false,
+  planFilter: '',
+  taskPerson: 'الكل',
+  taskWeek: 0,
+  ideaKind: 'all',
+  ideaSearch: '',
+  selectedPostId: null,
+  selectedAssetCode: null
 };
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -167,7 +181,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','نظرة عامة','grid')}${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','نظرة عامة','grid')}${navButton('plan','خطة النشر','calendar')}${navButton('tasks','تسليمات الفريق','clock')}${navButton('ideas','الأفكار والبريفات','file')}${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
     <nav class="nav-group">${navButton('settings','الإعدادات والأمان','settings')}</nav>
     <div class="sidebar-bottom">
@@ -178,10 +192,10 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'نظرة عامة',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان'})[state.view];
+  const viewName = ({overview:'نظرة عامة',plan:'خطة النشر',tasks:'تسليمات الفريق',ideas:'الأفكار والبريفات',post:'تفاصيل النشر',asset:'البريف الإبداعي',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان'})[state.view] || 'نظرة عامة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
-    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${dateText(state.baseline.registrationDate)}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> النسخة التأسيسية 1.1</span></div>
+    <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${dateText(state.baseline.registrationDate)}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> النسخة التشغيلية 1.2</span></div>
   </header>`;
 }
 
@@ -248,13 +262,19 @@ function overviewPage() {
     <div class="hero-info"><div class="hero-eyebrow">${icon('flag','ic-sm')} MZJ | ما قبل الاستراتيجية</div><h1>بداية واضحة. قرارات أدق.</h1><p>هذا هو مرجع الحسابات الذي سنقيس عليه لاحقًا. نحفظ النتائج كما رُصدت، ونفصل اختلاف فترات القياس قبل أن نبدأ المحتوى الجديد.</p><div style="margin-top:19px">${statusTag()}</div></div>
     <div class="hero-count"><div class="top"><span>جاهزية البيانات المرجعية</span>${icon('database','ic-sm')}</div><div><strong>${readyCount}</strong><small> / 4 منصات</small></div><div class="hero-track"><div style="width:${readyCount/4*100}%"></div></div><div class="hero-foot">${readyCount===4 ? 'اكتملت مرجعية الحسابات الأربع' : 'يلزم استكمال بيانات Snapchat في v2'}</div></div>
   </section>
+  <section class="card panel" style="margin-top:20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+    <div><div class="page-eyebrow">${icon('calendar','ic-sm')} العمل التنفيذي الجديد</div><h2 class="panel-title" style="margin:7px 0 5px">خطة النشر والتسليم — 28 يومًا</h2>
+    <p class="page-description">16 فيديو، 32 صورة، تسليم الأحد والأربعاء. بداية التكليف 20 نوفمبر، والنشر بعد المراجعة والاعتماد.</p>
+    ${state.plan ? '<span class="note-tag positive">خطة النشر محفوظة في Firestore</span>' : '<span class="note-tag pending">تحتاج استيراد ملف خطة الشهر</span>'}</div>
+    <div class="p-actions"><button class="btn btn-primary" data-nav="plan">${state.plan?'فتح جدول النشر':'استيراد خطة النشر'}</button><button class="btn" data-nav="tasks">تكليفات الفريق</button></div>
+  </section>
   <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2><p>عدد المتابعين في مرجع كل منصة — بدون جمع جماهير متداخلة</p></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
   <div class="section-heading"><div><h2>قراءة الأداء قبل الانطلاق</h2><p>بيانات حقيقية من اللقطات السابقة، لا مخطط زمني افتراضي</p></div><span class="note-tag">${icon('clock','ic-sm')} مرجع تاريخي</span></div>
   <div class="two-cols">${viewsPanel()}${followerPanel()}</div>
-  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2><p>ملاحظات أولية تساعدنا عند تحليل إجابات الإدارة، وليست استنتاجات بيعية نهائية</p></div></div>
+  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2><p>ملاحظات مرجعية تُقارن بالمحتوى المنشور لاحقًا، وليست أرقام مبيعات</p></div></div>
   ${insightCards()}
-  <div class="future-strip"><div><h3>من المرجع إلى التحسن القابل للقياس</h3><p>بعد استلام وتحليل الـ45 إجابة، نستكمل السيستم ونضيف نتائج النشر الجديدة، وتبدأ مقارنة الأداء الفعلي دون التلاعب بالتاريخ.</p></div><button class="btn btn-primary" data-nav="comparison">كيف ستظهر المقارنة؟ ${icon('arrow','ic-sm')}</button></div>
+  <div class="future-strip"><div><h3>من المرجع إلى التحسن القابل للقياس</h3><p>بعد اعتماد المحتوى وبدء النشر، نضيف النتائج الفعلية لكل منصة ونقارنها بالمراجع الأربع دون تغيير أرقامها التاريخية.</p></div><button class="btn btn-primary" data-nav="comparison">كيف ستظهر المقارنة؟ ${icon('arrow','ic-sm')}</button></div>
   ${renderFooter()}`;
 }
 
@@ -455,7 +475,7 @@ function comparisonPage() {
   return `<div class="page-header"><div><div class="page-eyebrow">${icon('compare','ic-sm')} قبل وبعد الاستراتيجية</div><h1 class="page-title">المقارنة القادمة تبدأ من هنا</h1><p class="page-description">خط الأساس جاهز، لكن لا توجد بيانات بعد تطبيق أسلوب النشر الجديد حتى الآن.</p></div>${statusTag()}</div>
   <div class="compare-placeholder">
     <div class="rounded-icon">${icon('compare','ic-lg')}</div><h2>لن نختلق أرقامًا لمرحلة لم تبدأ بعد</h2>
-    <p>بعد وصول وتحليل إجابات الـ45 سؤال، سنستكمل الخطة التشغيلية، ونسجل تاريخ بدء الاستراتيجية الجديدة، ثم نضيف النتائج الفعلية في مراحل القياس المتفق عليها.</p>
+    <p>بعد نشر المحتوى واعتماده، تُسجل النتائج الفعلية وتبدأ المقارنة بمرجع المنصات الأربع. الخطة التشغيلية متاحة حاليًا في قسم خطة النشر.</p>
     <div class="compare-preview"><div class="compare-preview-box"><small>قبل الاستراتيجية</small><strong>مرجع ${state.baseline.schemaVersion === 2 ? 'المنصات الأربع v2' : 'الإصدار القديم v1'}</strong><div style="margin-top:9px">${statusTag()}</div></div>${icon('compare','ic-lg')}<div class="compare-preview-box"><small>بعد بدء الاستراتيجية</small><strong style="color:#a68a7b">بانتظار نتائج حقيقية</strong><div style="margin-top:9px"><span class="note-tag pending">لم يبدأ القياس</span></div></div></div>
   </div>
   <div class="section-heading"><div><h2>متى نضيف نتائج المقارنة؟</h2><p>فترات تشغيل ومراجعة وليست تواريخ إطلاق مفترضة</p></div></div>
@@ -477,16 +497,16 @@ function settingsPage() {
     </section>
     <section class="card panel"><div class="panel-head"><div><h2 class="panel-title">حماية Firestore</h2><p class="panel-desc">السماح لصاحب UID الوحيد فقط</p></div><span class="rounded-icon">${icon('shield')}</span></div>
       <div class="setting-row"><span class="k">مالك النظام</span><strong class="v">حساب واحد</strong></div>
-      <div class="setting-row"><span class="k">صلاحية القراءة</span><strong class="v">مرجع v1 التاريخي ومرجع v2 المكتمل فقط</strong></div>
+      <div class="setting-row"><span class="k">صلاحية القراءة</span><strong class="v">مرجع v1 وv2 وخطة النشر للمالك فقط</strong></div>
       <div class="setting-row"><span class="k">إنشاء المرجع</span><strong class="v">مرة واحدة</strong></div>
-      <div class="setting-row"><span class="k">التعديل والحذف</span><strong class="v warn-text">ممنوعان</strong></div>
+      <div class="setting-row"><span class="k">التعديل</span><strong class="v">مرجع الأداء ثابت؛ خطة النشر قابلة للتحديث</strong></div>
     </section>
   </div>
   ${state.baselineStatus === 'not-saved' ? `<div class="notice warning">${icon('alert','ic-sm')} المرجع غير موجود في Firestore بعد. انتقل إلى النظرة العامة لاستيراد ملف البيانات.</div>` : ''}
   <div class="section-heading"><div><h2>معرّف صاحب الحساب</h2><p>يجب أن يطابق UID المحدد في كود المشروع وقواعد Firestore المنشورة</p></div></div>
   <div class="card panel"><div class="uid-box" style="margin-top:0">${esc(state.user?.uid || '')}</div><button class="btn" data-action="copy-uid">${icon('copy','ic-sm')} نسخ UID</button></div>
   <div class="section-heading"><div><h2>ما الذي تم تنفيذه الآن؟</h2></div></div>
-  <div class="card panel"><ul class="methodology"><li>${icon('check','ic-sm')}<span>تسجيل دخول بحساب واحد، وعدم إتاحة إنشاء مستخدمين من السيستم.</span></li><li>${icon('check','ic-sm')}<span>مرجع كامل للمنصات الأربع بعد تثبيت بيانات Snapchat في الإصدار v2.</span></li><li>${icon('check','ic-sm')}<span>إمكانية إنشاء المرجع v2 مرة واحدة مع بقاء v1 محفوظًا بلا تعديل.</span></li><li>${icon('clock','ic-sm')}<span>بنك الأفكار والإنتاج والنشر وربط النتائج البيعية مؤجل إلى ما بعد تحليل الـ45 إجابة.</span></li></ul></div>
+  <div class="card panel"><ul class="methodology"><li>${icon('check','ic-sm')}<span>تسجيل دخول بحساب واحد، وعدم إتاحة إنشاء مستخدمين من السيستم.</span></li><li>${icon('check','ic-sm')}<span>مرجع كامل للمنصات الأربع بعد تثبيت بيانات Snapchat في الإصدار v2.</span></li><li>${icon('check','ic-sm')}<span>إمكانية إنشاء المرجع v2 مرة واحدة مع بقاء v1 محفوظًا بلا تعديل.</span></li><li>${icon('clock','ic-sm')}<span>خطة نشر وإنتاج 28 يومًا، واستيراد JSON، وتكليفات مندوبي الإنتاج، ومراجعة وحفظ تغييرات داخل Firestore؛ الربط الآلي بـCRM غير موجود.</span></li></ul></div>
   ${renderFooter()}`;
 }
 
@@ -501,7 +521,7 @@ function modalView() {
 }
 
 function renderFooter() {
-  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإصدار التأسيسي 1.1</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
+  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · خطة الإنتاج والنشر 1.2</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
 }
 
 function render() {
@@ -514,8 +534,8 @@ function render() {
     return;
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
-  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && state.view !== 'settings') { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage };
+  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','post','asset'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -575,6 +595,24 @@ async function boot() {
       } else {
         state.baseline = INITIAL_BASELINE;
         state.baselineStatus = 'loading';
+        state.plan=null;
+        state.planStatus='loading';
+      }
+      // Publishing plan uses independent Firestore rules and never changes the baseline.
+      if(user && isOwnerConfigured && user.uid===OWNER_UID){
+        state.planStatus='loading';
+        try{
+          const loaded=await loadPublishingPlan();
+          if(state.user?.uid!==user.uid)return;
+          state.plan=loaded;
+          state.planStatus=loaded?'saved':'missing';
+          state.planError='';
+        }catch(err){
+          state.plan=null;
+          state.planStatus='denied';
+          state.planError='تعذر قراءة خطة النشر. تحقق من نشر قواعد firestore.rules الجديدة.';
+          console.warn('Publishing-plan access failed:',err.code||err.message);
+        }
       }
       render();
     });
@@ -659,13 +697,126 @@ async function saveBaseline() {
   } finally { state.storing = false; render(); }
 }
 
+
+// Production plan import; the source file is user-selected and never fetched from the public site.
+async function importPublishingPlan(){
+  if(!state.pendingPlan||state.planSaving||!state.user||isLocalPreview)return;
+  if(!validatePlanSeed(state.pendingPlan)){toast('فشل التحقق من بنية خطة النشر.');return;}
+  state.planSaving=true;state.planError='';render();
+  try{
+    const saved=await createPublishingPlan(state.pendingPlan,state.user.uid);
+    if(!saved||saved.assets.length!==48||saved.posts.length!==28)throw Error('Incomplete imported data');
+    state.plan=saved;state.planStatus='saved';state.pendingPlan=null;
+    toast('تم استيراد خطة النشر والبريفات والتكليفات في Firestore بنجاح.');
+  }catch(err){
+    console.warn('Plan import failed:',err.code||err.message);
+    state.planError=err.message==='plan-already-exists'?
+      'الخطة موجودة مسبقًا. حدّث الصفحة لقراءتها؛ الاستيراد لا يستبدل تكليفاتك الحالية.':
+      'فشل حفظ الخطة. انشر قواعد Firestore المرفقة وتحقق من اتصال الشبكة ثم أعد المحاولة.';
+    toast('تعذر حفظ خطة النشر. لم تتغير بيانات المرجع الأساسي.');
+  }finally{state.planSaving=false;render();}
+}
+function downloadText(text,filename){
+  const blob=new Blob(['\ufeff'+text],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);const link=document.createElement('a');
+  link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+  toast('تم تجهيز ملف التكليف للتحميل');
+}
+async function saveAssetEditor(form){
+  if(!state.plan||state.planSaving||isLocalPreview)return;
+  const code=form.elements.namedItem('assetCode')?.value;
+  const codes=taskCodes(state.plan,code);
+  const executor=form.elements.namedItem('executor')?.value;
+  const status=form.elements.namedItem('status')?.value;
+  const comments=form.elements.namedItem('comments')?.value||'';
+  const dueDate=form.elements.namedItem('dueDate')?.value;
+  if(!codes.length||!PEOPLE.includes(executor)||!TASK_STATUSES.includes(status)||(!code.startsWith('C')&&!/^\d{4}-\d{2}-\d{2}$/.test(dueDate))){toast('تحقق من بيانات التكليف.');return;}
+  const changes={executor,status,comments};
+  if(!code.startsWith('C'))changes.dueDate=dueDate;
+  state.planSaving=true;
+  const submit=form.querySelector('button[type=submit]');if(submit){submit.disabled=true;submit.textContent='جارٍ الحفظ…';}
+  try{
+    if(codes.length>1)await updateManyAssets(codes,changes);
+    else await updatePublishingAsset(code,changes);
+    state.plan.assets=state.plan.assets.map(a=>codes.includes(a.code)?{...a,...changes}:a);
+    toast('تم حفظ تكليف المنفذ والحالة في Firestore.');render();
+  }catch(err){toast('فشل حفظ التكليف. راجع صلاحيات Firebase والاتصال.');console.warn(err);}
+  finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ التكليف';}}
+}
+async function savePostEditor(form){
+  if(!state.plan||state.planSaving||isLocalPreview)return;
+  const post=state.plan.posts.find(p=>p.id===state.selectedPostId);if(!post)return;
+  const val=n=>form.elements.namedItem(n)?.value||'';
+  const ideaCode=val('ideaCode');const idea=getIdea(state.plan,ideaCode);
+  const executor=val('executor');const status=val('status');
+  const date=val('publicationDate');const time=val('time');
+  const platforms=Object.keys(PLATFORMS).filter(k=>form.elements.namedItem('platform_'+k)?.checked);
+  if(!idea||!PEOPLE.includes(executor)||!POST_STATUSES.includes(status)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time)||!platforms.length){toast('اختر فكرة ومنصة وتاريخ نشر صالحين.');return;}
+  const captionsByPlatform={},hashtagsByPlatform={};
+  for(const key of Object.keys(PLATFORMS)){
+    captionsByPlatform[key]=val('caption_'+key);
+    hashtagsByPlatform[key]=val('hashtags_'+key);
+  }
+  const url=val('publishedUrl').trim();
+  if(status==='منشور' && !/^https:\/\/[^\s]+$/.test(url)){toast('لحالة منشور، أضف رابط المنشور الصحيح أولًا.');return;}
+  const changes={publicationDate:date,time,ideaCode,ideaTitle:idea.title,platforms,
+    captionsByPlatform,hashtagsByPlatform,status,publishedUrl:url,notes:val('notes'),
+    actualPublicationDate:post.actualPublicationDate||(status==='منشور'?new Date().toISOString().slice(0,10):null),
+    story:{...post.story,frame1:val('storyFrame1'),frame2:val('storyFrame2')}
+  };
+  const codes=taskCodes(state.plan,ideaCode);
+  state.planSaving=true;
+  const submit=form.querySelector('button[type=submit]');if(submit){submit.disabled=true;submit.textContent='جارٍ الحفظ…';}
+  try{
+    await updatePostWithAssignment(post.id,changes,codes,executor);
+    state.plan.posts=state.plan.posts.map(p=>p.id===post.id?{...p,...changes}:p);
+    state.plan.assets=state.plan.assets.map(a=>codes.includes(a.code)?{...a,executor}:a);
+    toast('تم حفظ فكرة اليوم والمنفذ والمنصات والكابشن في Firestore.');render();
+  }catch(err){toast('تعذر حفظ النشر في Firestore. لم تُسجّل التعديلات.');console.warn(err);}
+  finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ تعديلات النشر والتكليف';}}
+}
+
 app.addEventListener('submit', event => {
-  if (event.target.id !== 'login-form') return;
-  event.preventDefault();
-  handleLogin(event.target);
+  if(event.target.id==='login-form'){
+    event.preventDefault();handleLogin(event.target);return;
+  }
+  if(event.target.id==='asset-editor'){
+    event.preventDefault();saveAssetEditor(event.target);return;
+  }
+  if(event.target.id==='post-editor'){
+    event.preventDefault();savePostEditor(event.target);return;
+  }
 });
 
 app.addEventListener('change', async event => {
+  if(event.target.id==='publishing-plan-file'){
+    const file=event.target.files?.[0]; if(!file)return;
+    if(file.size>950_000){toast('ملف JSON أكبر من الحد المدعوم.');return;}
+    try {
+      const plan=JSON.parse(await file.text());
+      if(!validatePlanSeed(plan))throw Error('invalid schema');
+      state.pendingPlan=plan;state.planError='';render();
+      toast('تمت قراءة خطة الشهر. راجع الملخص ثم اضغط تأكيد الاستيراد.');
+    }catch(err){state.pendingPlan=null;state.planError='ملف غير صالح أو غير متوافق مع خطة الشهر. اختر ملف الاستيراد الأصلي.';render();}
+    return;
+  }
+  if(event.target.id==='task-person'){state.taskPerson=event.target.value;render();return;}
+  if(event.target.id==='task-week'){state.taskWeek=Number(event.target.value)||0;render();return;}
+  if(event.target.id==='idea-kind'){state.ideaKind=event.target.value;render();return;}
+  if(event.target.id==='post-idea-select'){
+    const target=getIdea(state.plan,event.target.value); if(!target)return;
+    const form=event.target.form;
+    for(const key of Object.keys(PLATFORMS)){
+      const box=form.elements.namedItem('platform_'+key);
+      const caption=form.elements.namedItem('caption_'+key);
+      const hashtags=form.elements.namedItem('hashtags_'+key);
+      if(box)box.checked=(target.platforms||[]).includes(key);
+      if(caption)caption.value=target.captionsByPlatform?.[key]||'';
+      if(hashtags)hashtags.value=target.hashtagsByPlatform?.[key]||'';
+    }
+    toast('تم تحميل نصوص الفكرة المختارة إلى الحقول؛ اضغط حفظ لتثبيت التغيير.');return;
+  }
   if (event.target.id !== 'baseline-file') return;
   const file = event.target.files?.[0];
   if (!file) return;
@@ -696,6 +847,30 @@ app.addEventListener('click', async event => {
   const control = event.target.closest('[data-action]');
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='confirm-plan-import'){await importPublishingPlan();return;}
+  if(action==='open-post'){
+    state.selectedPostId=control.dataset.id;state.view='post';render();window.scrollTo({top:0,behavior:'instant'});return;
+  }
+  if(action==='open-asset'){
+    state.selectedAssetCode=control.dataset.id;state.view='asset';render();window.scrollTo({top:0,behavior:'instant'});return;
+  }
+  if(action==='apply-plan-filter'){state.planFilter=app.querySelector('#plan-filter')?.value||'';render();return;}
+  if(action==='clear-plan-filter'){state.planFilter='';render();return;}
+  if(action==='apply-idea-search'){state.ideaSearch=app.querySelector('#idea-search')?.value||'';render();return;}
+  if(action==='copy-brief'){await copyValue(toBriefText(state.plan,control.dataset.id));return;}
+  if(action==='download-brief'){
+    downloadText(toBriefText(state.plan,control.dataset.id),`MZJ-Brief-${control.dataset.id}.txt`);return;
+  }
+  if(action==='download-handoff'){
+    const person=control.dataset.person||'الكل';
+    downloadText(teamHandoffText(state.plan,person,state.taskWeek),`MZJ-Handoff-${person==='الكل'?'ALL':person}-W${state.taskWeek||'ALL'}.txt`);return;
+  }
+  if(action==='export-plan'){
+    const {ownerUid,assetCount,postCount,createdAt,...seed}=state.plan;
+    seed.assets=seed.assets.map(({updatedAt,...a})=>a);
+    seed.posts=seed.posts.map(({updatedAt,...p})=>p);
+    downloadJson(seed,'MZJ-Plan-Backup.json');return;
+  }
   if (action === 'close-modal' && event.target.closest('.modal') && event.target !== control) return;
   if (action === 'toggle-password') {
     const el = app.querySelector('#password');
