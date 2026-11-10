@@ -271,15 +271,19 @@ export function assetDetailPage(state){
   const codes=taskCodes(plan,idea.code);
   const main=plan.assets.find(a=>a.code===codes[0]);
   const status=reviewStatusFor(plan,idea.code),linked=ideaIsLinked(plan,idea.code);
+  const reviewLocked=linked||ideaAssets(plan,idea.code).some(asset=>Boolean(asset.integrationRequestKey));
   const reviewNotes=main?.reviewNotes||'';
   const reviewHistory=Array.isArray(main?.reviewHistory)?main.reviewHistory:[];
   const actions=`<button class="btn" data-nav="ideas">بنك الأفكار</button><button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف TXT</button>`;
   const reviewPanel=`<section class="card panel idea-approval-panel"><div class="review-panel-heading"><div><div class="page-eyebrow">المرحلة 01 — مراجعة واعتماد</div><h2>قرار الفكرة الإبداعية</h2></div>${reviewTag(status)}</div>
     <p class="page-description">راجع الفكرة والهوك والسكريبت والبريف بالكامل قبل اعتمادها. حالة المراجعة مستقلة عن حالة تنفيذ التصميم أو الفيديو.</p>
     ${main?.reviewedAt?`<div class="review-stamp">آخر قرار: ${e(new Date(main.reviewedAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}))}</div>`:''}
-    ${linked?`<div class="notice good">تم إنشاء تاسك بالفعل؛ قرار الاعتماد أصبح ثابتًا. تعديل المطلوبات أو التسليم بعد الربط يتم من سيستم التسويق.</div>`:
+    ${reviewLocked?`<div class="notice good">${linked?'تم إنشاء تاسك بالفعل؛ قرار الاعتماد أصبح ثابتًا. تعديل المطلوبات أو التسليم بعد الربط يتم من سيستم التسويق.':'بدأ طلب إنشاء تاسك لهذه الفكرة. قرار المراجعة مقفل حتى يكتمل ربط التكليف أو تُراجع حالة الطلب لتجنب تكراره.'}</div>`:
       `<form id="idea-review-form" class="p-edit-form"><input type="hidden" name="ideaCode" value="${e(idea.code)}"/><label>ملاحظات المراجع / التعديلات المطلوبة<textarea name="reviewNotes" rows="4" maxlength="3000" placeholder="ملاحظات اختيارية عند الاعتماد، وإلزامية عند طلب التعديل أو الرفض">${e(reviewNotes)}</textarea></label>
-      <div class="review-decision-actions"><button class="btn btn-primary" name="reviewDecision" value="معتمد" type="submit" ${state.planSaving?'disabled':''}>اعتماد الفكرة</button><button class="btn" name="reviewDecision" value="مطلوب تعديل" type="submit" ${state.planSaving?'disabled':''}>طلب تعديل</button><button class="btn btn-danger" name="reviewDecision" value="مرفوض" type="submit" ${state.planSaving?'disabled':''}>رفض الفكرة</button></div></form>`}
+      <div class="review-decision-actions">${status==='معتمد'
+        ?`<button class="btn" name="reviewDecision" value="بانتظار المراجعة" type="submit" ${state.planSaving?'disabled':''}>إلغاء الاعتماد وإعادة للمراجعة</button>`
+        :`<button class="btn btn-primary" name="reviewDecision" value="معتمد" type="submit" ${state.planSaving?'disabled':''}>اعتماد الفكرة</button>`}
+        <button class="btn" name="reviewDecision" value="مطلوب تعديل" type="submit" ${state.planSaving?'disabled':''}>طلب تعديل</button><button class="btn btn-danger" name="reviewDecision" value="مرفوض" type="submit" ${state.planSaving?'disabled':''}>رفض الفكرة</button></div></form>`}
     ${status==='معتمد'?`<div class="review-next-step"><div><strong>المرحلة التالية: إنشاء التكليف</strong><small>اختيار السيارات والمنفذ وتاريخ التسليم من سيستم التسويق</small></div><button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}">${linked?'متابعة التاسك':'تجهيز التكليف'}</button></div>`:''}
     ${reviewHistory.length?`<div class="review-history"><h3>سجل قرارات المراجعة</h3>${[...reviewHistory].reverse().slice(0,8).map(record=>`<div class="review-history-item"><span>${reviewTag(record.status)}</span><small>${record.at?e(new Date(record.at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})):''}</small>${record.notes?`<p>${e(record.notes)}</p>`:''}</div>`).join('')}</div>`:''}
   </section>`;

@@ -33,6 +33,8 @@ source.reviewHistory=[{status:'معتمد',at:source.reviewedAt,notes:source.rev
 assert(ideaIsApproved(plan,'V01'));
 const approvedBrief=assetDetailPage(state);
 assert(approvedBrief.includes('تجهيز التكليف')&&approvedBrief.includes('سجل قرارات المراجعة'));
+assert(approvedBrief.includes('إلغاء الاعتماد وإعادة للمراجعة'));
+assert(!briefBefore.includes('إلغاء الاعتماد وإعادة للمراجعة'));
 assert(approvedBrief.includes('تاريخ التسليم المقترح'));
 state.bridge.stock=[{car_name:'هيونداي',statement:'توسان - سمارت',model_year:'2026',exterior_color:'أسود',interior_color:'بيج'}];
 state.bridge.executors=[{user_id:'uid1',department_id:'dep1',full_name:'محمود',department_name:'التسويق'}];
@@ -53,6 +55,7 @@ source.marketingTaskId='task-123';source.marketingTaskNo='TASK-123';source.marke
 assert(bridgePage(state).includes('TASK-123'));
 assert(!bridgePage(state).includes('id="bridge-assign"'));
 assert(!assetDetailPage(state).includes('id="idea-review-form"'));
+assert(!assetDetailPage(state).includes('إلغاء الاعتماد وإعادة للمراجعة'));
 assert(assetDetailPage(state).includes('التكليف في سيستم التسويق'));
 // New monthly JSON batches never overwrite legacy assets; no executor required before approval.
 const batch=prepareIdeaBatch({schema:'mzj-ideas-batch/v1',batchId:'FUTURE-2027',ideas:[

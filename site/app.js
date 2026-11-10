@@ -767,25 +767,36 @@ async function saveIdeaReview(form,decision){
   const code=form.elements.namedItem('ideaCode')?.value||'';
   const assets=ideaAssets(state.plan,code);
   const notes=String(form.elements.namedItem('reviewNotes')?.value||'').trim().slice(0,3000);
-  if(!assets.length||!REVIEW_STATUSES.includes(decision)||decision==='بانتظار المراجعة'){
+  if(!assets.length||!REVIEW_STATUSES.includes(decision)){
     toast('قرار المراجعة غير صالح.');return;
   }
+  // Unapproval is a review-only transition. Never unlock an idea already sent
+  // (or potentially sent) to Marketing, even if the response was interrupted.
   if(assets.some(a=>a.marketingTaskId||a.integrationRequestKey)){
-    toast('لا يمكن تغيير اعتماد فكرة مرتبطة بطلب تاسك.');return;
+    toast('لا يمكن إلغاء اعتماد فكرة مرتبطة بطلب تاسك في سيستم التسويق.');return;
+  }
+  const resetting=decision==='بانتظار المراجعة';
+  if(resetting){
+    if(!ideaIsApproved(state.plan,code)){
+      toast('هذه الفكرة ليست معتمدة حاليًا.');return;
+    }
+    if(!window.confirm('إلغاء اعتماد هذه الفكرة وإعادتها إلى انتظار المراجعة؟ لن يتم حذف البريف أو سجل القرارات، وسيُلغى اختيار السيارات المعتمد حتى تعيد اعتماد الفكرة.'))return;
   }
   if((decision==='مطلوب تعديل'||decision==='مرفوض')&&!notes){
     toast('اكتب ملاحظات المراجعة قبل طلب التعديل أو الرفض.');return;
   }
   const timestamp=new Date().toISOString();
+  const historyNote=resetting?(notes||'إلغاء الاعتماد وإعادة الفكرة للمراجعة'):notes;
   const history=[...(Array.isArray(assets[0].reviewHistory)?assets[0].reviewHistory:[]).slice(-24),
-    {status:decision,notes,at:timestamp,reviewedByUid:state.user.uid}];
-  const change={reviewStatus:decision,reviewNotes:notes,reviewedAt:timestamp,reviewedByUid:state.user.uid,reviewHistory:history};
+    {status:decision,notes:historyNote,at:timestamp,reviewedByUid:state.user.uid}];
+  const change={reviewStatus:decision,reviewNotes:resetting?'':notes,
+    reviewedAt:resetting?null:timestamp,reviewedByUid:resetting?'':state.user.uid,reviewHistory:history};
   if(decision!=='معتمد')Object.assign(change,{creativeApprovedAt:null,approvedCarMode:'',approvedVehicles:[]});
   state.planSaving=true;
   try{
     await updateManyAssets(assets.map(a=>a.code),change);
     state.plan.assets=state.plan.assets.map(a=>assets.some(b=>b.code===a.code)?{...a,...change}:a);
-    toast(decision==='معتمد'?'تم اعتماد الفكرة. يمكنك الآن اختيار السيارات وإنشاء التكليف.':`تم تسجيل قرار المراجعة: ${decision}`);
+    toast(resetting?'تم إلغاء الاعتماد. الفكرة الآن بانتظار المراجعة من جديد.':decision==='معتمد'?'تم اعتماد الفكرة. يمكنك الآن اختيار السيارات وإنشاء التكليف.':`تم تسجيل قرار المراجعة: ${decision}`);
   }catch(err){console.warn('Review save failed:',err?.code||err?.message);toast('تعذر حفظ المراجعة. تحقق من قواعد Firestore والاتصال.');}
   finally{state.planSaving=false;render();}
 }
