@@ -31,7 +31,7 @@ export const strategyProducts=(state)=>{
 };
 export function newAgendaState(){return {
  products:[],loading:false,busy:false,error:'',saved:null,entries:[],
- start:today(),days:15,mode:'strategy',search:'',platformIds:[],requestKey:'',
+ start:today(),days:15,mode:'strategy',search:'',platformIds:[],requestKey:'',requestSnapshot:'',
  name:'أجندة MZJ الاستراتيجية',reasons:[],warnings:[],generated:false
 };}
 export async function loadAgendaProducts(state){
@@ -59,6 +59,7 @@ export function buildStrategicAgenda(state){
  if(!iso(a.start)||a.start<today())throw Error('حدد تاريخ بداية صحيحًا من اليوم أو بعده');
  const days=Number(a.days);
  if(!Number.isInteger(days)||days<1||days>90)throw Error('مدة الجدول من يوم إلى 90 يوم');
+ if(!a.platformIds.length)throw Error('حدد منصة نشر واحدة على الأقل لبناء الجدول');
  const products=strategyProducts(state);
  const eligible=products.filter(p=>!p.alreadyPlanned&&availableFormats(p).length>0);
  const excluded=products.length-eligible.length;
@@ -90,7 +91,7 @@ export function buildStrategicAgenda(state){
  if(!entries.some(x=>x.category==='بيعي - كاش'))
    warnings.push('لا يوجد منتج كاش جاهز في هذه الفترة.');
  if(pending.length)warnings.push(pending.length+' منتج معتمد خارج الفترة أو لم تسمح جاهزيته وتوازن الجدول بإدراجه.');
- a.entries=entries;a.warnings=warnings;a.generated=true;a.saved=null;a.requestKey='';
+ a.entries=entries;a.warnings=warnings;a.generated=true;a.saved=null;a.requestKey='';a.requestSnapshot='';
  return {entries,warnings,start:a.start,end};
 }
 export function validateStrategyAgenda(state){
@@ -121,10 +122,12 @@ export function validateStrategyAgenda(state){
 }
 export async function saveStrategyAgenda(state){
  const a=state.agenda,validated=validateStrategyAgenda(state);
+ const snapshot=JSON.stringify({name:a.name,start:a.start,days:a.days,entries:validated.entries});
+ if(a.requestKey&&a.requestSnapshot!==snapshot)throw Error('تم تعديل الجدول بعد محاولة إرساله. لتجنب إنشاء أجندة مكررة، استخدم زر التحقق أو تحديث البيانات أولًا.');
  if(a.busy)throw Error('جاري إنشاء الأجندة');
  a.busy=true;a.error='';
  try{
-   if(!a.requestKey)a.requestKey=crypto.randomUUID();
+   if(!a.requestKey){a.requestKey=crypto.randomUUID();a.requestSnapshot=snapshot;}
    const result=await fetchBridge('agenda',{body:{
      requestKey:a.requestKey,sourcePlanId:PLAN_ID,
      name:a.name.trim().slice(0,250)||'أجندة MZJ الاستراتيجية',
