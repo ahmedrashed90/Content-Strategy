@@ -987,13 +987,12 @@ app.addEventListener('submit', event => {
     const tags=tagsRaw.split(/[,،]/).map(t=>t.trim()).filter(Boolean);
     if(!text){toast('اكتب نص مصدر الإلهام.');return;}
     state.inspirations.saving=true;render();
-    try{
-      const item=await createInspiration({type,text,tags});
+    createInspiration({type,text,tags}).then(item=>{
       state.inspirations.items.unshift(item);
       state.inspirations.formOpen=false;state.inspirations.formText='';state.inspirations.formTags='';
       toast('تم حفظ مصدر الإلهام بنجاح.');
-    }catch(err){toast(err?.message||'تعذر الحفظ');}
-    finally{state.inspirations.saving=false;render();}
+    }).catch(err=>{toast(err?.message||'تعذر الحفظ');})
+    .finally(()=>{state.inspirations.saving=false;render();});
     return;
   }
   if(event.target.id==='schedule-editor'){
