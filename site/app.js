@@ -1,7 +1,7 @@
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
-import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, loadPublishingProposals, createPublishingProposal, createPublishingPost } from './plan-firebase.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
@@ -205,7 +205,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','مقترحات النشر','file')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
     <div class="menu-label">البيانات والتحليل</div>
     <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
@@ -218,7 +218,7 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'مقترحات النشر',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
+  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
     <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
@@ -291,7 +291,7 @@ function overviewPage() {
   const postCount=state.plan?.posts.length||0;
   return `<section class="workspace-hero card"><div class="workspace-hero-copy"><div class="workspace-eyebrow">${icon('shield','ic-sm')} مركز التحكم في المحتوى | MZJ</div><h1>من فكرة قوية إلى تاسك جاهز للتنفيذ.</h1><p>راجع الأفكار، اعتمد المحتوى المناسب، اختر سيارات الاستوك والمنفذ وموعد التسليم، ثم أنشئ التكليف داخل سيستم التسويق.</p><div class="workspace-hero-actions"><button class="btn workspace-main-cta" data-nav="ideas">فتح مراجعة الأفكار ${icon('arrow','ic-sm')}</button><button class="btn workspace-outline-cta" data-nav="plan">تقويم النشر والتنشيط</button></div></div><div class="workspace-hero-aside"><div class="workspace-progress-icon">${icon('check','ic-lg')}</div><strong>${approvedCount} / ${ideaList.length||0}</strong><span>فكرة معتمدة من بنك الأفكار</span><div class="workspace-progress"><i style="width:${ideaList.length?Math.round(approvedCount/ideaList.length*100):0}%"></i></div><small>لا يتم إنشاء تكليف لفكرة غير معتمدة</small></div></section>
   <section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى"><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>في انتظار المراجعة</span>${icon('clock','ic-sm')}</div><strong>${pendingCount}</strong><small>افتح البريف وحدد قرار الفكرة</small></button><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>الأفكار المعتمدة</span>${icon('check','ic-sm')}</div><strong>${approvedCount}</strong><small>جاهزة لاختيار السيارات والتكليف</small></button><button class="card workspace-kpi" data-nav="bridge"><div class="workspace-kpi-head"><span>مرتبطة بتاسك</span>${icon('compare','ic-sm')}</div><strong>${linkedCount}</strong><small>تكليفات مسجلة في سيستم التسويق</small></button><button class="card workspace-kpi" data-nav="plan"><div class="workspace-kpi-head"><span>مواعيد النشر</span>${icon('calendar','ic-sm')}</div><strong>${postCount}</strong><small>افتح تقويم النشر الشهري</small></button></section>
-  <div class="workspace-actions-strip"><div><b>خط سير المحتوى</b><span>استيراد فكرة ← مراجعة واعتماد ← تاسك إنتاج ← منتج معتمد ← مقترح نشر ← أجندة التسويق</span></div><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
+  <div class="workspace-actions-strip"><div><b>خط سير المحتوى</b><span>استيراد فكرة ← مراجعة واعتماد ← تاسك إنتاج ← منتج معتمد ← جدول نشر استراتيجي ← أجندة التسويق</span></div><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
   <section class="card panel baseline-overview"><div><div class="page-eyebrow">${icon('database','ic-sm')} البيانات المرجعية محفوظة</div><h2>مرجع أداء المنصات قبل الاستراتيجية</h2><p>نتابع نتائج المنصات الأربع ونقارنها بعد بدء التنفيذ، بدون تغيير الأرقام التاريخية.</p></div><div class="baseline-overview-right"><strong>${readyCount} <small>/ 4</small></strong><span>منصات جاهزة للمقارنة</span><button class="btn" data-nav="baseline">عرض المرجع</button></div></section>
   <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2><p>عدد المتابعين في مرجع كل منصة — بدون جمع جماهير متداخلة</p></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
@@ -631,7 +631,6 @@ async function boot() {
           if(state.user?.uid!==user.uid)return;
           state.plan=loaded;
           state.planStatus=loaded?'saved':'missing';
-          if(loaded){try{state.proposals=await loadPublishingProposals();}catch(err){state.proposals=[];console.warn('Publishing proposals unavailable:',err?.code||err.message);}}
           state.planError='';
         }catch(err){
           state.plan=null;
@@ -1112,6 +1111,7 @@ function openBrief(code){
 app.addEventListener('click', async event => {
   const nav = event.target.closest('[data-nav]');
   if(nav?.dataset.nav==='bridge' && !state.bridge.stock.length && !state.bridge.loading){void reloadBridge(state.bridge).then(render);}
+  if(nav?.dataset.nav==='proposals'&&!state.agenda.loading){void loadAgendaProducts(state).then(render);}
   if (nav) {
     if(!canLeaveBrief())return;
     state.briefBaseline='';
