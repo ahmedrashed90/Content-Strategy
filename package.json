@@ -2,5 +2,8 @@
   "name": "mzj-content-strategy",
   "version": "1.6.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/qa-reusable-multi-executor.mjs && node scripts/qa-72-idea-bank.mjs && node scripts/qa-strategic-agenda.mjs && node scripts/test-marketing-bridge.mjs"
+  }
 }
