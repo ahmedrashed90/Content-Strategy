@@ -31,7 +31,7 @@ selectBridgeCategory(state,'تعريفي - مواصفات السيارات');
 toggleBridgeIdea(state,a.code,true);
 toggleBridgeIdea(state,b.code,true);
 assert.equal(state.bridge.selectedCodes.length,2);
-assert(bridgePage(state).includes('تعريفي - مواصفات السيارات ('+a.title+' + '+b.title+')'));
+assert(bridgePage(state).includes('تعريفي - مواصفات السيارات '+a.title+' + '+b.title));
 assert(!bridgePage(state).includes('MZJA26V01'));
 
 // Approved ideas appear in a searchable categorized card list, without additional

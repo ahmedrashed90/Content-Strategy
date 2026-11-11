@@ -78,7 +78,7 @@ console.log('PASS: eight page UI expectations, menu order and naming, only exist
 if(process.argv[2]){
  const dir=path.resolve(process.argv[2]);fs.mkdirSync(dir,{recursive:true});
  const template=fs.readFileSync(path.join(root,'site/index.html'),'utf8');
- const css=fs.readFileSync(path.join(root,'site/styles.css'),'utf8');
+ const css=fs.readFileSync(path.join(root,'site/theme.css'),'utf8')+'\n'+fs.readFileSync(path.join(root,'site/styles.css'),'utf8');
  const sidebar=overview.match(/<aside class="sidebar[\s\S]*?<\/aside>/)?.[0];
  const topbar=overview.match(/<header class="topbar">[\s\S]*?<\/header>/)?.[0];
  assert(sidebar&&topbar);

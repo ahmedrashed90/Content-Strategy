@@ -175,6 +175,10 @@ export function planPage(state){
     ;
 }
 
+const TEST_DELIVERY_DATES = new Set(['2026-11-11','2026-11-15','2026-11-29']);
+// Presentation-only: these imported test dates are not real deadlines until a Marketing task is linked.
+const displayDeliveryDate = asset => asset?.marketingTaskId ? (asset.dueDate||'') : TEST_DELIVERY_DATES.has(asset?.dueDate) ? '' : (asset?.dueDate||'');
+
 export function tasksPage(state){
   const plan=state.plan;
   if(!plan)return importPanel(state);
@@ -183,11 +187,11 @@ export function tasksPage(state){
   const today=nowInRiyadh();
   const source=plan.assets.filter(asset=>!asset.retiredFromIdeaBank && !(['مرفوض'].includes(reviewStatusFor(plan,asset.code))));
   const filtered=source.filter(asset=>(person==='الكل'||executorFor(plan,asset.code)===person||asset.executor===person)&&(!week||asset.week===week))
-    .sort((a,b)=>(a.dueDate||'9999').localeCompare(b.dueDate||'9999')||a.code.localeCompare(b.code));
-  const days=[...new Set(filtered.map(a=>a.dueDate||''))].sort((a,b)=>(a||'9999').localeCompare(b||'9999'));
+    .sort((a,b)=>(displayDeliveryDate(a)||'9999').localeCompare(displayDeliveryDate(b)||'9999')||a.code.localeCompare(b.code));
+  const days=[...new Set(filtered.map(displayDeliveryDate))].sort((a,b)=>(a||'9999').localeCompare(b||'9999'));
   const done=filtered.filter(a=>a.status==='معتمد').length;
-  const late=filtered.filter(a=>a.dueDate&&a.dueDate<today&&a.status!=='معتمد').length;
-  const dueThisWeek=filtered.filter(a=>a.dueDate&&a.dueDate>=today&&a.dueDate<=new Date(Date.parse(`${today}T12:00:00Z`)+6*86400000).toISOString().slice(0,10)).length;
+  const late=filtered.filter(a=>displayDeliveryDate(a)&&displayDeliveryDate(a)<today&&a.status!=='معتمد').length;
+  const dueThisWeek=filtered.filter(a=>displayDeliveryDate(a)&&displayDeliveryDate(a)>=today&&displayDeliveryDate(a)<=new Date(Date.parse(`${today}T12:00:00Z`)+6*86400000).toISOString().slice(0,10)).length;
   const linked=filtered.filter(a=>Boolean(a.marketingTaskId)).length;
   const metrics=[['إجمالي المطلوبات',filtered.length],['تسليمات الأسبوع',dueThisWeek],['متأخر',late],['تم الربط',linked],['مكتمل',done]];
   const actions=`<button class="btn" data-action="download-handoff" data-person="${e(person)}">تحميل قائمة التسليمات</button>`;
@@ -195,12 +199,12 @@ export function tasksPage(state){
     <section class="delivery-overview" aria-label="ملخص الإنتاج">${metrics.map(([label,n],i)=>`<div class="delivery-metric ${i===2&&n?'delivery-metric-alert':''}"><span>${e(label)}</span><strong>${n}</strong></div>`).join('')}</section>
     <div class="delivery-toolbar card"><div class="delivery-toolbar-title"><strong>جدول التسليمات</strong></div><div class="delivery-controls"><label>المنفذ<select id="task-person">${['الكل',...PEOPLE].map(n=>option(n,n,person)).join('')}</select></label><label>الأسبوع<select id="task-week">${[0,1,2,3,4].map(n=>option(n,n?'الأسبوع '+n:'كل الأسابيع',week)).join('')}</select></label></div></div>
     <div class="delivery-groups">${days.map(date=>{
-      const items=filtered.filter(a=>(a.dueDate||'')===date);
+      const items=filtered.filter(a=>displayDeliveryDate(a)===date);
       return `<section class="card delivery-group"><header class="delivery-group-heading"><div><strong>${date?e(weekday(date))+' · '+dl(date):'بدون تاريخ'}</strong></div><span class="delivery-day-count">${items.length} مطلوب</span></header>
         <div class="delivery-list-scroll"><table class="delivery-list"><thead><tr><th>تاريخ التسليم</th><th>الفكرة / المطلوب</th><th>المنفذ</th><th>مراجعة الفكرة</th><th>الحالة</th><th>التكليف</th><th>إجراء</th></tr></thead><tbody>
         ${items.map(asset=>{
           const reviewed=reviewStatusFor(plan,asset.code);
-          const due=asset.dueDate&&asset.dueDate<today&&asset.status!=='معتمد';
+          const due=displayDeliveryDate(asset)&&displayDeliveryDate(asset)<today&&asset.status!=='معتمد';
           return `<tr class="${due?'delivery-row-late':''}"><td class="delivery-date-cell">${date?dl(date):'لم يُحدد تسليم'}</td><td class="delivery-name-cell">${pill(ideaKind(asset))}<strong>${e(asset.title)}</strong></td><td>${e(executorFor(plan,asset.code))}</td><td>${reviewTag(reviewed)}</td><td>${statusTag(asset.status||'لم يبدأ')}</td><td>${asset.marketingTaskNo?e(asset.marketingTaskNo):'لم يُنشأ'}</td><td><div class="delivery-row-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(asset.code)}">فتح البريف</button><button class="btn p-small" data-action="download-brief" data-id="${e(asset.code)}">تنزيل البريف</button></div></td></tr>`;
         }).join('')}</tbody></table></div></section>`;
     }).join('')||'<div class="delivery-empty card">لا توجد تسليمات مطابقة لهذه الفلاتر.</div>'}</div>`;
@@ -217,8 +221,8 @@ export function ideasPage(state){
   const actions=`<button class="btn btn-primary" data-action="toggle-idea-import">${state.ideaImportOpen?'إغلاق الاستيراد':'استيراد أو استبدال JSON'}</button>`;
   const panel=state.ideaImportOpen?ideaBatchPanel(state):'';
   const tiles=[['كل الأفكار','all',allIdeas.length],['بانتظار المراجعة','بانتظار المراجعة',allIdeas.filter(a=>reviewStatusFor(plan,a.code)==='بانتظار المراجعة').length],['معتمد','معتمد',allIdeas.filter(a=>ideaIsApproved(plan,a.code)).length]];
-  return `<div class="ui-page-actions">${actions}</div>`
-    +`<div class="ideas-review-strip" aria-label="فلاتر مراحل المراجعة">${tiles.map(([label,value,count])=>`<button class="ideas-review-pill ${review===value?'is-selected':''}" type="button" data-action="ideas-filter-review" data-status="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div>`
+  return `<div class="ideas-controls-center"><div class="ui-page-actions">${actions}</div>`
+    +`<div class="ideas-review-strip" aria-label="فلاتر مراحل المراجعة">${tiles.map(([label,value,count])=>`<button class="ideas-review-pill ${review===value?'is-selected':''}" type="button" data-action="ideas-filter-review" data-status="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div></div>`
     +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-category">تصنيف الفكرة</label><select id="idea-category">${[['all','كل التصنيفات'],['تعريفي - بالبراند','تعريفي - بالبراند'],['تعريفي - بالويب سايت','تعريفي - بالويب سايت'],['تعريفي - مواصفات السيارات','تعريفي - مواصفات السيارات'],['بيعي - قسط','بيعي - قسط'],['بيعي - كاش','بيعي - كاش']].map(([k,v])=>option(k,v,category)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
     +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card"><div class="p-idea-head">${a.marketingCategory?`<span class="idea-category-label">${e(a.marketingCategory)}</span>`:""}${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
 }
@@ -325,14 +329,7 @@ export function assetDetailPage(state){
     ${reviewHistory.length?`<div class="review-history"><h3>سجل المراجعات</h3>${[...reviewHistory].reverse().slice(0,10).map(record=>`<div class="review-history-item"><span>${reviewTag(record.status)}</span><small>${record.at?e(new Date(record.at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})):''}</small></div>`).join('')}</div>`:''}
   </section>`;
   const priorPanel=prior.length?`<section class="card panel prior-task-panel"><h2>التكليفات السابقة</h2><div class="prior-task-list">${[...prior].reverse().map(old=>`<div class="prior-task-row"><span><strong>${e(old.taskNo||old.taskId||'—')}</strong><small>مرتبط سابقًا ولا يتغير عند إعادة مراجعة الفكرة</small></span><span>${old.dueDate?dl(old.dueDate):'—'}</span></div>`).join('')}</div></section>`:'';
-  const executionPanel=linked?`<section class="card panel production-side-panel"><div class="page-eyebrow">التكليف الحالي</div><h2>سيستم التسويق</h2><div class="production-summary-list"><div><span>رقم التاسك</span><strong>${e(main?.marketingTaskNo||main?.marketingTaskId||'')}</strong></div><div><span>المنفذ</span><strong>${e(main?.marketingExecutorName||main?.executor||'غير محدد')}</strong></div><div><span>التسليم</span><strong>${e(main?.dueDate?dl(main.dueDate):'غير محدد')}</strong></div></div><button class="btn" data-action="bridge-open-asset" data-id="${e(idea.code)}">متابعة التكليف</button></section>`:
-    `<form class="card panel p-edit-form production-side-panel" id="asset-editor"><div class="page-eyebrow">تخطيط الإنتاج</div><h2>تجهيز التنفيذ</h2><input type="hidden" name="assetCode" value="${e(idea.code)}"/>
-      <label>المنفذ المقترح<select name="executor">${option('','لم أحدد بعد',main?.executor||'')}${PEOPLE.map(n=>option(n,n,main?.executor||'')).join('')}</select></label>
-      <label>تاريخ التسليم المقترح<input type="date" name="dueDate" value="${e(main?.dueDate||'')}"/></label>
-      <label>حالة الإنتاج<select name="status">${TASK_STATUSES.map(n=>option(n,n,main?.status||'لم يبدأ')).join('')}</select></label>
-      <button class="btn" type="submit" ${state.planSaving?'disabled':''}>حفظ التخطيط</button>
-      ${codes.map(id=>{const a=plan.assets.find(x=>x.code===id);return `<div class="p-mini-item">${e(a?.title||'المطلوب')} ${a?.dueDate?dl(a.dueDate):'بدون تاريخ تسليم'} · ${statusTag(a?.status||'')}</div>`;}).join('')}
-    </form>`;
+  const executionPanel=linked?`<section class="card panel production-side-panel"><div class="page-eyebrow">التكليف الحالي</div><h2>سيستم التسويق</h2><div class="production-summary-list"><div><span>رقم التاسك</span><strong>${e(main?.marketingTaskNo||main?.marketingTaskId||'')}</strong></div><div><span>المنفذ</span><strong>${e(main?.marketingExecutorName||main?.executor||'غير محدد')}</strong></div><div><span>التسليم</span><strong>${e(main?.dueDate?dl(main.dueDate):'غير محدد')}</strong></div></div><button class="btn" data-action="bridge-open-asset" data-id="${e(idea.code)}">متابعة التكليف</button></section>`:'';
   return pageHeader('مراجعة البريف',idea.title,'',actions)
     +`<div class="review-workflow-steps"><span class="${status==='معتمد'?'done':'active'}">01 · مراجعة الفكرة</span><span class="${status==='معتمد'?'active':''}">02 · اختيار السيارات والتسليم</span><span class="${linked?'done':''}">03 · إنشاء التاسك</span></div>`
     +`<div class="p-two-columns idea-detail-v15"><div>${briefCard(plan,idea.code)}</div><div class="p-detail-side">${reviewPanel}${executionPanel}${priorPanel}</div></div>`;

@@ -4,7 +4,7 @@ import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaselin
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
@@ -290,8 +290,17 @@ function overviewPage() {
   const pendingCount=ideaList.filter(a=>!ideaIsApproved(state.plan,a.code)&&!['مطلوب تعديل','مرفوض'].includes(ideaAssets(state.plan,a.code)[0]?.reviewStatus)).length;
   const linkedCount=ideaList.filter(a=>ideaIsLinked(state.plan,a.code)).length;
   const postCount=state.plan?.posts.length||0;
-  return `<section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى"><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>في انتظار المراجعة</span>${icon('clock','ic-sm')}</div><strong>${pendingCount}</strong><small>افتح البريف وحدد قرار الفكرة</small></button><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>الأفكار المعتمدة</span>${icon('check','ic-sm')}</div><strong>${approvedCount}</strong><small>جاهزة لاختيار السيارات والتكليف</small></button><button class="card workspace-kpi" data-nav="bridge"><div class="workspace-kpi-head"><span>مرتبطة بتاسك</span>${icon('compare','ic-sm')}</div><strong>${linkedCount}</strong><small>تكليفات مسجلة في سيستم التسويق</small></button><button class="card workspace-kpi" data-nav="plan"><div class="workspace-kpi-head"><span>مواعيد النشر</span>${icon('calendar','ic-sm')}</div><strong>${postCount}</strong><small>افتح تقويم النشر الشهري</small></button></section>
-  <div class="ui-page-actions"><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
+  const count=ideaList.length;
+  // Donuts show a share of the eligible idea bank; dates use unique ideas with a publishing slot.
+  const publishingIdeas=new Set((state.plan?.posts||[]).map(post=>post.ideaCode)).size;
+  const percent=value=>count?Math.min(100,Math.max(0,Math.round(value/count*100))):0;
+  const kpis=[
+    {label:'في انتظار المراجعة',value:pendingCount,share:percent(pendingCount),icon:'clock',target:'ideas'},
+    {label:'الأفكار المعتمدة',value:approvedCount,share:percent(approvedCount),icon:'check',target:'ideas'},
+    {label:'مرتبطة بتاسك',value:linkedCount,share:percent(linkedCount),icon:'compare',target:'bridge'},
+    {label:'مواعيد النشر',value:postCount,share:percent(publishingIdeas),icon:'calendar',target:'plan'}
+  ];
+  return `<section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى">${kpis.map(item=>`<button class="card workspace-kpi" data-nav="${item.target}" aria-label="${item.label}: ${item.value}"><span class="workspace-kpi-head"><span>${item.label}</span>${icon(item.icon,'ic-sm')}</span><span class="workspace-kpi-body"><span class="workspace-kpi-donut" style="--kpi-fill:${item.share}%" aria-hidden="true"><span class="workspace-kpi-donut-center">${icon(item.icon,'ic-sm')}</span></span><strong>${item.value}</strong></span></button>`).join('')}</section>
   <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
   <div class="section-heading"><div><h2>قراءة الأداء قبل الانطلاق</h2></div><span class="note-tag">${icon('clock','ic-sm')} مرجع تاريخي</span></div>
@@ -990,6 +999,13 @@ app.addEventListener('submit', event => {
   if(event.target.id==='schedule-editor'){
     event.preventDefault();void saveSchedule(event.target);return;
   }
+});
+
+app.addEventListener('input', event => {
+  if(event.target?.id !== 'bridge-stock-search')return;
+  state.bridge.stockSearch=event.target.value;
+  const results=document.getElementById('bridge-cars');
+  if(results)results.innerHTML=renderStockOptions(state.bridge) || '<p class="bridge-search-empty">لا توجد سيارات مطابقة للبحث.</p>';
 });
 
 app.addEventListener('change', async event => {

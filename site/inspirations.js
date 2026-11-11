@@ -129,7 +129,7 @@ export function inspirationsPage(state) {
 
   const form = ins.formOpen ? `
     <section class="card panel ins-form-panel">
-      <h2>إضافة مصدر إلهام جديد</h2>
+      <h2>بحث عن فكرة جديدة</h2>
 
       <form id="inspiration-form" class="p-edit-form ins-form">
         <label>نوع المصدر

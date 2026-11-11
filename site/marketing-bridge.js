@@ -7,6 +7,26 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp
 const stockFields = ['car_name','statement','model_year','exterior_color','interior_color'];
 const formatStock = car => stockFields.map(key => String(car?.[key] || '').trim()).filter(Boolean).join(' | ');
 const stockId = car => JSON.stringify(stockFields.map(key => String(car?.[key] || '').trim()));
+// Search adapts to written car/model variants without changing the stock source or chosen cars.
+export const normalizeStockSearch = value => String(value ?? '')
+  .normalize('NFKC').toLocaleLowerCase().replace(/[٠-٩۰-۹]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit) >= 0 ? '٠١٢٣٤٥٦٧٨٩'.indexOf(digit) : '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+  .replace(/[\u064b-\u065f\u0670\u0640]/g, '').replace(/[إأآ]/g, 'ا').replace(/ى/g,'ي').replace(/ة/g,'ه')
+  .replace(/[^\p{L}\p{N}]/gu, '');
+export const filterStockCars = (cars,query) => {
+  const term=normalizeStockSearch(query);
+  const tokens=String(query||'').trim().split(/[\s,،|/+-]+/).map(normalizeStockSearch).filter(Boolean);
+  return !term ? cars : cars.filter(car => {
+    const haystack=normalizeStockSearch(formatStock(car));
+    return haystack.includes(term) || tokens.every(token=>haystack.includes(token));
+  });
+};
+export const renderStockOptions = bridge => filterStockCars(bridge.stock,bridge.stockSearch).slice(0,80).map(car=>{
+  const key=stockId(car);
+  return `<label class="bridge-car-option"><input type="checkbox" name="cars" value="${escape(key)}" ${bridge.chosenStocks.includes(key)?'checked':''}/>
+    <span class="bridge-car-copy"><strong>${escape(car.car_name||'-')} | ${escape(car.statement||'-')} | ${escape(car.model_year||'-')}</strong>
+    <small>الخارجي: ${escape(car.exterior_color||'-')} | الداخلي: ${escape(car.interior_color||'-')}</small></span></label>`;
+}).join('');
+
 const imageOrVideo = idea => idea?.kind === 'video' ? 'video' : 'image';
 const opt = (value,label,current) => `<option value="${escape(value)}" ${String(value)===String(current)?'selected':''}>${escape(label)}</option>`;
 
@@ -16,7 +36,7 @@ const selectionCodes = bridge => [...new Set(bridge.selectedCodes||[])];
 const ideaRows = plan => plan ? [...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))] : [];
 const selectedIdeas = state => selectionCodes(state.bridge).map(code=>getIdea(state.plan,code)).filter(Boolean);
 const groupedName = (category,ideas) => {
- const name=category+' ('+ideas.map(idea=>idea.title).join(' + ')+')';
+ const name=category+' '+ideas.map(idea=>idea.title).join(' + ');
  if(name.length>250)throw Error('عنوان التاسك أطول من 250 حرفًا؛ اختر أفكارًا أقل أو أسماء أقصر، بدون قص العناوين.');
  return name;
 };
@@ -126,13 +146,7 @@ export function bridgePage(state) {
       <button type="button" class="btn p-small" data-action="bridge-edit-cars" data-id="${escape(row.code)}" ${!checked?'disabled':''}>${isConfirmed?'تعديل السيارات':'اختيار السيارات'}</button>
     </article>`;
   }).join('');
-  const stockOptions=bridge.stock.filter(car=>!bridge.stockSearch||formatStock(car).toLowerCase().includes(bridge.stockSearch.toLowerCase()))
-    .slice(0,80).map(car=>{
-      const key=stockId(car);
-      return `<label class="bridge-car-option"><input type="checkbox" name="cars" value="${escape(key)}" ${bridge.chosenStocks.includes(key)?'checked':''}/>
-      <span class="bridge-car-copy"><strong>${escape(car.car_name||'-')} | ${escape(car.statement||'-')} | ${escape(car.model_year||'-')}</strong>
-      <small>الخارجي: ${escape(car.exterior_color||'-')} | الداخلي: ${escape(car.interior_color||'-')}</small></span></label>`;
-    }).join('');
+  const stockOptions=renderStockOptions(bridge);
   const imageKinds=[...new Set(chosen.map(imageOrVideo))];
   const formats=kind=>{
     const kinds=bridge.formats.filter(f=>f.mediaKinds?.includes(kind));
@@ -270,7 +284,8 @@ export async function assignBridgeIdea(state,form) {
  }
  const assets=groups.flatMap(group=>group.assets);
  const pending=assets.filter(a=>a.integrationDraft?.pending===true&&a.integrationRequestKey);
- const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignments,formatIdsByKind:formatsByKind,name};
+ const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignments,formatIdsByKind:formatsByKind,
+   name:pending.length ? (pending[0].integrationDraft?.name||name) : name};
  let requestKey;
  if(pending.length){
    const keys=[...new Set(pending.map(a=>a.integrationRequestKey))];
@@ -298,7 +313,7 @@ export async function assignBridgeIdea(state,form) {
      deliveryMode:assignment.deliveryMode,mediaKind:imageOrVideo(idea),ideaName:idea.title,idea:ideaText,
      explanation,creativeTreatment,dueOn:assignment.dueOn,formatIds:formatsByKind[imageOrVideo(idea)]};
  })));
- const result=await fetchBridge('assignments',{body:{requestKey,typeId,name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items}});
+ const result=await fetchBridge('assignments',{body:{requestKey,typeId,name:draft.name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items}});
  const links=groups.flatMap(({idea,assets})=>{
    const primary=items.find(item=>item.ideaCode===idea.code&&item.deliveryMode==='files') || items.find(item=>item.ideaCode===idea.code);
    const itemId=result.items?.find(row=>row.client_key===primary?.clientKey)?.id;

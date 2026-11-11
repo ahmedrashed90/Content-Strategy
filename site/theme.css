@@ -1,0 +1,44 @@
+/* MZJ theme: edit the values below to restyle all pages.
+   This file is loaded before styles.css. Keep token names to preserve shared components. */
+:root {
+  color-scheme: light;
+  --font-family: 'Tajawal', 'Noto Sans Arabic', Tahoma, sans-serif;
+  --sidebar-width: 268px;
+  --sidebar-bg: var(--brown);
+  /* Brand */
+  --brown: #4a211c;
+  --brown-deep: #341713;
+  --brown-light: #6b4037;
+  --accent: #8d3f2e;
+  --accent-hover: #773425;
+  --cream: #f3e8dc;
+  --cream-soft: #faf8f6;
+  /* Shared surfaces, text, borders */
+  --paper: #ffffff;
+  --card: #ffffff;
+  --muted: #866d63;
+  --line: #e8d7cd;
+  --line-soft: #f0e8e3;
+  --rose: #9e6a59;
+  --positive: #297b5c;
+  --negative: #aa4c51;
+  --surface-warm: #f8eee8;
+  --surface-tinted: #fcf8f3;
+  --surface-active: #fbf1eb;
+  --surface-hover: #fdf9f6;
+  --line-strong: #d7c3b6;
+  --line-warm: #dfcbbc;
+  --accent-border: #a97865;
+  --text-soft: #6b4c42;
+  --card-shadow-color: rgba(74,33,28,.045);
+  --shadow: 0 9px 26px var(--card-shadow-color);
+  /* Shape and micro-interactions */
+  --radius: 19px;
+  --radius-control: 11px;
+  --motion-fast: 150ms;
+  --motion-normal: 240ms;
+  --motion-long: 380ms;
+  --motion-ease: cubic-bezier(.22,1,.36,1);
+  --motion-press-scale: .985;
+  --motion-lift: -3px;
+}
