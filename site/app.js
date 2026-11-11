@@ -927,7 +927,7 @@ async function submitBridgeApproval(form) {
   try {
     await approveBridgeIdea(state,form.elements.namedItem('carMode').value,selected);
     const outstanding=state.bridge.selectedCodes.find(code=>code!==currentCode &&
-      taskCodes(state.plan,code).some(id=>!state.plan.assets.find(asset=>asset.code===id)?.creativeApprovedAt));
+      !state.bridge.carSelections[code]?.confirmed);
     if(outstanding) selectBridgeIdea(state,outstanding,false);
     toast(outstanding?'تم تأكيد السيارات. انتقل لتأكيد الفكرة التالية.':'اكتمل تأكيد السيارات. انتقل لإنشاء التاسك.');
     state.bridge.focusAfterSave=outstanding?'bridge-cars-area':'bridge-assignment-area';
@@ -1029,6 +1029,15 @@ app.addEventListener('change', async event => {
   }
   if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
   if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
+  if(event.target.matches?.('[name^="executor-role-"],[name^="executor-person-"],[name^="executor-due-"]')){
+    const form=event.target.closest('#bridge-assign');
+    if(form)state.bridge.assignments=state.bridge.assignments.map((row,index)=>({
+      role:form.elements.namedItem('executor-role-'+index)?.value||row.role,
+      assignee:form.elements.namedItem('executor-person-'+index)?.value||'',
+      dueOn:form.elements.namedItem('executor-due-'+index)?.value||row.dueOn
+    }));
+    return;
+  }
   if(event.target.closest?.('#bridge-assign')){
     const form=event.target.closest('#bridge-assign');
     state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
@@ -1159,6 +1168,26 @@ app.addEventListener('click', async event => {
     try{await saveStrategyAgenda(state);toast('تم إنشاء الأجندة وإرسالها إلى المراجعة في التسويق.');}
     catch(error){state.agenda.error=error?.message||'تعذر إنشاء أجندة في التسويق';}
     render();return;
+  }
+  if(action==='bridge-add-executor'){
+    const form=document.getElementById('bridge-assign');
+    if(form)state.bridge.assignments=state.bridge.assignments.map((row,index)=>({
+      role:form.elements.namedItem('executor-role-'+index)?.value||row.role,
+      assignee:form.elements.namedItem('executor-person-'+index)?.value||'',
+      dueOn:form.elements.namedItem('executor-due-'+index)?.value||row.dueOn
+    }));
+    if(state.bridge.assignments.length>=8){toast('الحد الأقصى 8 منفذين في التاسك الواحد');return;}
+    state.bridge.assignments.push({role:state.bridge.assignments.some(row=>row.role==='shooting')?'production':'shooting',
+      assignee:'',dueOn:nowInRiyadh()});
+    render();document.getElementById('bridge-assignment-area')?.scrollIntoView({block:'start'});return;
+  }
+  if(action==='bridge-remove-executor'){
+    const index=Number(control.dataset.index);
+    if(state.bridge.assignments.length>1&&index>0){
+      state.bridge.assignments.splice(index,1);render();
+      document.getElementById('bridge-assignment-area')?.scrollIntoView({block:'start'});
+    }
+    return;
   }
   if(action==='bridge-pick-category'){
     try{selectBridgeCategory(state,control.dataset.category||'');render();}
