@@ -29,7 +29,12 @@ export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
  if(!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو خارج التصنيف المحدد');
  if(checked && selectionCodes(bridge).length>=30)throw Error('الحد الأقصى 30 فكرة في التاسك الواحد');
- bridge.selectedCodes=checked?[...selectionCodes(bridge).filter(x=>x!==code),code]:selectionCodes(bridge).filter(x=>x!==code);
+ const stored=state.plan?.assets?.find(a=>a.code===code)?.integrationDraft;
+ if(checked&&Array.isArray(stored?.ideaCodes)){
+   const ready=stored.ideaCodes.map(c=>getIdea(state.plan,c));
+   if(ready.some(row=>!eligible(row)||row.marketingCategory!==bridge.category))throw Error('تعذر استعادة مجموعة التكليف المحفوظة');
+   bridge.selectedCodes=[...stored.ideaCodes];
+ }else bridge.selectedCodes=checked?[...selectionCodes(bridge).filter(x=>x!==code),code]:selectionCodes(bridge).filter(x=>x!==code);
  if(!bridge.selectedCodes.includes(bridge.ideaCode)) selectBridgeIdea(state,bridge.selectedCodes[0]||'',false);
 }
 export function selectBridgeIdea(state, code, add=true) {
@@ -37,7 +42,12 @@ export function selectBridgeIdea(state, code, add=true) {
  if(idea && !eligible(idea))throw Error('هذه الفكرة موقوفة أو ليست ضمن البنك النشط');
  const first=idea ? state.plan?.assets.find(asset=>asset.code===taskCodes(state.plan,code)[0]) : null;
  if(idea && (state.bridge.category!==idea.marketingCategory))Object.assign(state.bridge,{category:idea.marketingCategory,selectedCodes:[]});
- if(idea && add && !state.bridge.selectedCodes.includes(code))state.bridge.selectedCodes.push(code);
+ if(idea && add){
+   const stored=first?.integrationDraft?.ideaCodes;
+   if(Array.isArray(stored)&&stored.length&&first?.integrationRequestKey&&!first?.marketingTaskId)
+     state.bridge.selectedCodes=stored.filter(c=>getIdea(state.plan,c)?.marketingCategory===idea.marketingCategory);
+   else if(!state.bridge.selectedCodes.includes(code))state.bridge.selectedCodes.push(code);
+ }
  state.bridge.ideaCode=code||'';
  state.bridge.mode=first?.approvedCarMode || 'single';
  state.bridge.chosenStocks=(first?.approvedVehicles || []).map(stockId);
@@ -122,13 +132,13 @@ export function bridgePage(state) {
       <section class="card panel"><h2>03 — المنفذ والمطلوبات وإنشاء التاسك</h2>
         <div class="bridge-selected-items">${chosen.map(row=>`<div class="p-scene"><strong>${escape(row.title)}</strong><p>${row.kind==='video'?'فيديو بمشاهده وفويس أوفر منفصل':'صور: '+(row.imageSlides?.length||row.imageCount||1)+' — لكل صورة نص وتصميم مستقل'}</p></div>`).join('')}</div>
         <form id="bridge-assign" class="p-edit-form bridge-form">
-          <label>نوع التاسك في التسويق<select name="taskTypeId" required><option value="">اختر النوع المعتمد</option>${bridge.taskTypes.map(t=>opt(t.id,t.name,bridge.taskTypeId)).join('')}</select></label>
-          <label>المنفذ<select name="assignee" required><option value="">اختر المنفذ</option>${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name+' - '+row.department_name,bridge.assignee)).join('')}</select></label>
-          <label>تاريخ التسليم<input name="dueOn" type="date" min="${nowInRiyadh()}" value="${nowInRiyadh()}" required/></label>
+          <label>نوع التاسك في التسويق<select name="taskTypeId" required><option value="">اختر النوع المعتمد</option>${bridge.taskTypes.map(t=>opt(t.id,t.name,pendingDraft?.typeId||bridge.taskTypeId)).join('')}</select></label>
+          <label>المنفذ<select name="assignee" required><option value="">اختر المنفذ</option>${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name+' - '+row.department_name,pendingDraft?pendingDraft.assigneeId+'|'+pendingDraft.departmentId:bridge.assignee)).join('')}</select></label>
+          <label>تاريخ التسليم<input name="dueOn" type="date" min="${nowInRiyadh()}" value="${pendingDraft?.dueOn||nowInRiyadh()}" required/></label>
           ${chosen.some(row=>row.kind==='image')?renderFormat('image'):''}
           ${chosen.some(row=>row.kind==='video')?renderFormat('video'):''}
           <div class="notice ${selectionReady?'good':'warning'}">${selectionReady?'كل الأفكار جاهزة للتكليف':incomplete.length?'أكد السيارات لكل فكرة قبل إنشاء التاسك':'لا يمكن إنشاء تاسك لفكرة غير معتمدة أو مرتبطة مسبقًا'}.</div>
-          <button type="submit" class="btn btn-primary bridge-submit" ${!selectionReady||!!nameError||bridge.busy?'disabled':''}>إنشاء تاسك واحد (${chosen.length} فكرة)</button>
+          <button type="submit" class="btn btn-primary bridge-submit" ${!selectionReady||!!nameError||bridge.busy?'disabled':''}>${chosen.some(x=>taskCodes(plan,x.code).some(c=>plan.assets.find(a=>a.code===c)?.integrationDraft))?'استكمال التكليف المحفوظ':'إنشاء تاسك واحد ('+chosen.length+' فكرة)'}</button>
         </form>
       </section></div>`:''}
     `}
@@ -163,7 +173,7 @@ export async function assignBridgeIdea(state,form) {
  const assigned=String(form.elements.namedItem('assignee')?.value||'').split('|');
  const dueOn=String(form.elements.namedItem('dueOn')?.value||'');
  const formatsByKind=Object.fromEntries(['image','video'].map(kind=>[kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
- if(!validISODate(dueOn)||dueOn<nowInRiyadh())throw Error('حدد تاريخ تسليم صحيحًا');
+ if(!validISODate(dueOn)||(dueOn<nowInRiyadh()&&!groups.some(g=>g.assets.some(a=>a.integrationDraft?.dueOn===dueOn))))throw Error('حدد تاريخ تسليم صحيحًا');
  if(!bridge.taskTypes.some(t=>t.id===taskTypeId))throw Error('اختر نوع التاسك المعتمد');
  const person=bridge.executors.find(row=>row.user_id===assigned[0]&&row.department_id===assigned[1]);
  if(!person)throw Error('اختر منفذًا مؤهلًا في سيستم التسويق');
