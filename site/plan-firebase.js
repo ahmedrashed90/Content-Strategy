@@ -115,3 +115,61 @@ export async function createPublishingPost(post){
   await api.setDoc(ref,{...post,createdAt:api.serverTimestamp()});
   return post;
 }
+
+
+// Replace the visible idea bank without deleting history, published posts, task links,
+// review events or Marketing records. The write is atomic (up to 400 operations).
+// Retired assets remain readable for historical posts, but are hidden from active workflows.
+export async function replacePublishingIdeas(ideas, batchId) {
+  if (!Array.isArray(ideas) || !ideas.length || ideas.length > 80) throw Error('invalid-batch');
+  const {db,api}=await sdk();
+  const assetsRef=api.collection(db,...base,'assets');
+  const snapshot=await api.getDocs(assetsRef);
+  const existing=snapshot.docs.map(row=>({id:row.id,data:row.data(),ref:row.ref}));
+  const allCodes=new Set(existing.map(row=>row.id));
+  const unique=new Set();
+  for (const idea of ideas) {
+    if (!/^[A-Za-z0-9_-]{3,44}$/.test(idea.code) ||
+        !['video','image'].includes(idea.kind) ||
+        !['','محمود','بلال','عبدالله'].includes(idea.executor) ||
+        idea.status!=='لم يبدأ' || idea.reviewStatus!=='بانتظار المراجعة' ||
+        allCodes.has(idea.code) || unique.has(idea.code)) throw Error('invalid-replacement-idea');
+    unique.add(idea.code);
+  }
+  const active=existing.filter(row=>!row.data.retiredFromIdeaBank);
+  // An unconfirmed remote task creation must be resolved before retiring its idea.
+  if (active.some(row=>row.data.integrationRequestKey && !row.data.marketingTaskId))
+    throw Error('pending-marketing-assignment');
+  if (active.length+ideas.length>400)throw Error('replacement-too-large');
+  const batch=api.writeBatch(db);
+  for (const row of active)batch.update(row.ref,{
+    retiredFromIdeaBank:true,retiredAt:api.serverTimestamp(),
+    retiredReason:'استبدال بنك الأفكار - '+String(batchId||'').slice(0,60),
+    updatedAt:api.serverTimestamp()
+  });
+  for (const idea of ideas)batch.set(api.doc(db,...base,'assets',idea.code),{
+    ...idea,retiredFromIdeaBank:false,createdAt:api.serverTimestamp()
+  });
+  await batch.commit();
+  return loadPublishingPlan();
+}
+
+export async function loadPublishingProposals() {
+  const {db,api}=await sdk();
+  const records=await api.getDocs(api.collection(db,...base,'publishingProposals'));
+  return records.docs.map(row=>row.data()).sort((a,b)=>String(b.createdAt?.seconds||'').localeCompare(String(a.createdAt?.seconds||'')));
+}
+
+export async function createPublishingProposal(proposal) {
+  if(!proposal?.id||!/^[A-Za-z0-9_-]{4,64}$/.test(proposal.id)||
+     !proposal.ideaCode||!proposal.title||proposal.status!=='مسودة'||
+     !validISODate(proposal.publicationStartDate) ||
+     (proposal.publicationEndDate&&!validISODate(proposal.publicationEndDate))||
+     (proposal.publicationEndDate&&proposal.publicationEndDate<proposal.publicationStartDate)||
+     !Array.isArray(proposal.platforms)||!proposal.platforms.length)throw Error('invalid-proposal');
+  const {db,api}=await sdk();
+  const ref=api.doc(db,...base,'publishingProposals',proposal.id);
+  if((await api.getDoc(ref)).exists())throw Error('proposal-already-exists');
+  await api.setDoc(ref,{...proposal,createdAt:api.serverTimestamp()});
+  return loadPublishingProposals();
+}

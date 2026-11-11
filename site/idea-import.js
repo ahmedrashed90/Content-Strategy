@@ -30,13 +30,14 @@ const createAutoCode = (batchId,index)=>{
   const tag=(text(batchId,22).normalize('NFKD').replace(/[^A-Za-z0-9]/g,'').toUpperCase()||'IDEAS').slice(0,14);
   return `N${tag}-${String(index+1).padStart(3,'0')}`;
 };
-export function prepareIdeaBatch(data, existingPlan) {
+export function prepareIdeaBatch(data, existingPlan, options={}) {
   if(!existingPlan?.assets||!Array.isArray(existingPlan.assets))throw Error('يجب تحميل الخطة الحالية قبل إضافة أفكار جديدة.');
   if(data?.schema && data.schema!==IDEA_BATCH_SCHEMA)throw Error('صيغة ملف الأفكار غير معتمدة. استخدم نموذج استيراد الأفكار.');
   const source=Array.isArray(data)?data:(data?.ideas);
   if(!Array.isArray(source)||source.length===0||source.length>80)throw Error('ملف الأفكار يجب أن يحتوي على 1 إلى 80 فكرة في ideas.');
   const ids=new Set([...existingPlan.assets.map(a=>a.code),...(existingPlan.carousels||[]).map(a=>a.code)]);
-  const titles=new Set([...existingPlan.assets,...(existingPlan.carousels||[])].map(a=>comparable(a.title)));
+  // Replacement uses new immutable codes, but may legitimately reuse existing titles.
+  const titles=options.replace ? new Set() : new Set([...existingPlan.assets,...(existingPlan.carousels||[])].map(a=>comparable(a.title)));
   const incomingCodes=new Set(), incomingTitles=new Set();
   const batchId=String(data?.batchId||Date.now().toString(36)).trim();
   const items=[],duplicates=[];
@@ -61,10 +62,12 @@ export function prepareIdeaBatch(data, existingPlan) {
     if(raw.scenes!=null && (!Array.isArray(raw.scenes)||raw.scenes.length>30))throw Error(`مشاهد الفكرة ${code} غير صالحة.`);
     const scenes=(raw.scenes||[]).map((scene,i)=>{
       if(!scene||typeof scene!=='object'||Array.isArray(scene))throw Error(`المشهد ${i+1} في ${code} غير صالح.`);
-      return Object.fromEntries(Object.entries(scene).filter(([key])=>['number','startSecond','endSecond','title','visual','voiceOver','screenText','camera','sound','transition'].includes(key)).map(([key,value])=>[key,typeof value==='number'?value:text(value,4000)]));
+      return Object.fromEntries(Object.entries(scene).filter(([key])=>['number','startSecond','endSecond','title','goal','location','visual','voiceOver','screenText','camera','sound','transition'].includes(key)).map(([key,value])=>[key,typeof value==='number'?value:text(value,4000)]));
     });
     const idea={
       code,kind,title,executor,dueDate,imageCount,week:0,deliveryDay:'',status:'لم يبدأ',
+      sourceIdeaCode:text(raw.sourceIdeaCode,50),executionMethod:text(raw.executionMethod,200),
+      durationSeconds:kind==='video'&&Number.isFinite(Number(raw.durationSeconds))?Math.max(0,Number(raw.durationSeconds)):0,
       reviewStatus:'بانتظار المراجعة',reviewNotes:'',reviewedAt:null,reviewedByUid:'',reviewHistory:[],
       importedBatchId:text(batchId,60),category:text(raw.category,120),
       audienceAndGoal:text(raw.audienceAndGoal,3000),message:text(raw.message,3000),
