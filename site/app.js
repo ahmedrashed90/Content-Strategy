@@ -4,7 +4,7 @@ import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaselin
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, loadPublishingProposals, createPublishingProposal, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
 import { proposalsPage, proposalFromForm } from './proposals.js';
 
 const app = document.getElementById('app');
@@ -53,6 +53,7 @@ const state = {
   taskPerson: 'الكل',
   taskWeek: 0,
   ideaKind: 'all',
+  ideaCategoryFilter: 'all',
   ideaReviewFilter: 'all',
   ideaSearch: '',
   archiveSearch: '',
@@ -776,6 +777,8 @@ async function saveIdeaReview(form,decision){
   const code=form.elements.namedItem('ideaCode')?.value||'';
   const assets=ideaAssets(state.plan,code);
   if(!assets.length||!REVIEW_STATUSES.includes(decision)){toast('قرار المراجعة غير صالح.');return;}
+  const reviewIdea=getIdea(state.plan,code);
+  if(decision==='معتمد' && (reviewIdea?.requiresVerification || reviewIdea?.sourceStatus==='موقوف')){toast('هذه الفكرة موقوفة لحين اعتماد شروطها ومعلوماتها الأصلية.');return;}
   const current=ideaIsApproved(state.plan,code)?'معتمد':assets.every(a=>a.reviewStatus==='مرفوض')?'مرفوض':'بانتظار المراجعة';
   const restoring=decision==='بانتظار المراجعة';
   if(assets.some(a=>a.integrationRequestKey&&!a.marketingTaskId)){
@@ -995,7 +998,9 @@ app.addEventListener('change', async event => {
     render();return;
   }
 
-  if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value);render();return;}
+  if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
+  if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
+  if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
   if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
   if(event.target.matches?.('input[name="cars"]')){
     const value=event.target.value;
@@ -1019,6 +1024,7 @@ app.addEventListener('change', async event => {
   if(event.target.id==='task-person'){state.taskPerson=event.target.value;render();return;}
   if(event.target.id==='task-week'){state.taskWeek=Number(event.target.value)||0;render();return;}
   if(event.target.id==='idea-kind'){state.ideaKind=event.target.value;render();return;}
+  if(event.target.id==='idea-category'){state.ideaCategoryFilter=event.target.value;render();return;}
   if(event.target.id==='idea-review-filter'){state.ideaReviewFilter=event.target.value;render();return;}
   if(event.target.id==='post-idea-select'){
     const target=getIdea(state.plan,event.target.value); if(!target)return;
@@ -1161,5 +1167,15 @@ app.addEventListener('click', async event => {
   if (action === 'save-baseline') { await saveBaseline(); return; }
 });
 
-window.addEventListener('keydown', event => { if (event.key === 'Escape' && state.modal) { state.modal=null; render(); } });
+window.addEventListener('keydown', event => {
+  if(event.key!=='Escape')return;
+  if(state.modal){state.modal=null;render();return;}
+  if(state.view!=='asset')return;
+  // Escape is an explicit back action; do not discard uncommitted review fields.
+  if(!canLeaveBrief())return;
+  event.preventDefault();
+  state.view=state.briefReturnView||'ideas';state.briefBaseline='';
+  render();
+  window.scrollTo({top:state.briefReturnScrollY||0,behavior:'instant'});
+});
 boot();

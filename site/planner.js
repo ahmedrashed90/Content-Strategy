@@ -42,6 +42,17 @@ export const ideaIsApproved=(plan,code)=>reviewStatusFor(plan,code)==='معتم�
 export const ideaIsLinked=(plan,code)=>ideaAssets(plan,code).some(asset=>Boolean(asset.marketingTaskId));
 const reviewTag=(status)=>pill(status==='مرفوض'?'مؤرشف':status==='مطلوب تعديل'?'بانتظار المراجعة':status,status==='معتمد'?'p-ready':status==='مرفوض'?'p-error':'p-neutral');
 const ideaKind=(idea)=>kindLabel[idea?.kind]||'غير معروف';
+const cleanVisualText = value => String(value||'').replace(/الشريحة\\s+\\d+\\s+\\(I\\d+\\)\\s*[:—-]?\\s*/g,'').trim();
+const imageCards = idea => {
+ if(Array.isArray(idea.imageSlides) && idea.imageSlides.length) return idea.imageSlides;
+ return [{number:1,title:'التصميم',screenText:idea.screenText||idea.script||'',visualDescription:idea.visualDescription||idea.creativeTreatment||'',supportingText:'',notes:''}];
+};
+const imageCardMarkup = idea => imageCards(idea).map((slide,i)=>`<div class="p-scene p-image-scene">
+ <strong>الصورة ${i+1} من ${Math.max(1,Number(idea.imageCount)||1)} ${slide.title?'— '+e(slide.title):''}</strong>
+ <p><b>النص النهائي للتصميم:</b></p><p class="p-quote">${e(cleanVisualText(slide.screenText))}</p>
+ <p><b>التصور البصري:</b> ${e(cleanVisualText(slide.visualDescription))}</p>
+ ${slide.supportingText?`<p><b>النص المساند:</b> ${e(slide.supportingText)}</p>`:''}
+ ${slide.notes?`<p><b>ملاحظات الصورة:</b> ${e(slide.notes)}</p>`:''}</div>`).join('');
 const hashtags=(obj,platform)=>obj?.[platform]||'';
 
 export function validatePlanSeed(d) {
@@ -189,15 +200,16 @@ export function tasksPage(state){
       return `<section class="delivery-day"><div class="delivery-date-rail"><span class="delivery-node ${allComplete?'completed':isPast?'overdue':''}"></span><div class="delivery-date-label"><b>${date?e(weekday(date)):'بدون تاريخ'}</b><strong>${date?dl(date):'لم يُحدد تسليم'}</strong><small>${items.length} مطلوب</small></div></div><div class="delivery-day-body"><header><h2>${date?`تسليم ${dl(date)}`:'تحديد موعد التسليم'}</h2><span class="delivery-day-count">${items.length} مطلوب</span></header><div class="delivery-item-grid">${items.map(asset=>{
         const reviewed=reviewStatusFor(plan,asset.code);
         const due=asset.dueDate&&asset.dueDate<today&&asset.status!=='معتمد';
-        return `<article class="delivery-item ${due?'is-overdue':''}"><div class="delivery-item-head"><span class="delivery-code">${e(asset.code)}</span>${pill(ideaKind(asset))}<span class="delivery-status">${statusTag(asset.status||'لم يبدأ')}</span></div><h3>${e(asset.title)}</h3><div class="delivery-item-facts"><div><small>المنفذ</small><strong>${e(executorFor(plan,asset.code))}</strong></div><div><small>مراجعة الفكرة</small>${reviewTag(reviewed)}</div><div><small>التكليف</small><strong>${asset.marketingTaskNo?e(asset.marketingTaskNo):'لم يُنشأ'}</strong></div></div><div class="delivery-item-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(asset.code)}">فتح البريف</button><button class="btn p-small" data-action="download-brief" data-id="${e(asset.code)}">تنزيل البريف</button></div></article>`;
+        return `<article class="delivery-item ${due?'is-overdue':''}"><div class="delivery-item-head">${pill(ideaKind(asset))}<span class="delivery-status">${statusTag(asset.status||'لم يبدأ')}</span></div><h3>${e(asset.title)}</h3><div class="delivery-item-facts"><div><small>المنفذ</small><strong>${e(executorFor(plan,asset.code))}</strong></div><div><small>مراجعة الفكرة</small>${reviewTag(reviewed)}</div><div><small>التكليف</small><strong>${asset.marketingTaskNo?e(asset.marketingTaskNo):'لم يُنشأ'}</strong></div></div><div class="delivery-item-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(asset.code)}">فتح البريف</button><button class="btn p-small" data-action="download-brief" data-id="${e(asset.code)}">تنزيل البريف</button></div></article>`;
       }).join('')}</div></div></section>`;}).join('')||'<div class="delivery-empty card">لا توجد تسليمات مطابقة لهذه الفلاتر.</div>'}</div>`;
 }
 export function ideasPage(state){
   const plan=state.plan;
   if(!plan)return pageHeader('الأفكار','بنك الأفكار','الملف المصدر يحتوي كل الأفكار والأصول.')+importPanel(state);
-  const kind=state.ideaKind||'all',review=state.ideaReviewFilter||'all',search=(state.ideaSearch||'').toLocaleLowerCase();
+  const kind=state.ideaKind||'all',review=state.ideaReviewFilter||'all',category=state.ideaCategoryFilter||'all',search=(state.ideaSearch||'').toLocaleLowerCase();
   const allIdeas=[...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))].filter(a=>reviewStatusFor(plan,a.code)!=='مرفوض');
   const ideas=allIdeas.filter(a=>(kind==='all'||mediaType(a)===kind)
+    && (category==='all'||a.marketingCategory===category)
     && (review==='all'||reviewStatusFor(plan,a.code)===review)
     &&(!search||`${a.code} ${a.title} ${executorFor(plan,a.code)}`.toLocaleLowerCase().includes(search)));
   const imported=plan.assets.filter(a=>Boolean(a.importedBatchId)).length;
@@ -207,25 +219,25 @@ export function ideasPage(state){
   return pageHeader('مركز الإبداع والموافقات','بنك الأفكار ومراجعتها',`كل فكرة تمر على المراجعة والاعتماد قبل إنشاء تكليف. نوع المطلوب «صورة» أو «فيديو» فقط. ${imported?`${imported} فكرة أُضيفت من ملفات JSON.`:''}`,actions)
     +`<div class="ideas-workflow-banner"><div><span>مسار العمل المعتمد</span><strong>فكرة جديدة <i>←</i> مراجعة واعتماد <i>←</i> اختيار السيارات <i>←</i> تكليف المنفذ والتسليم</strong></div><button class="btn" data-nav="bridge">فتح ربط التكليف</button></div>`
     +`<div class="ideas-review-strip" aria-label="فلاتر مراحل المراجعة">${tiles.map(([label,value,count])=>`<button class="ideas-review-pill ${review===value?'is-selected':''}" type="button" data-action="ideas-filter-review" data-status="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div>`
-    +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة أو كودها" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
-    +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card"><div class="p-idea-head">${pill(a.code,'p-code')}${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
+    +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-category">تصنيف الفكرة</label><select id="idea-category">${[['all','كل التصنيفات'],['تعريفي - بالبراند','تعريفي - بالبراند'],['تعريفي - بالويب سايت','تعريفي - بالويب سايت'],['تعريفي - مواصفات السيارات','تعريفي - مواصفات السيارات'],['بيعي - قسط','بيعي - قسط'],['بيعي - كاش','بيعي - كاش']].map(([k,v])=>option(k,v,category)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
+    +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card"><div class="p-idea-head">${a.marketingCategory?`<span class="idea-category-label">${e(a.marketingCategory)}</span>`:""}${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
 }
 export function archivePage(state){
   const plan=state.plan;
   if(!plan)return pageHeader('الأرشيف','أرشيف الأفكار','');
   const archived=[...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))].filter(a=>reviewStatusFor(plan,a.code)==='مرفوض');
   const query=(state.archiveSearch||'').trim().toLocaleLowerCase();
-  const visible=archived.filter(a=>!query||`${a.code} ${a.title}`.toLocaleLowerCase().includes(query));
+  const visible=archived.filter(a=>!query||`${a.title}`.toLocaleLowerCase().includes(query));
   return pageHeader('إدارة الأفكار','أرشيف الأفكار','الأفكار المرفوضة محفوظة ويمكن استرجاعها للمراجعة والاعتماد مستقبلًا.',`<button class="btn" data-nav="ideas">رجوع لبنك الأفكار</button>`)
     +`<div class="archive-summary card"><div><span class="archive-summary-eyebrow">الأفكار المحفوظة</span><strong>${archived.length}</strong></div><label>البحث في الأرشيف<input type="search" id="archive-search" value="${e(state.archiveSearch||'')}" placeholder="اسم الفكرة أو الكود"></label><button class="btn" data-action="archive-search">بحث</button></div>`
-    +`<div class="archive-grid">${visible.map(a=>{const old=ideaAssets(plan,a.code)[0];return `<article class="card archive-card"><div class="archive-card-head">${pill(a.code,'p-code')} ${pill(ideaKind(a))}<span class="archive-tag">في الأرشيف</span></div><h2>${e(a.title)}</h2><div class="archive-card-foot"><span>آخر مراجعة: ${old?.reviewedAt?dl(old.reviewedAt.slice(0,10)):'—'}</span><button class="btn btn-primary" data-action="open-asset" data-id="${e(a.code)}">فتح واسترجاع</button></div></article>`;}).join('')||'<div class="card archive-empty">لا توجد أفكار مطابقة في الأرشيف.</div>'}</div>`;
+    +`<div class="archive-grid">${visible.map(a=>{const old=ideaAssets(plan,a.code)[0];return `<article class="card archive-card"><div class="archive-card-head">${pill(ideaKind(a))}<span class="archive-tag">في الأرشيف</span></div><h2>${e(a.title)}</h2><div class="archive-card-foot"><span>آخر مراجعة: ${old?.reviewedAt?dl(old.reviewedAt.slice(0,10)):'—'}</span><button class="btn btn-primary" data-action="open-asset" data-id="${e(a.code)}">فتح واسترجاع</button></div></article>`;}).join('')||'<div class="card archive-empty">لا توجد أفكار مطابقة في الأرشيف.</div>'}</div>`;
 }
 
 function ideaBatchPanel(state){
   const batch=state.pendingIdeaBatch;
   return `<section class="card panel idea-import-panel"><h2>إدارة بنك الأفكار</h2><p class="page-description">أضف دفعة جديدة أو استبدل الأفكار الظاهرة. يحتفظ الاستبدال بأرشيف السجلات والتكليفات والمنشورات التاريخية.</p><div class="idea-import-modes"><button type="button" class="btn ${!state.ideaReplaceMode?'btn-primary':''}" data-action="idea-import-mode" data-mode="add">إضافة أفكار</button><button type="button" class="btn ${state.ideaReplaceMode?'btn-primary':''}" data-action="idea-import-mode" data-mode="replace">استبدال بنك الأفكار</button></div>${state.ideaReplaceMode?'<div class="notice warning">سيتم إخفاء الأفكار الحالية من البنك النشط مع الاحتفاظ بتاريخها وروابطها. يلزم تأكيد كتابي ونسخة احتياطية قبل الاستبدال.</div>':''}
     <div class="idea-import-main"><label class="plan-drop" for="idea-import-file"><strong>اختر ملف JSON للأفكار</strong><input type="file" id="idea-import-file" accept=".json,application/json"/><small>الملف يمكن أن يحتوي على أفكار صورة وفيديو بعدد صور مخصص لكل فكرة.</small></label></div>
-    ${batch?`<div class="idea-import-preview"><div><strong>الأفكار الجاهزة للإضافة</strong><b>${batch.items.length}</b></div><div><strong>أفكار مكررة تم تخطيها</strong><b>${batch.duplicates.length}</b></div><div><strong>إجمالي الملف</strong><b>${batch.total}</b></div></div><div class="idea-import-list">${batch.items.slice(0,12).map(a=>`<div><span>${e(a.code)}</span><strong>${e(a.title)}</strong>${pill(a.kind==='video'?'فيديو':'صورة')}${a.kind==='image'&&a.imageCount>1?`<small>${a.imageCount} صور</small>`:''}</div>`).join('')}${batch.items.length>12?`<p>و${batch.items.length-12} أفكار أخرى في الملف.</p>`:''}</div>
+    ${batch?`<div class="idea-import-preview"><div><strong>الأفكار الجاهزة للإضافة</strong><b>${batch.items.length}</b></div><div><strong>أفكار مكررة تم تخطيها</strong><b>${batch.duplicates.length}</b></div><div><strong>إجمالي الملف</strong><b>${batch.total}</b></div></div><div class="idea-import-list">${batch.items.slice(0,12).map(a=>`<div><span>${e(a.marketingCategory||'فكرة جديدة')}</span><strong>${e(a.title)}</strong>${pill(a.kind==='video'?'فيديو':'صورة')}${a.kind==='image'&&a.imageCount>1?`<small>${a.imageCount} صور</small>`:''}</div>`).join('')}${batch.items.length>12?`<p>و${batch.items.length-12} أفكار أخرى في الملف.</p>`:''}</div>
       ${batch.items.some(a=>!a.executor)?`<div class="notice">الأفكار بدون منفذ ستُحفظ للمراجعة أولًا. تختار المنفذ وتاريخ التسليم بعد الاعتماد، قبل إنشاء التاسك.</div>`:''}
       ${state.ideaReplaceMode?`<div class="idea-replace-confirm"><label>اكتب كلمة <b>استبدال</b> للتأكيد<input id="idea-replace-verify" autocomplete="off" placeholder="استبدال" /></label><p>سيتم تنزيل نسخة احتياطية قبل إجراء الاستبدال.</p></div>`:''}<div class="p-actions"><button class="btn btn-primary" data-action="${state.ideaReplaceMode?'replace-idea-batch':'confirm-idea-batch'}" ${batch.items.length===0||state.planSaving?'disabled':''}>${state.planSaving?'جارٍ الحفظ…':state.ideaReplaceMode?`استبدال البنك بـ ${batch.items.length} فكرة`:`حفظ ${batch.items.length} فكرة جديدة`}</button><button class="btn" data-action="cancel-idea-batch">إلغاء المعاينة</button></div>`:''}
     ${state.ideaImportError?`<p class="p-error" role="alert">${e(state.ideaImportError)}</p>`:''}
@@ -241,7 +253,7 @@ export function schedulePage(state){
   const date=/^\d{4}-\d{2}-\d{2}$/.test(state.scheduleDate||'')?state.scheduleDate:(state.calendarSelectedDate||nowInRiyadh());
   return pageHeader('إضافة محتوى للتقويم','جدولة فكرة للنشر','الجدولة تضع موعد نشر جديدًا في التقويم، ولا تنشر المحتوى تلقائيًا.',`<button class="btn" data-nav="plan">الرجوع للتقويم</button>`)
     +`${ideas.length? '':`<div class="notice warning">لا توجد أفكار معتمدة بعد. افتح مركز مراجعة الأفكار واعتمد فكرة قبل جدولة موعد جديد.</div>`}
-    <form id="schedule-editor" class="card panel p-edit-form calendar-schedule-form"><label>الفكرة المعتمدة<select name="ideaCode" required><option value="">اختر الفكرة</option>${ideas.map(a=>option(a.code,`${a.code} | ${a.title} | ${ideaKind(a)}`,code)).join('')}</select></label>
+    <form id="schedule-editor" class="card panel p-edit-form calendar-schedule-form"><label>الفكرة المعتمدة<select name="ideaCode" required><option value="">اختر الفكرة</option>${ideas.map(a=>option(a.code,`${a.title} | ${ideaKind(a)}`,code)).join('')}</select></label>
       ${selected?`<div class="notice">${pill(ideaKind(selected))} ${e(selected.title)} · المنفذ: ${e(executorFor(plan,selected.code))}. ${ideaIsApproved(plan,selected.code)?'الفكرة معتمدة.':'تحتاج مراجعة واعتماد قبل الجدولة.'}</div>`:''}
       <div class="p-form-grid"><label>تاريخ النشر<input type="date" name="publicationDate" value="${e(date)}" required/></label><label>وقت النشر<input type="time" name="time" value="19:00" required/></label></div>
       <fieldset class="calendar-schedule-platforms"><legend>المنصات</legend>${Object.entries(PLATFORMS).map(([key,name],index)=>`<label><input type="checkbox" name="platform_${key}" ${index===0?'checked':''}/> ${e(name)}</label>`).join('')}</fieldset>
@@ -252,10 +264,10 @@ export function postDetailPage(state){
   const p=state.plan;const post=p?.posts.find(x=>x.id===state.selectedPostId);
   if(!post)return pageHeader('النشر','تعذر فتح اليوم','ارجع إلى تقويم النشر.');
   const asset=getIdea(p,post.ideaCode);
-  const opts=[...p.assets.filter(a=>a.kind==='video'||a.kind==='image'),...p.carousels].filter(a=>a.code===post.ideaCode||ideaIsApproved(p,a.code)).sort((a,b)=>a.code.localeCompare(b.code)).map(a=>option(a.code,`${a.code} | ${a.title}`,post.ideaCode)).join('');
+  const opts=[...p.assets.filter(a=>a.kind==='video'||a.kind==='image'),...p.carousels].filter(a=>a.code===post.ideaCode||ideaIsApproved(p,a.code)).sort((a,b)=>a.code.localeCompare(b.code)).map(a=>option(a.code,`${a.title}`,post.ideaCode)).join('');
   const tabs=Object.entries(PLATFORMS).map(([k,n])=>`<div class="p-platform-edit"><label class="p-check"><input type="checkbox" name="platform_${k}" ${post.platforms.includes(k)?'checked':''}/> ${e(n)}</label><label>الكابشن - ${e(n)}<textarea name="caption_${k}" rows="3">${e(post.captionsByPlatform?.[k]||'')}</textarea></label><label>الهاشتاج - ${e(n)}<textarea name="hashtags_${k}" rows="2">${e(post.hashtagsByPlatform?.[k]||'')}</textarea></label></div>`).join('');
   const actions=`<button class="btn" data-nav="plan">الرجوع للتقويم</button><button class="btn" data-action="download-brief" data-id="${e(post.ideaCode)}">تحميل بريف الفكرة</button>`;
-  return pageHeader('تفاصيل يوم النشر',`${post.id} · ${asset?.title||post.ideaCode}`,'تعديل الفكرة والمنفذ والمنصات والنصوص والمواعيد محفوظ في Firestore فقط عند الضغط على حفظ.',actions)
+  return pageHeader('تفاصيل يوم النشر',`${asset?.title||'تفاصيل النشر'}`,'تعديل الفكرة والمنفذ والمنصات والنصوص والمواعيد محفوظ في Firestore فقط عند الضغط على حفظ.',actions)
     +`<div class="p-two-columns"><form id="post-editor" class="card panel p-edit-form">
       <h2>إعدادات النشر</h2>
       <div class="p-form-grid"><label>تاريخ النشر المقترح<input name="publicationDate" type="date" required value="${e(post.publicationDate)}"/></label><label>الوقت المقترح<input name="time" type="time" required value="${e(post.time)}"/></label></div>
@@ -271,18 +283,18 @@ export function postDetailPage(state){
       <label>النص الثاني للقصة<textarea name="storyFrame2" rows="2">${e(post.story?.frame2||'')}</textarea></label>
       <button class="btn btn-primary" type="submit" ${state.planSaving?'disabled':''}>${state.planSaving?'جارٍ الحفظ…':'حفظ تعديلات النشر والتكليف'}</button>
       <p class="p-help">لا يوجد نشر آلي. تغيير الفكرة هنا لا يلغي أصول الإنتاج أو يضيف كميات جديدة للفريق.</p>
-    </form><div class="p-detail-side">${briefCard(p,post.ideaCode,true)}<section class="card panel"><h3>تسليم الملف</h3>${taskCodes(p,post.ideaCode).map(id=>{const a=p.assets.find(x=>x.code===id);return a?`<p>${pill(a.code)} ${e(a.executor)} · ${dl(a.dueDate)} · ${statusTag(a.status)}</p>`:'';}).join('')}</section></div></div>`;
+    </form><div class="p-detail-side">${briefCard(p,post.ideaCode,true)}<section class="card panel"><h3>تسليم الملف</h3>${taskCodes(p,post.ideaCode).map(id=>{const a=p.assets.find(x=>x.code===id);return a?`<p>${e(a.title||"المطلوب")} · ${e(a.executor)} · ${dl(a.dueDate)} · ${statusTag(a.status)}</p>`:'';}).join('')}</section></div></div>`;
 }
 
 function briefCard(plan,code,embedded=false){
   const a=getIdea(plan,code);
   if(!a)return '';
-  if(a.kind==='carousel')return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill(a.code,'p-code')} ${pill('صورة')} ${pill(`${mediaTotal(plan,a)} صور`)}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal)}</p><h3>الصور بالتسلسل</h3>${a.slideCodes.map((id,n)=>{const s=getIdea(plan,id);return `<div class="p-scene"><strong>الصورة ${n+1} · ${e(id)}</strong><p class="p-quote">${e(s.screenText)}</p><p>${e(s.visualDescription)}</p></div>`;}).join('')}<h3>الكابشن</h3><p class="p-quote">${e(a.captionsByPlatform?.instagram||'')}</p><h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">تفاصيل كل صورة</button>`:''}</section>`;
+  if(a.kind==='carousel')return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill('صورة')} ${pill(`${mediaTotal(plan,a)} صور`)}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal)}</p><h3>الصور بالتسلسل</h3>${a.slideCodes.map((id,n)=>{const s=getIdea(plan,id);return `<div class="p-scene"><strong>الصورة ${n+1}</strong><p class="p-quote">${e(s.screenText)}</p><p>${e(s.visualDescription)}</p></div>`;}).join('')}<h3>الكابشن</h3><p class="p-quote">${e(a.captionsByPlatform?.instagram||'')}</p><h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">تفاصيل كل صورة</button>`:''}</section>`;
   let chapters='';
   if(a.kind==='video')chapters=`<h3>الهوك</h3><p class="p-quote">${e(a.hook)}</p><h3>الفويس أوفر كاملًا</h3><p class="p-voice">${e(a.script)}</p><h3>السيناريو مشهدًا بمشهد</h3>${(a.scenes||[]).map(sc=>`<div class="p-scene"><strong>المشهد ${e(sc.number)} | ${e(sc.startSecond)}–${e(sc.endSecond)} ثانية · ${e(sc.title)}</strong><p><b>المشهد:</b> ${e(sc.visual)}</p><p><b>الفويس أوفر:</b> ${e(sc.voiceOver)}</p><p><b>نص الشاشة:</b> ${e(sc.screenText)}</p><p><b>الكاميرا:</b> ${e(sc.camera)}</p><p><b>الصوت:</b> ${e(sc.sound)}</p><p><b>الانتقال:</b> ${e(sc.transition)}</p></div>`).join('')}<h3>مطلوبات التصوير</h3><p>${e(a.shootingAssets)}</p><h3>شروط التنفيذ</h3><p>${e(a.qualityNotes)}</p>`;
-  else chapters=`${mediaType(a)==='image'&&mediaTotal(plan,a)>1?`<p><b>عدد الصور المطلوبة:</b> ${mediaTotal(plan,a)}</p>`:''}<h3>النص النهائي للتصميم</h3><p class="p-quote">${e(a.screenText||a.script)}</p><h3>التصور البصري</h3><p>${e(a.visualDescription||a.creativeTreatment)}</p><h3>متابعة القصة / النص المساند</h3><p>${e(a.script||'')}</p><h3>تنبيهات التنفيذ</h3><p>${e(a.productionNotes||'')}</p>`;
+  else chapters=`<h3>التصميم صورة بصورة</h3>${imageCardMarkup(a)}<h3>متابعة القصة / النص المساند</h3><p>${e(a.script||'')}</p><h3>تنبيهات التنفيذ</h3><p>${e(a.productionNotes||'')}</p>`;
   const caps=Object.entries(a.captionsByPlatform||{}).filter(([,v])=>v).map(([k,v])=>`<p><b>${e(PLATFORMS[k]||k)}:</b> ${e(v)}</p>`).join('');
-  return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill(a.code,'p-code')} ${pill(ideaKind(a))}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal||'')}</p><p><b>الرسالة:</b> ${e(a.message||'')}</p>${chapters}<h3>الكابشن حسب المنصة</h3>${caps||'<p>صورة ضمن نفس الفكرة أو قصة مساندة.</p>'}<h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'لا توجد هاشتاجات مطلوبة لهذا الأصل')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">فتح البريف كاملًا</button>`:''}</section>`;
+  return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill(ideaKind(a))}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal||'')}</p><p><b>الرسالة:</b> ${e(a.message||'')}</p>${chapters}<h3>الكابشن حسب المنصة</h3>${caps||'<p>صورة ضمن نفس الفكرة أو قصة مساندة.</p>'}<h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'لا توجد هاشتاجات مطلوبة لهذا الأصل')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">فتح البريف كاملًا</button>`:''}</section>`;
 }
 
 export function assetDetailPage(state){
@@ -297,7 +309,10 @@ export function assetDetailPage(state){
   const returnLabel=state.briefReturnView==='archive'?'الأرشيف':state.briefReturnView==='tasks'?'التسليمات والإنتاج':state.briefReturnView==='post'?'تفاصيل النشر':'بنك الأفكار';
   const back=`<button class="btn brief-back-button" data-action="brief-back" type="button" aria-label="رجوع إلى ${e(returnLabel)}">↩ رجوع إلى ${e(returnLabel)}</button>`;
   const actions=`${back}<button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف</button>`;
-  const decisionButtons=status==='مرفوض'
+  const isSourceBlocked=Boolean(idea.requiresVerification||idea.sourceStatus==='موقوف');
+  const decisionButtons=isSourceBlocked
+    ?'<div class="notice warning">الفكرة موقوفة لحين اعتماد المعلومات أو الشروط الناقصة في بريفها الأصلي. لا يمكن إنشاء تكليف لها حاليًا.</div>'
+    :status==='مرفوض'
     ?`<button class="btn btn-primary" name="reviewDecision" value="بانتظار المراجعة" type="submit">استرجاع الفكرة للمراجعة</button>`
     :status==='معتمد'
     ?`<button class="btn" name="reviewDecision" value="بانتظار المراجعة" type="submit">إلغاء الاعتماد وإعادة للمراجعة</button>`
@@ -317,9 +332,9 @@ export function assetDetailPage(state){
       <label>تاريخ التسليم المقترح<input type="date" name="dueDate" value="${e(main?.dueDate||'')}"/></label>
       <label>حالة الإنتاج<select name="status">${TASK_STATUSES.map(n=>option(n,n,main?.status||'لم يبدأ')).join('')}</select></label>
       <button class="btn" type="submit" ${state.planSaving?'disabled':''}>حفظ التخطيط</button>
-      ${codes.map(id=>{const a=plan.assets.find(x=>x.code===id);return `<div class="p-mini-item">${pill(id)} ${a?.dueDate?dl(a.dueDate):'بدون تاريخ تسليم'} · ${statusTag(a?.status||'')}</div>`;}).join('')}
+      ${codes.map(id=>{const a=plan.assets.find(x=>x.code===id);return `<div class="p-mini-item">${e(a?.title||'المطلوب')} ${a?.dueDate?dl(a.dueDate):'بدون تاريخ تسليم'} · ${statusTag(a?.status||'')}</div>`;}).join('')}
     </form>`;
-  return pageHeader('مراجعة البريف',`${idea.code} · ${idea.title}`,'',actions)
+  return pageHeader('مراجعة البريف',idea.title,'',actions)
     +`<div class="review-workflow-steps"><span class="${status==='معتمد'?'done':'active'}">01 · مراجعة الفكرة</span><span class="${status==='معتمد'?'active':''}">02 · اختيار السيارات والتسليم</span><span class="${linked?'done':''}">03 · إنشاء التاسك</span></div>`
     +`<div class="p-two-columns idea-detail-v15"><div>${briefCard(plan,idea.code)}</div><div class="p-detail-side">${reviewPanel}${executionPanel}${priorPanel}</div></div>`;
 }
@@ -327,13 +342,13 @@ export function toBriefText(plan,code){
   const a=getIdea(plan,code);
   if(!a)return '';
   const related=taskCodes(plan,code).map(id=>plan.assets.find(x=>x.code===id)).filter(Boolean);
-  let lines=[`محمد ذعار العجمي للسيارات - MZJ`,`بريف إبداعي: ${a.code} | ${a.title}`,
+  let lines=[`محمد ذعار العجمي للسيارات - MZJ`,`بريف إبداعي: ${a.title}`,
     `المنفذ: ${executorFor(plan,code)}`,
-    `التسليم: ${related.map(r=>`${r.code} ${r.dueDate} (${r.deliveryDay})`).join(' | ')}`,
+    `التسليم: ${related.map(r=>`${r.title||a.title} ${r.dueDate} (${r.deliveryDay})`).join(' | ')}`,
     `النوع: ${ideaKind(a)}`,''];
   if(a.kind==='carousel'){
     lines.push('الهدف:',a.audienceAndGoal,'',`عدد الصور المطلوبة: ${a.slideCodes.length}`,'','الصور بالتسلسل:');
-    a.slideCodes.forEach((id,n)=>{const s=getIdea(plan,id);lines.push(`الصورة ${n+1} / ${id}`,`النص: ${s.screenText}`,`التصوير/التصميم: ${s.visualDescription}`,'');});
+    a.slideCodes.forEach((id,n)=>{const s=getIdea(plan,id);lines.push(`الصورة ${n+1}`,`النص: ${s.screenText}`,`التصوير/التصميم: ${s.visualDescription}`,'');});
     lines.push('الكابشن:',a.captionsByPlatform?.instagram||'','الهاشتاج:',a.hashtagsByPlatform?.instagram||'');
   } else {
     lines.push('الجمهور والهدف:',a.audienceAndGoal||'','الرسالة:',a.message||'','المعالجة الإبداعية:',a.creativeTreatment||'',
@@ -344,7 +359,14 @@ export function toBriefText(plan,code){
         `الحدث: ${s.visual}`,`الكاميرا: ${s.camera}`,`الصوت: ${s.voiceOver}`,`النص الظاهر: ${s.screenText}`,
         `المؤثر: ${s.sound}`,`الانتقال: ${s.transition}`,'');
       lines.push('الأصول المطلوبة:',a.shootingAssets||'','معايير الجودة:',a.qualityNotes||'');
-    } else lines.push('التصميم البصري:',a.visualDescription||'','النص على التصميم:',a.screenText||'','شروط التصميم:',a.productionNotes||'');
+    } else {
+      lines.push('الصور المطلوبة بالتفصيل:');
+      for(const [i,slide] of imageCards(a).entries())lines.push(`الصورة ${i+1} من ${Math.max(1,Number(a.imageCount)||1)} — ${slide.title||'التصميم'}`,
+        'النص النهائي للتصميم:',cleanVisualText(slide.screenText),'التصور البصري:',cleanVisualText(slide.visualDescription),
+        ...(slide.supportingText?['النص المساند:',slide.supportingText]:[]),
+        ...(slide.notes?['ملاحظات الصورة:',slide.notes]:[]),'');
+      lines.push('شروط التصميم:',a.productionNotes||'');
+    }
     lines.push('الكابشنات والهاشتاجات:');
     for(const [platform,name] of Object.entries(PLATFORMS)){
       if(a.platforms?.includes(platform))lines.push(name,`الكابشن: ${a.captionsByPlatform?.[platform]||''}`,`الهاشتاج: ${a.hashtagsByPlatform?.[platform]||''}`,'');
