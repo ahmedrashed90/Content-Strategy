@@ -848,3 +848,16 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
  .calendar-context{padding:12px}
  .ideas-review-pill{font-size:12px;padding:8px 11px}
 }
+
+
+/* Category badge on 72-idea bank cards; deliberately neutral, readable and compact. */
+.idea-category-label{display:inline-flex;align-items:center;padding:5px 9px;border-radius:8px;border:1px solid #d9c2b2;background:#f3e8dc;color:#4a211c;font-size:.78rem;font-weight:750;line-height:1.5}
+.bridge-multi-list{display:grid;gap:8px;max-height:380px;overflow-y:auto;margin-block:12px;padding-inline-end:4px}
+.bridge-multi-option{display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid #dfd0c5;border-radius:12px;background:#f8f1e9;cursor:pointer}
+.bridge-multi-option input{margin-top:5px;flex-shrink:0}
+.bridge-multi-option span{display:grid;gap:3px}
+.bridge-multi-option strong{color:#4a211c}
+.bridge-multi-option small{font-size:.78rem;opacity:.75}
+.bridge-selected-items{display:grid;gap:10px;margin-block:14px}
+.bridge-selected-items .p-scene{margin:0}
+@media(max-width:700px){.bridge-multi-list{max-height:300px}.idea-category-label{font-size:.72rem}}
