@@ -932,24 +932,40 @@ async function saveSchedule(form){
 
 async function submitBridgeApproval(form) {
   if (state.bridge.busy || isLocalPreview) return;
-  const selected = [...state.bridge.chosenStocks];
-  state.bridge.busy=true;
+  const currentCode=state.bridge.ideaCode;
+  const selected=[...state.bridge.chosenStocks];
+  state.bridge.busy=true;state.bridge.error='';
   try {
-    await approveBridgeIdea(state, form.elements.namedItem('carMode').value, selected);
-    toast('تم حفظ اختيار السيارات للفكرة المعتمدة. يمكنك تجهيز التكليف الآن.');
+    await approveBridgeIdea(state,form.elements.namedItem('carMode').value,selected);
+    const outstanding=state.bridge.selectedCodes.find(code=>code!==currentCode &&
+      taskCodes(state.plan,code).some(id=>!state.plan.assets.find(asset=>asset.code===id)?.creativeApprovedAt));
+    if(outstanding) selectBridgeIdea(state,outstanding,false);
+    toast(outstanding?'تم تأكيد السيارات. انتقل لتأكيد الفكرة التالية.':'اكتمل تأكيد السيارات. انتقل لإنشاء التاسك.');
+    state.bridge.focusAfterSave=outstanding?'bridge-cars-area':'bridge-assignment-area';
+  } catch(error) {
+    state.bridge.error=error?.message||'تعذر تأكيد السيارات. لم يتم إنشاء تاسك.';
+  } finally {
+    // Always render after removing busy, otherwise the form stays disabled forever.
+    state.bridge.busy=false;
     render();
-  } catch(error) { toast(error?.message || 'Approval failed'); }
-  finally { state.bridge.busy=false; }
+    const target=state.bridge.focusAfterSave;
+    state.bridge.focusAfterSave='';
+    if(target)document.getElementById(target)?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
 }
 async function submitBridgeAssignment(form) {
-  if (state.bridge.busy || isLocalPreview) return;
-  state.bridge.busy=true;
+  if(state.bridge.busy||isLocalPreview)return;
+  state.bridge.busy=true;state.bridge.error='';
   try {
     const result=await assignBridgeIdea(state,form);
-    toast(`\u062a\u0645 \u0625\u0646\u0634\u0627\u0621 \u062a\u0627\u0633\u0643 ${result.taskNo} \u0648\u0631\u0628\u0637\u0647.`);
-    render();
-  } catch(error) { toast(error?.message || '\u062a\u0639\u0630\u0631 \u0627\u0644\u0631\u0628\u0637. \u0623\u0639\u062f \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 \u0648\u0644\u0646 \u064a\u062a\u0643\u0631\u0631 \u0627\u0644\u062a\u0627\u0633\u0643.'); }
-  finally { state.bridge.busy=false; }
+    toast('تم إنشاء تاسك '+result.taskNo+' وربطه بالأفكار المختارة.');
+    state.bridge.lastCreatedTask={name:result.taskNo,title:result.name||'',id:result.id};
+  } catch(error) {
+    state.bridge.error=error?.message||'تعذر إنشاء التاسك. لم تتم إعادة المحاولة تلقائيًا لمنع التكرار.';
+  } finally {
+    state.bridge.busy=false;render();
+    if(state.bridge.error)document.getElementById('bridge-error')?.scrollIntoView({behavior:'smooth',block:'center'});
+  }
 }
 
 app.addEventListener('submit', event => {
@@ -999,6 +1015,16 @@ app.addEventListener('change', async event => {
   }
 
   if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
+  if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
+  if(event.target.closest?.('#bridge-assign')){
+    const form=event.target.closest('#bridge-assign');
+    state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
+    state.bridge.assignee=form.elements.namedItem('assignee')?.value||'';
+    state.bridge.dueOn=form.elements.namedItem('dueOn')?.value||nowInRiyadh();
+    state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
+      kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+    return;
+  }
   if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
   if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
@@ -1089,6 +1115,24 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='bridge-pick-category'){
+    try{selectBridgeCategory(state,control.dataset.category||'');render();}
+    catch(error){state.bridge.error=error?.message||'تعذر اختيار التصنيف';render();}
+    return;
+  }
+  if(action==='bridge-filter-ideas'){
+    state.bridge.ideaSearch=document.getElementById('bridge-idea-search')?.value||'';
+    render();document.getElementById('bridge-approved-ideas')?.scrollIntoView({block:'start'});return;
+  }
+  if(action==='bridge-edit-cars'){
+    const ideaCode=control.dataset.id||'';
+    if(!state.bridge.selectedCodes.includes(ideaCode)){
+      state.bridge.error='حدد الفكرة من الجدول أولًا حتى تتمكن من تأكيد سياراتها.';
+      render();return;
+    }
+    selectBridgeIdea(state,ideaCode,false);state.bridge.error='';
+    render();document.getElementById('bridge-cars-area')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+  }
   if(action==='brief-back'){
     if(!canLeaveBrief())return;
     state.view=state.briefReturnView||'ideas';state.briefBaseline='';render();
