@@ -3,7 +3,7 @@ import { createVerify } from 'node:crypto';
 // This function runs on the strategy project's server, not in the browser.
 // It verifies the Firebase owner and forwards one of four allowlisted calls.
 const CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
-const READ_RESOURCES = new Set(['stock','executors','catalog','assignments']);
+const READ_RESOURCES = new Set(['stock','executors','catalog','assignments','agenda-products']);
 let cachedCerts = null;
 let cachedUntil = 0;
 
@@ -74,8 +74,9 @@ export default async function handler(request,response) {
     try { payload = JSON.parse(payload); } catch { payload = null; }
   }
   const assign = method === 'POST' && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.action === 'assign';
-  if (!read && !assign) return responseJson(response,405,{ok:false,error:'Unsupported integration action'});
-  if (assign && Number(request.headers['content-length'] || 0) > 90000) return responseJson(response,413,{ok:false,error:'Assignment is too large'});
+  const agenda = method === 'POST' && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.action === 'agenda';
+  if (!read && !assign && !agenda) return responseJson(response,405,{ok:false,error:'Unsupported integration action'});
+  if ((assign || agenda) && Number(request.headers['content-length'] || 0) > 90000) return responseJson(response,413,{ok:false,error:'Assignment is too large'});
   try {
     await requireOwner(request);
   } catch (error) {
@@ -84,7 +85,7 @@ export default async function handler(request,response) {
   const apiKey = env(read ? 'MZJ_STRATEGY_READ_KEY' : 'MZJ_STRATEGY_ASSIGN_KEY');
   if (apiKey.length < 32) return responseJson(response,503,{ok:false,error:'Server-to-server integration key is not configured'});
   try {
-    const upstream = new URL(`/api/strategy-integration/${read ? resource : 'assignments'}`,upstreamOrigin());
+    const upstream = new URL(`/api/strategy-integration/${read ? resource : agenda ? 'agenda' : 'assignments'}`,upstreamOrigin());
     if (read && resource === 'assignments') {
       const taskId = string(request.query.taskId,36);
       if (!/^[0-9a-f-]{36}$/i.test(taskId)) return responseJson(response,400,{ok:false,error:'taskId is required'});
@@ -92,8 +93,8 @@ export default async function handler(request,response) {
     }
     const upstreamResponse = await fetch(upstream,{
       method:read?'GET':'POST',
-      headers:{Authorization:`Bearer ${apiKey}`,Accept:'application/json',...(assign?{'Content-Type':'application/json'}:{})},
-      ...(assign?{body:JSON.stringify((({action,...fields})=>fields)(payload))}:{}),
+      headers:{Authorization:`Bearer ${apiKey}`,Accept:'application/json',...((assign||agenda)?{'Content-Type':'application/json'}:{})},
+      ...((assign||agenda)?{body:JSON.stringify((({action,...fields})=>fields)(payload))}:{}),
       signal:AbortSignal.timeout(20000),
       redirect:'error',
     });
