@@ -5,7 +5,7 @@ import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, update
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
-import { proposalsPage, proposalFromForm } from './proposals.js';
+import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 
 const app = document.getElementById('app');
 const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
@@ -45,8 +45,7 @@ const state = {
   scheduleDate: '',
   ideaImportOpen: false,
   ideaReplaceMode: false,
-  proposals: [],
-  proposalSaving: false,
+  agenda: newAgendaState(),
   pendingIdeaBatch: null,
   ideaImportError: '',
   importExecutor: '',
@@ -561,7 +560,7 @@ function render() {
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
   if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>proposalsPage(state) };
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -895,15 +894,6 @@ async function saveReplacementBatch(){
     toast('فشل استبدال بنك الأفكار.');
   }finally{state.planSaving=false;render();}
 }
-async function savePublishingProposal(form){
-  if(state.proposalSaving||isLocalPreview)return;
-  let proposal;
-  try{proposal=proposalFromForm(form,state.plan);}catch(err){toast(err.message);return;}
-  state.proposalSaving=true;
-  try{state.proposals=await createPublishingProposal(proposal);toast('تم حفظ مقترح النشر كمسودة داخل الاستراتيجية.');render();}
-  catch(err){console.warn('Proposal save failed:',err?.code||err.message);toast('تعذر حفظ المقترح؛ تحقق من قواعد Firestore.');}
-  finally{state.proposalSaving=false;render();}
-}
 async function saveSchedule(form){
   if(!state.plan||state.planSaving||isLocalPreview)return;
   const value=name=>form.elements.namedItem(name)?.value||'';
@@ -987,7 +977,6 @@ app.addEventListener('submit', event => {
   if(event.target.id==='post-editor'){
     event.preventDefault();savePostEditor(event.target);return;
   }
-  if(event.target.id==='proposal-create'){event.preventDefault();void savePublishingProposal(event.target);return;}
   if(event.target.id==='schedule-editor'){
     event.preventDefault();void saveSchedule(event.target);return;
   }
@@ -1014,6 +1003,31 @@ app.addEventListener('change', async event => {
     render();return;
   }
 
+  if(event.target.id==='agenda-product-search'){state.agenda.search=event.target.value;return;}
+  if(event.target.id==='agenda-name'){state.agenda.name=event.target.value;return;}
+  if(event.target.id==='agenda-start'){state.agenda.start=event.target.value;state.agenda.generated=false;render();return;}
+  if(event.target.id==='agenda-days'){state.agenda.days=Number(event.target.value);state.agenda.generated=false;render();return;}
+  if(event.target.matches?.('input[name="agenda-platform"]')){
+    state.agenda.platformIds=[...app.querySelectorAll('input[name="agenda-platform"]:checked')].map(x=>x.value);
+    state.agenda.generated=false;render();return;
+  }
+  if(event.target.matches?.('input[name^="agenda-date-"]')){
+    const index=Number(event.target.name.slice('agenda-date-'.length));
+    if(state.agenda.entries[index])state.agenda.entries[index].date=event.target.value;
+    return;
+  }
+  if(event.target.matches?.('input[name^="agenda-format-"]')){
+    const index=Number(event.target.name.slice('agenda-format-'.length));
+    const row=state.agenda.entries[index],p=strategyProducts(state).find(x=>x.productId===row?.productId);
+    if(!row||!p)return;
+    const selected=[...app.querySelectorAll('input[name="agenda-format-'+index+'"]:checked')].map(x=>x.value);
+    const map=new Map();
+    for(const format of availableFormats(p).filter(x=>selected.includes(x.id))){
+      if(!map.has(format.platformId))map.set(format.platformId,{platformId:format.platformId,postTypes:[]});
+      map.get(format.platformId).postTypes.push({postTypeId:format.id,budget:0});
+    }
+    row.platforms=[...map.values()];return;
+  }
   if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
   if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
   if(event.target.closest?.('#bridge-assign')){
@@ -1115,6 +1129,37 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='agenda-reload'){await loadAgendaProducts(state);render();return;}
+  if(action==='agenda-build'){
+    try{
+      state.agenda.name=app.querySelector('#agenda-name')?.value||state.agenda.name;
+      state.agenda.start=app.querySelector('#agenda-start')?.value||state.agenda.start;
+      state.agenda.days=Number(app.querySelector('#agenda-days')?.value||state.agenda.days);
+      state.agenda.platformIds=[...app.querySelectorAll('input[name="agenda-platform"]:checked')].map(x=>x.value);
+      buildStrategicAgenda(state);state.agenda.error='';
+    }catch(error){state.agenda.error=error?.message||'تعذر بناء الجدول';}
+    render();return;
+  }
+  if(action==='agenda-remove-entry'){
+    state.agenda.entries.splice(Number(control.dataset.index),1);state.agenda.requestKey='';
+    render();return;
+  }
+  if(action==='agenda-check'){
+    try{validateStrategyAgenda(state);state.agenda.error='';toast('تم فحص التواريخ والمنتجات والمقاسات والتعارضات بنجاح.');}
+    catch(error){state.agenda.error=error?.message||'يوجد تعارض في الجدول';render();}
+    return;
+  }
+  if(action==='agenda-create'){
+    if(isLocalPreview)return;
+    // Persist any unsaved input values before making a single idempotent request.
+    state.agenda.name=app.querySelector('#agenda-name')?.value||state.agenda.name;
+    for(const [index,row] of state.agenda.entries.entries()){
+      row.date=app.querySelector('input[name="agenda-date-'+index+'"]')?.value||row.date;
+    }
+    try{await saveStrategyAgenda(state);toast('تم إنشاء الأجندة وإرسالها إلى المراجعة في التسويق.');}
+    catch(error){state.agenda.error=error?.message||'تعذر إنشاء أجندة في التسويق';}
+    render();return;
+  }
   if(action==='bridge-pick-category'){
     try{selectBridgeCategory(state,control.dataset.category||'');render();}
     catch(error){state.bridge.error=error?.message||'تعذر اختيار التصنيف';render();}
