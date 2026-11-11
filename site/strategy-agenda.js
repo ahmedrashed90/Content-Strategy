@@ -31,7 +31,7 @@ export const strategyProducts=(state)=>{
 };
 export function newAgendaState(){return {
  products:[],loading:false,busy:false,error:'',saved:null,entries:[],
- start:today(),days:15,mode:'strategy',search:'',platformIds:[],requestKey:'',requestSnapshot:'',
+ start:today(),days:15,mode:'strategy',search:'',platformIds:null,requestKey:'',requestSnapshot:'',
  name:'أجندة MZJ الاستراتيجية',reasons:[],warnings:[],generated:false
 };}
 export async function loadAgendaProducts(state){
@@ -59,7 +59,7 @@ export function buildStrategicAgenda(state){
  if(!iso(a.start)||a.start<today())throw Error('حدد تاريخ بداية صحيحًا من اليوم أو بعده');
  const days=Number(a.days);
  if(!Number.isInteger(days)||days<1||days>90)throw Error('مدة الجدول من يوم إلى 90 يوم');
- if(!a.platformIds.length)throw Error('حدد منصة نشر واحدة على الأقل لبناء الجدول');
+ if(!Array.isArray(a.platformIds)||!a.platformIds.length)throw Error('حدد منصة نشر واحدة على الأقل لبناء الجدول');
  const products=strategyProducts(state);
  const eligible=products.filter(p=>!p.alreadyPlanned&&availableFormats(p).length>0);
  const excluded=products.length-eligible.length;
@@ -148,7 +148,7 @@ export function strategyAgendaPage(state){
  const end=iso(a.start)?addDays(a.start,Number(a.days)-1):'';
  const days=[15,28,30].map(n=>`<option value="${n}" ${Number(a.days)===n?'selected':''}>${n} يومًا</option>`).join('');
  const options=[...new Map(products.flatMap(p=>availableFormats(p)).map(f=>[f.platformId,{id:f.platformId,name:f.platformName}])).values()];
- const selected=new Set(a.platformIds);
+ const selected=new Set(a.platformIds||[]);
  const dateLabel=s=>s?new Intl.DateTimeFormat('ar-SA-u-nu-latn',{dateStyle:'medium',timeZone:'Asia/Riyadh'}).format(new Date(s+'T12:00:00Z')):'—';
  const productTable=products.filter(p=>[p.title,p.category,p.assigneeName].join(' ').toLowerCase().includes(a.search.toLowerCase()))
  .map(p=>`<tr><td><strong>${e(p.title)}</strong><small>${e(p.taskNo)}</small></td>
@@ -186,7 +186,7 @@ export function strategyAgendaPage(state){
  <label>بداية النشر<input id="agenda-start" type="date" min="${today()}" value="${e(a.start)}"/></label>
  <label>الفترة<select id="agenda-days">${days}</select></label></div>
  <p class="p-help">التوزيع: أولوية المبيعات، التنوع بين التصنيفات، جاهزية كل منتج، تفادي تكرار المنتج والتصنيف، وتوافق المقاسات. لا توجد نسب غير معتمدة.</p>
- <div class="agenda-platforms">${options.map(p=>`<label><input type="checkbox" name="agenda-platform" value="${e(p.id)}" ${!selected.size||selected.has(p.id)?'checked':''}/> ${e(p.name)}</label>`).join('')||'تظهر المنصات بعد توفر المنتجات المعتمدة.'}</div>
+ <div class="agenda-platforms">${options.map(p=>`<label><input type="checkbox" name="agenda-platform" value="${e(p.id)}" ${a.platformIds===null||selected.has(p.id)?'checked':''}/> ${e(p.name)}</label>`).join('')||'تظهر المنصات بعد توفر المنتجات المعتمدة.'}</div>
  <button class="btn btn-primary" data-action="agenda-build" ${a.loading?'disabled':''}>بناء جدول حسب الاستراتيجية</button>
  ${a.warnings.length?`<div class="notice warning">${a.warnings.map(x=>`<p>${e(x)}</p>`).join('')}</div>`:''}
  </section>
