@@ -58,7 +58,7 @@ service cloud.firestore {
             'executor','status','dueDate','comments','updatedAt',
             'approvedVehicles','approvedCarMode','creativeApprovedAt','integrationRequestKey','integrationDraft',
             'reviewStatus','reviewNotes','reviewedAt','reviewedByUid','reviewHistory',
-            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks'
+            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks','retiredFromIdeaBank','retiredAt','retiredReason'
           ])
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;
@@ -82,6 +82,22 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;
       }
+    }
+
+    // Owner-only strategy publishing proposals. No Marketing agenda is created here.
+    match /contentPlans/mzj-2026-launch-cycle-01/publishingProposals/{proposalId} {
+      allow get, list: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.id == proposalId
+        && request.resource.data.status == 'مسودة'
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner()
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.status in ['مسودة','بانتظار مراجعة','بانتظار المنتج','جاهز للتنسيق']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','ideaCode','marketingProductId','publicationStartDate','publicationEndDate','platforms','objective','caption','notes','status','updatedAt'
+        ]) && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
     }
 
     // No fallback access to any other document.
