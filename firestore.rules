@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner() {
+      return request.auth != null
+        && request.auth.uid == 'Wu4KHDIXQedFUMsSDt9yYLKSfhx1';
+    }
+
+    // Historical social-channel references remain unchanged and immutable.
+    match /baselines/baseline-2026-v1 {
+      allow get: if isOwner();
+      allow list, create, update, delete: if false;
+    }
+    match /baselines/baseline-2026-v2 {
+      allow get: if isOwner();
+      allow list: if false;
+      allow create: if isOwner()
+        && request.resource.data.id == 'baseline-2026-v2'
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.status == 'pre-strategy'
+        && request.resource.data.platforms is map
+        && request.resource.data.platforms.facebook is map
+        && request.resource.data.platforms.instagram is map
+        && request.resource.data.platforms.tiktok is map
+        && request.resource.data.platforms.snapchat is map
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // New independent CONTENT PLAN, editable only by the same authenticated owner.
+    // It does not read or write any CRM or existing Marketing-system collection.
+    match /contentPlans/mzj-2026-launch-cycle-01 {
+      allow get: if isOwner();
+      allow list: if false;
+      allow create: if isOwner()
+        && request.resource.data.id == 'mzj-2026-launch-cycle-01'
+        && request.resource.data.schema == 'mzj-content-plan/v1'
+        && request.resource.data.version == 1
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.assetCount == 48
+        && request.resource.data.postCount == 28
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+
+      match /assets/{assetId} {
+        allow get, list: if isOwner();
+        allow create: if isOwner()
+          && request.resource.data.code == assetId
+          && request.resource.data.executor in ['','محمود','بلال','عبدالله']
+          && request.resource.data.status == 'لم يبدأ';
+        allow update: if isOwner()
+          && request.resource.data.code == resource.data.code
+          && request.resource.data.executor in ['','محمود','بلال','عبدالله']
+          && request.resource.data.status in ['لم يبدأ','قيد التنفيذ','قيد المراجعة','مطلوب تعديل','قيد التعديل','معتمد','مرفوض']
+          && (!('reviewStatus' in request.resource.data) || request.resource.data.reviewStatus in ['بانتظار المراجعة','مطلوب تعديل','معتمد','مرفوض'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'executor','status','dueDate','comments','updatedAt',
+            'approvedVehicles','approvedCarMode','creativeApprovedAt','integrationRequestKey','integrationDraft',
+            'reviewStatus','reviewNotes','reviewedAt','reviewedByUid','reviewHistory',
+            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks','retiredFromIdeaBank','retiredAt','retiredReason'
+          ])
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+
+      match /posts/{postId} {
+        allow get, list: if isOwner();
+        allow create: if isOwner()
+          && request.resource.data.id == postId
+          && request.resource.data.status == 'مخطط'
+          && request.resource.data.platforms is list;
+        allow update: if isOwner()
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.status in ['مخطط','قيد التجهيز','قيد المراجعة','جاهز للنشر','منشور','مؤجل']
+          && request.resource.data.platforms is list
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'publicationDate','time','ideaCode','ideaTitle','platforms',
+            'captionsByPlatform','hashtagsByPlatform','status','publishedUrl',
+            'notes','actualPublicationDate','story','updatedAt'
+          ])
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+    }
+
+    // Owner-only strategy publishing proposals. No Marketing agenda is created here.
+    match /contentPlans/mzj-2026-launch-cycle-01/publishingProposals/{proposalId} {
+      allow get, list: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.id == proposalId
+        && request.resource.data.status == 'مسودة'
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner()
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.status in ['مسودة','بانتظار مراجعة','بانتظار المنتج','جاهز للتنسيق']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','ideaCode','marketingProductId','publicationStartDate','publicationEndDate','platforms','objective','caption','notes','status','updatedAt'
+        ]) && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // No fallback access to any other document.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

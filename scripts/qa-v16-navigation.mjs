@@ -1,0 +1,20 @@
+// Test the actual browser-navigation helpers without Firebase or remote calls.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source=fs.readFileSync(new URL('../site/app.js',import.meta.url),'utf8');
+const start=source.indexOf('function readBriefDraft(){');
+const end=source.indexOf("app.addEventListener('click'",start);
+assert(start>0&&end>start);
+let shouldConfirm=false,confirmationCount=0,scrollTop=null;
+const fakeField={name:'dueDate',type:'date',value:'2026-11-29'};
+const state={view:'tasks',selectedAssetCode:null,briefReturnView:'ideas',briefReturnScrollY:0,briefBaseline:''};
+const context={app:{querySelectorAll:()=>[fakeField]},state,render:()=>{},window:{scrollY:420,confirm:()=>{confirmationCount++;return shouldConfirm},scrollTo:options=>{scrollTop=options.top}}};
+vm.createContext(context);vm.runInContext(source.slice(start,end)+'\nglobalThis.nav={openBrief,canLeaveBrief,readBriefDraft};',context);
+context.nav.openBrief('I01');assert.equal(state.view,'asset');assert.equal(state.briefReturnView,'tasks');assert.equal(scrollTop,0);assert.equal(state.briefReturnScrollY,420);
+assert(context.nav.canLeaveBrief());
+fakeField.value='2026-12-01';assert(!context.nav.canLeaveBrief());assert.equal(confirmationCount,1);
+shouldConfirm=true;assert(context.nav.canLeaveBrief());assert.equal(confirmationCount,2);
+assert(source.includes("if(action==='brief-back')"),'explicit back action should be wired');
+assert(source.includes('state.briefReturnScrollY||0'),'scroll position must be restored');
+console.log('PASS: brief back navigation preserves source tab and scroll, prompts for unsaved form changes.');
