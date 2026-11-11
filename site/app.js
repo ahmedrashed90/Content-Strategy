@@ -53,6 +53,7 @@ const state = {
   taskPerson: 'الكل',
   taskWeek: 0,
   ideaKind: 'all',
+  ideaCategoryFilter: 'all',
   ideaReviewFilter: 'all',
   ideaSearch: '',
   archiveSearch: '',
@@ -1023,6 +1024,7 @@ app.addEventListener('change', async event => {
   if(event.target.id==='task-person'){state.taskPerson=event.target.value;render();return;}
   if(event.target.id==='task-week'){state.taskWeek=Number(event.target.value)||0;render();return;}
   if(event.target.id==='idea-kind'){state.ideaKind=event.target.value;render();return;}
+  if(event.target.id==='idea-category'){state.ideaCategoryFilter=event.target.value;render();return;}
   if(event.target.id==='idea-review-filter'){state.ideaReviewFilter=event.target.value;render();return;}
   if(event.target.id==='post-idea-select'){
     const target=getIdea(state.plan,event.target.value); if(!target)return;
