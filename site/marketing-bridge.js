@@ -74,7 +74,7 @@ export async function fetchBridge(resource, options={}) {
   const idToken = await auth.currentUser.getIdToken();
   const url = new URL('/api/marketing-bridge',window.location.origin);
   if (!options.body) { url.searchParams.set('resource',resource); if(options.taskId)url.searchParams.set('taskId',options.taskId); }
-  const reply = await fetch(url,{method:options.body?'POST':'GET',headers:{Authorization:`Bearer ${idToken}`, ...(options.body?{'Content-Type':'application/json'}:{})},...(options.body?{body:JSON.stringify({action:'assign',...options.body})}:{})});
+  const reply = await fetch(url,{method:options.body?'POST':'GET',headers:{Authorization:`Bearer ${idToken}`, ...(options.body?{'Content-Type':'application/json'}:{})},...(options.body?{body:JSON.stringify({action:resource==='agenda'?'agenda':'assign',...options.body})}:{})});
   const payload = await reply.json().catch(()=>({ok:false,error:'Invalid API response'}));
   if(!reply.ok || !payload.ok)throw Error(payload.error || `Bridge request failed (${reply.status})`);
   return payload;
