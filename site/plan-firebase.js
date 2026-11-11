@@ -16,12 +16,16 @@ export async function loadPublishingPlan() {
   const reference = api.doc(db,...base);
   const found = await api.getDoc(reference);
   if (!found.exists()) return null;
-  const [assets,posts,runs] = await Promise.all([
+  const [assets,posts] = await Promise.all([
     api.getDocs(api.collection(db,...base,'assets')),
-    api.getDocs(api.collection(db,...base,'posts')),
-    api.getDocs(api.collection(db,...base,'taskRuns'))
+    api.getDocs(api.collection(db,...base,'posts'))
   ]);
-  return { ...found.data(), taskRuns:runs.docs.map(doc=>({id:doc.id,...doc.data()})),
+  // Migration-safe read: old deployed rules may not yet include taskRuns.
+  let taskRuns=[],taskRunRulesReady=true;
+  try{const runs=await api.getDocs(api.collection(db,...base,'taskRuns'));
+    taskRuns=runs.docs.map(doc=>({id:doc.id,...doc.data()}));}
+  catch(error){if(error?.code==='permission-denied')taskRunRulesReady=false;else throw error;}
+  return { ...found.data(),taskRuns,taskRunRulesReady,
     assets: assets.docs.map(doc=>doc.data()).sort((a,b)=>a.code.localeCompare(b.code)),
     posts: posts.docs.map(doc=>doc.data()).sort((a,b)=>String(a.publicationDate||'').localeCompare(String(b.publicationDate||'')) || String(a.time||'').localeCompare(String(b.time||'')) || String(a.id).localeCompare(String(b.id)))
   };
