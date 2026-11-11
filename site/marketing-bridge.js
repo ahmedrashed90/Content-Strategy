@@ -44,7 +44,7 @@ export async function reloadBridge(state) {
 export function bridgePage(state) {
   const bridge=state.bridge;
   const plan=state.plan;
-  const allIdeas=plan?[...plan.assets.filter(asset=>asset.kind!=='carousel_slide'),...plan.carousels]:[];
+  const allIdeas=plan?[...plan.assets.filter(asset=>asset.kind!=='carousel_slide'&&!asset.retiredFromIdeaBank),...(plan.carousels||[]).filter(idea=>taskCodes(plan,idea.code).some(code=>!plan.assets.find(a=>a.code===code)?.retiredFromIdeaBank))]:[];
   const idea=getIdea(plan,bridge.ideaCode);
   const codes=idea?taskCodes(plan,idea.code):[];
   const assets=codes.map(code=>plan?.assets.find(row=>row.code===code)).filter(Boolean);
@@ -72,9 +72,9 @@ export function bridgePage(state) {
   const selectedFormats=pendingDraft?.formatIds||bridge.formatIds;
   return `<div class="page-header"><div><div class="page-eyebrow">الربط التنفيذي الآمن</div><h1 class="page-title">تحويل الفكرة إلى تاسك</h1><p class="page-description">بعد مراجعة الفكرة واعتمادها، اختر السيارات والمنفذ وتاريخ التسليم، ثم أنشئ التاسك في سيستم التسويق.</p></div><div class="p-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>${bridge.loading?'جارٍ التحميل...':'تحديث الاستوك والمنفذين'}</button></div></div>
     ${bridge.error?`<div class="notice">${escape(bridge.error)}</div>`:''}
-    <div class="mini-grid"><div class="card mini-card"><div class="label">السيارات بدون تكرار</div><div class="value">${bridge.stock.length}</div></div><div class="card mini-card"><div class="label">المنفذون المتاحون</div><div class="value">${bridge.executors.length}</div></div><div class="card mini-card"><div class="label">مقاسات المطلوب</div><div class="value">${bridge.formats.length}</div></div></div>
+    <div class="bridge-context"><span>ابدأ باختيار فكرة معتمدة</span><span>حدد السيارات الفعلية أو اختر «لا تحتاج سيارة»</span><span>راجع المنفذ والتسليم قبل إرسال التاسك</span></div>
     <div class="bridge-workflow"><span class="${reviewed?'is-done':''}">01 <b>اعتماد الفكرة</b></span><span class="${selectionCurrent?'is-done':''}">02 <b>تأكيد السيارات</b></span><span class="${linked?'is-done':''}">03 <b>المنفذ والتسليم والتكليف</b></span></div>
-    ${!plan?'<div class="notice">استورد خطة المحتوى أولاً قبل ربط التكليفات.</div>':`<div class="p-two-columns bridge-v15-columns"><section class="card panel"><div class="page-eyebrow">المرحلة 01 + 02</div><h2>الفكرة والسيارات المرتبطة</h2>
+    ${!plan?'<div class="notice">استورد خطة المحتوى أولاً قبل ربط التكليفات.</div>':`<div class="p-two-columns bridge-v15-columns bridge-redesign"><section class="card panel"><div class="page-eyebrow">المرحلة 01 + 02</div><h2>الفكرة والسيارات المرتبطة</h2>
       <label class="bridge-idea-label">الفكرة<select id="bridge-idea"><option value="">اختر الفكرة</option>${allIdeas.map(row=>opt(row.code,`${row.code} | ${row.title}`,bridge.ideaCode)).join('')}</select></label>
       ${idea?`<div class="bridge-idea-snapshot"><span>نوع المطلوب: <b>${fmtType==='video'?'فيديو':'صورة'}</b></span><span>حالة الفكرة: <strong>${escape(reviewStatusFor(plan,idea.code))}</strong></span><span>عدد مكونات الفكرة: <b>${codes.length}</b></span></div>
         ${!reviewed?`<div class="notice warning">هذه الفكرة غير معتمدة بعد، لذلك التكليف مقفل. افتح البريف وراجعها أولًا.</div><button class="btn btn-primary" type="button" data-action="open-asset" data-id="${escape(idea.code)}">فتح مراجعة الفكرة</button>`:''}
@@ -92,7 +92,7 @@ export function bridgePage(state) {
        <div class="notice ${selectionCurrent?'good':''}">${requestPending?'يوجد طلب محفوظ. اضغط استكمال التكليف لاسترجاع نفس التاسك دون إنشاء مكرر.':selectionCurrent?'الفكرة والسيارات معتمدتان. راجع المنفذ والتسليم ثم أنشئ التاسك.':'اعتمد الفكرة وثبّت اختيار السيارات أولًا.'}</div>
        <button class="btn btn-primary bridge-submit" type="submit" ${!selectionCurrent||bridge.busy?'disabled':''}>${requestPending?'استكمال طلب التكليف السابق':'إنشاء تاسك في سيستم التسويق'}</button>
        </form>`:linked?`<div class="notice good">التكليف أُنشئ وارتبط بالفكرة. لا يمكن إنشاؤه مرة ثانية.</div>`:idea?'<div class="notice warning">اعتمد الفكرة أولًا من مراجعة البريف لفتح اختيار المنفذ وتاريخ التسليم.</div>':'<p class="p-help">اختر فكرة معتمدة لتجهيز تكليفها في سيستم التسويق.</p>'}</section></div>`}
-    <section class="card panel" style="margin-top:15px"><h3>ضوابط الربط</h3><p>القراءة محدودة بالاستوك والمنفذين وإعدادات التاسك. لا يسمح الربط إلا بإنشاء تكليف جديد، وتبقى المفاتيح على سيرفر Vercel.</p></section>`;
+    <p class="bridge-footnote">إنشاء التكليف يتم فقط عند الضغط على زر الإنشاء وبعد اعتماد الفكرة والسيارات؛ ربط التسويق الحالي يبقى كما هو.</p>`;
 }
 
 export function currentApproval(state) {
