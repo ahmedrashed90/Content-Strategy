@@ -42,6 +42,17 @@ export const ideaIsApproved=(plan,code)=>reviewStatusFor(plan,code)==='معتم�
 export const ideaIsLinked=(plan,code)=>ideaAssets(plan,code).some(asset=>Boolean(asset.marketingTaskId));
 const reviewTag=(status)=>pill(status==='مرفوض'?'مؤرشف':status==='مطلوب تعديل'?'بانتظار المراجعة':status,status==='معتمد'?'p-ready':status==='مرفوض'?'p-error':'p-neutral');
 const ideaKind=(idea)=>kindLabel[idea?.kind]||'غير معروف';
+const cleanVisualText = value => String(value||'').replace(/الشريحة\\s+\\d+\\s+\\(I\\d+\\)\\s*[:—-]?\\s*/g,'').trim();
+const imageCards = idea => {
+ if(Array.isArray(idea.imageSlides) && idea.imageSlides.length) return idea.imageSlides;
+ return [{number:1,title:'التصميم',screenText:idea.screenText||idea.script||'',visualDescription:idea.visualDescription||idea.creativeTreatment||'',supportingText:'',notes:''}];
+};
+const imageCardMarkup = idea => imageCards(idea).map((slide,i)=>`<div class="p-scene p-image-scene">
+ <strong>الصورة ${i+1} من ${Math.max(1,Number(idea.imageCount)||1)} ${slide.title?'— '+e(slide.title):''}</strong>
+ <p><b>النص النهائي للتصميم:</b></p><p class="p-quote">${e(cleanVisualText(slide.screenText))}</p>
+ <p><b>التصور البصري:</b> ${e(cleanVisualText(slide.visualDescription))}</p>
+ ${slide.supportingText?`<p><b>النص المساند:</b> ${e(slide.supportingText)}</p>`:''}
+ ${slide.notes?`<p><b>ملاحظات الصورة:</b> ${e(slide.notes)}</p>`:''}</div>`).join('');
 const hashtags=(obj,platform)=>obj?.[platform]||'';
 
 export function validatePlanSeed(d) {
@@ -207,25 +218,25 @@ export function ideasPage(state){
   return pageHeader('مركز الإبداع والموافقات','بنك الأفكار ومراجعتها',`كل فكرة تمر على المراجعة والاعتماد قبل إنشاء تكليف. نوع المطلوب «صورة» أو «فيديو» فقط. ${imported?`${imported} فكرة أُضيفت من ملفات JSON.`:''}`,actions)
     +`<div class="ideas-workflow-banner"><div><span>مسار العمل المعتمد</span><strong>فكرة جديدة <i>←</i> مراجعة واعتماد <i>←</i> اختيار السيارات <i>←</i> تكليف المنفذ والتسليم</strong></div><button class="btn" data-nav="bridge">فتح ربط التكليف</button></div>`
     +`<div class="ideas-review-strip" aria-label="فلاتر مراحل المراجعة">${tiles.map(([label,value,count])=>`<button class="ideas-review-pill ${review===value?'is-selected':''}" type="button" data-action="ideas-filter-review" data-status="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div>`
-    +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة أو كودها" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
-    +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card"><div class="p-idea-head">${pill(a.code,'p-code')}${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
+    +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
+    +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card"><div class="p-idea-head">${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
 }
 export function archivePage(state){
   const plan=state.plan;
   if(!plan)return pageHeader('الأرشيف','أرشيف الأفكار','');
   const archived=[...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))].filter(a=>reviewStatusFor(plan,a.code)==='مرفوض');
   const query=(state.archiveSearch||'').trim().toLocaleLowerCase();
-  const visible=archived.filter(a=>!query||`${a.code} ${a.title}`.toLocaleLowerCase().includes(query));
+  const visible=archived.filter(a=>!query||`${a.title}`.toLocaleLowerCase().includes(query));
   return pageHeader('إدارة الأفكار','أرشيف الأفكار','الأفكار المرفوضة محفوظة ويمكن استرجاعها للمراجعة والاعتماد مستقبلًا.',`<button class="btn" data-nav="ideas">رجوع لبنك الأفكار</button>`)
     +`<div class="archive-summary card"><div><span class="archive-summary-eyebrow">الأفكار المحفوظة</span><strong>${archived.length}</strong></div><label>البحث في الأرشيف<input type="search" id="archive-search" value="${e(state.archiveSearch||'')}" placeholder="اسم الفكرة أو الكود"></label><button class="btn" data-action="archive-search">بحث</button></div>`
-    +`<div class="archive-grid">${visible.map(a=>{const old=ideaAssets(plan,a.code)[0];return `<article class="card archive-card"><div class="archive-card-head">${pill(a.code,'p-code')} ${pill(ideaKind(a))}<span class="archive-tag">في الأرشيف</span></div><h2>${e(a.title)}</h2><div class="archive-card-foot"><span>آخر مراجعة: ${old?.reviewedAt?dl(old.reviewedAt.slice(0,10)):'—'}</span><button class="btn btn-primary" data-action="open-asset" data-id="${e(a.code)}">فتح واسترجاع</button></div></article>`;}).join('')||'<div class="card archive-empty">لا توجد أفكار مطابقة في الأرشيف.</div>'}</div>`;
+    +`<div class="archive-grid">${visible.map(a=>{const old=ideaAssets(plan,a.code)[0];return `<article class="card archive-card"><div class="archive-card-head">${pill(ideaKind(a))}<span class="archive-tag">في الأرشيف</span></div><h2>${e(a.title)}</h2><div class="archive-card-foot"><span>آخر مراجعة: ${old?.reviewedAt?dl(old.reviewedAt.slice(0,10)):'—'}</span><button class="btn btn-primary" data-action="open-asset" data-id="${e(a.code)}">فتح واسترجاع</button></div></article>`;}).join('')||'<div class="card archive-empty">لا توجد أفكار مطابقة في الأرشيف.</div>'}</div>`;
 }
 
 function ideaBatchPanel(state){
   const batch=state.pendingIdeaBatch;
   return `<section class="card panel idea-import-panel"><h2>إدارة بنك الأفكار</h2><p class="page-description">أضف دفعة جديدة أو استبدل الأفكار الظاهرة. يحتفظ الاستبدال بأرشيف السجلات والتكليفات والمنشورات التاريخية.</p><div class="idea-import-modes"><button type="button" class="btn ${!state.ideaReplaceMode?'btn-primary':''}" data-action="idea-import-mode" data-mode="add">إضافة أفكار</button><button type="button" class="btn ${state.ideaReplaceMode?'btn-primary':''}" data-action="idea-import-mode" data-mode="replace">استبدال بنك الأفكار</button></div>${state.ideaReplaceMode?'<div class="notice warning">سيتم إخفاء الأفكار الحالية من البنك النشط مع الاحتفاظ بتاريخها وروابطها. يلزم تأكيد كتابي ونسخة احتياطية قبل الاستبدال.</div>':''}
     <div class="idea-import-main"><label class="plan-drop" for="idea-import-file"><strong>اختر ملف JSON للأفكار</strong><input type="file" id="idea-import-file" accept=".json,application/json"/><small>الملف يمكن أن يحتوي على أفكار صورة وفيديو بعدد صور مخصص لكل فكرة.</small></label></div>
-    ${batch?`<div class="idea-import-preview"><div><strong>الأفكار الجاهزة للإضافة</strong><b>${batch.items.length}</b></div><div><strong>أفكار مكررة تم تخطيها</strong><b>${batch.duplicates.length}</b></div><div><strong>إجمالي الملف</strong><b>${batch.total}</b></div></div><div class="idea-import-list">${batch.items.slice(0,12).map(a=>`<div><span>${e(a.code)}</span><strong>${e(a.title)}</strong>${pill(a.kind==='video'?'فيديو':'صورة')}${a.kind==='image'&&a.imageCount>1?`<small>${a.imageCount} صور</small>`:''}</div>`).join('')}${batch.items.length>12?`<p>و${batch.items.length-12} أفكار أخرى في الملف.</p>`:''}</div>
+    ${batch?`<div class="idea-import-preview"><div><strong>الأفكار الجاهزة للإضافة</strong><b>${batch.items.length}</b></div><div><strong>أفكار مكررة تم تخطيها</strong><b>${batch.duplicates.length}</b></div><div><strong>إجمالي الملف</strong><b>${batch.total}</b></div></div><div class="idea-import-list">${batch.items.slice(0,12).map(a=>`<div><span>${e(a.marketingCategory||'فكرة جديدة')}</span><strong>${e(a.title)}</strong>${pill(a.kind==='video'?'فيديو':'صورة')}${a.kind==='image'&&a.imageCount>1?`<small>${a.imageCount} صور</small>`:''}</div>`).join('')}${batch.items.length>12?`<p>و${batch.items.length-12} أفكار أخرى في الملف.</p>`:''}</div>
       ${batch.items.some(a=>!a.executor)?`<div class="notice">الأفكار بدون منفذ ستُحفظ للمراجعة أولًا. تختار المنفذ وتاريخ التسليم بعد الاعتماد، قبل إنشاء التاسك.</div>`:''}
       ${state.ideaReplaceMode?`<div class="idea-replace-confirm"><label>اكتب كلمة <b>استبدال</b> للتأكيد<input id="idea-replace-verify" autocomplete="off" placeholder="استبدال" /></label><p>سيتم تنزيل نسخة احتياطية قبل إجراء الاستبدال.</p></div>`:''}<div class="p-actions"><button class="btn btn-primary" data-action="${state.ideaReplaceMode?'replace-idea-batch':'confirm-idea-batch'}" ${batch.items.length===0||state.planSaving?'disabled':''}>${state.planSaving?'جارٍ الحفظ…':state.ideaReplaceMode?`استبدال البنك بـ ${batch.items.length} فكرة`:`حفظ ${batch.items.length} فكرة جديدة`}</button><button class="btn" data-action="cancel-idea-batch">إلغاء المعاينة</button></div>`:''}
     ${state.ideaImportError?`<p class="p-error" role="alert">${e(state.ideaImportError)}</p>`:''}
@@ -277,10 +288,10 @@ export function postDetailPage(state){
 function briefCard(plan,code,embedded=false){
   const a=getIdea(plan,code);
   if(!a)return '';
-  if(a.kind==='carousel')return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill(a.code,'p-code')} ${pill('صورة')} ${pill(`${mediaTotal(plan,a)} صور`)}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal)}</p><h3>الصور بالتسلسل</h3>${a.slideCodes.map((id,n)=>{const s=getIdea(plan,id);return `<div class="p-scene"><strong>الصورة ${n+1} · ${e(id)}</strong><p class="p-quote">${e(s.screenText)}</p><p>${e(s.visualDescription)}</p></div>`;}).join('')}<h3>الكابشن</h3><p class="p-quote">${e(a.captionsByPlatform?.instagram||'')}</p><h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">تفاصيل كل صورة</button>`:''}</section>`;
+  if(a.kind==='carousel')return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill('صورة')} ${pill(`${mediaTotal(plan,a)} صور`)}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal)}</p><h3>الصور بالتسلسل</h3>${a.slideCodes.map((id,n)=>{const s=getIdea(plan,id);return `<div class="p-scene"><strong>الصورة ${n+1}</strong><p class="p-quote">${e(s.screenText)}</p><p>${e(s.visualDescription)}</p></div>`;}).join('')}<h3>الكابشن</h3><p class="p-quote">${e(a.captionsByPlatform?.instagram||'')}</p><h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">تفاصيل كل صورة</button>`:''}</section>`;
   let chapters='';
   if(a.kind==='video')chapters=`<h3>الهوك</h3><p class="p-quote">${e(a.hook)}</p><h3>الفويس أوفر كاملًا</h3><p class="p-voice">${e(a.script)}</p><h3>السيناريو مشهدًا بمشهد</h3>${(a.scenes||[]).map(sc=>`<div class="p-scene"><strong>المشهد ${e(sc.number)} | ${e(sc.startSecond)}–${e(sc.endSecond)} ثانية · ${e(sc.title)}</strong><p><b>المشهد:</b> ${e(sc.visual)}</p><p><b>الفويس أوفر:</b> ${e(sc.voiceOver)}</p><p><b>نص الشاشة:</b> ${e(sc.screenText)}</p><p><b>الكاميرا:</b> ${e(sc.camera)}</p><p><b>الصوت:</b> ${e(sc.sound)}</p><p><b>الانتقال:</b> ${e(sc.transition)}</p></div>`).join('')}<h3>مطلوبات التصوير</h3><p>${e(a.shootingAssets)}</p><h3>شروط التنفيذ</h3><p>${e(a.qualityNotes)}</p>`;
-  else chapters=`${mediaType(a)==='image'&&mediaTotal(plan,a)>1?`<p><b>عدد الصور المطلوبة:</b> ${mediaTotal(plan,a)}</p>`:''}<h3>النص النهائي للتصميم</h3><p class="p-quote">${e(a.screenText||a.script)}</p><h3>التصور البصري</h3><p>${e(a.visualDescription||a.creativeTreatment)}</p><h3>متابعة القصة / النص المساند</h3><p>${e(a.script||'')}</p><h3>تنبيهات التنفيذ</h3><p>${e(a.productionNotes||'')}</p>`;
+  else chapters=`<h3>التصميم صورة بصورة</h3>${imageCardMarkup(a)}<h3>متابعة القصة / النص المساند</h3><p>${e(a.script||'')}</p><h3>تنبيهات التنفيذ</h3><p>${e(a.productionNotes||'')}</p>`;
   const caps=Object.entries(a.captionsByPlatform||{}).filter(([,v])=>v).map(([k,v])=>`<p><b>${e(PLATFORMS[k]||k)}:</b> ${e(v)}</p>`).join('');
   return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill(a.code,'p-code')} ${pill(ideaKind(a))}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal||'')}</p><p><b>الرسالة:</b> ${e(a.message||'')}</p>${chapters}<h3>الكابشن حسب المنصة</h3>${caps||'<p>صورة ضمن نفس الفكرة أو قصة مساندة.</p>'}<h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'لا توجد هاشتاجات مطلوبة لهذا الأصل')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">فتح البريف كاملًا</button>`:''}</section>`;
 }
@@ -317,9 +328,9 @@ export function assetDetailPage(state){
       <label>تاريخ التسليم المقترح<input type="date" name="dueDate" value="${e(main?.dueDate||'')}"/></label>
       <label>حالة الإنتاج<select name="status">${TASK_STATUSES.map(n=>option(n,n,main?.status||'لم يبدأ')).join('')}</select></label>
       <button class="btn" type="submit" ${state.planSaving?'disabled':''}>حفظ التخطيط</button>
-      ${codes.map(id=>{const a=plan.assets.find(x=>x.code===id);return `<div class="p-mini-item">${pill(id)} ${a?.dueDate?dl(a.dueDate):'بدون تاريخ تسليم'} · ${statusTag(a?.status||'')}</div>`;}).join('')}
+      ${codes.map(id=>{const a=plan.assets.find(x=>x.code===id);return `<div class="p-mini-item">${e(a?.title||'المطلوب')} ${a?.dueDate?dl(a.dueDate):'بدون تاريخ تسليم'} · ${statusTag(a?.status||'')}</div>`;}).join('')}
     </form>`;
-  return pageHeader('مراجعة البريف',`${idea.code} · ${idea.title}`,'',actions)
+  return pageHeader('مراجعة البريف',idea.title,'',actions)
     +`<div class="review-workflow-steps"><span class="${status==='معتمد'?'done':'active'}">01 · مراجعة الفكرة</span><span class="${status==='معتمد'?'active':''}">02 · اختيار السيارات والتسليم</span><span class="${linked?'done':''}">03 · إنشاء التاسك</span></div>`
     +`<div class="p-two-columns idea-detail-v15"><div>${briefCard(plan,idea.code)}</div><div class="p-detail-side">${reviewPanel}${executionPanel}${priorPanel}</div></div>`;
 }
@@ -327,13 +338,13 @@ export function toBriefText(plan,code){
   const a=getIdea(plan,code);
   if(!a)return '';
   const related=taskCodes(plan,code).map(id=>plan.assets.find(x=>x.code===id)).filter(Boolean);
-  let lines=[`محمد ذعار العجمي للسيارات - MZJ`,`بريف إبداعي: ${a.code} | ${a.title}`,
+  let lines=[`محمد ذعار العجمي للسيارات - MZJ`,`بريف إبداعي: ${a.title}`,
     `المنفذ: ${executorFor(plan,code)}`,
-    `التسليم: ${related.map(r=>`${r.code} ${r.dueDate} (${r.deliveryDay})`).join(' | ')}`,
+    `التسليم: ${related.map(r=>`${r.title||a.title} ${r.dueDate} (${r.deliveryDay})`).join(' | ')}`,
     `النوع: ${ideaKind(a)}`,''];
   if(a.kind==='carousel'){
     lines.push('الهدف:',a.audienceAndGoal,'',`عدد الصور المطلوبة: ${a.slideCodes.length}`,'','الصور بالتسلسل:');
-    a.slideCodes.forEach((id,n)=>{const s=getIdea(plan,id);lines.push(`الصورة ${n+1} / ${id}`,`النص: ${s.screenText}`,`التصوير/التصميم: ${s.visualDescription}`,'');});
+    a.slideCodes.forEach((id,n)=>{const s=getIdea(plan,id);lines.push(`الصورة ${n+1}`,`النص: ${s.screenText}`,`التصوير/التصميم: ${s.visualDescription}`,'');});
     lines.push('الكابشن:',a.captionsByPlatform?.instagram||'','الهاشتاج:',a.hashtagsByPlatform?.instagram||'');
   } else {
     lines.push('الجمهور والهدف:',a.audienceAndGoal||'','الرسالة:',a.message||'','المعالجة الإبداعية:',a.creativeTreatment||'',
@@ -344,7 +355,14 @@ export function toBriefText(plan,code){
         `الحدث: ${s.visual}`,`الكاميرا: ${s.camera}`,`الصوت: ${s.voiceOver}`,`النص الظاهر: ${s.screenText}`,
         `المؤثر: ${s.sound}`,`الانتقال: ${s.transition}`,'');
       lines.push('الأصول المطلوبة:',a.shootingAssets||'','معايير الجودة:',a.qualityNotes||'');
-    } else lines.push('التصميم البصري:',a.visualDescription||'','النص على التصميم:',a.screenText||'','شروط التصميم:',a.productionNotes||'');
+    } else {
+      lines.push('الصور المطلوبة بالتفصيل:');
+      for(const [i,slide] of imageCards(a).entries())lines.push(`الصورة ${i+1} من ${Math.max(1,Number(a.imageCount)||1)} — ${slide.title||'التصميم'}`,
+        'النص النهائي للتصميم:',cleanVisualText(slide.screenText),'التصور البصري:',cleanVisualText(slide.visualDescription),
+        ...(slide.supportingText?['النص المساند:',slide.supportingText]:[]),
+        ...(slide.notes?['ملاحظات الصورة:',slide.notes]:[]),'');
+      lines.push('شروط التصميم:',a.productionNotes||'');
+    }
     lines.push('الكابشنات والهاشتاجات:');
     for(const [platform,name] of Object.entries(PLATFORMS)){
       if(a.platforms?.includes(platform))lines.push(name,`الكابشن: ${a.captionsByPlatform?.[platform]||''}`,`الهاشتاج: ${a.hashtagsByPlatform?.[platform]||''}`,'');
