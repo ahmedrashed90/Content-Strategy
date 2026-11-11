@@ -949,3 +949,14 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 .agenda-strategy-panel .notice{margin-block:14px;line-height:1.8}
 @media(max-width:850px){.agenda-settings{grid-template-columns:1fr}.agenda-strategy-panel{padding:15px}.agenda-format-options{grid-template-columns:1fr}}
 @media(max-width:550px){.agenda-kpis{grid-template-columns:1fr}.agenda-review-actions .btn{width:100%}}
+
+
+/* Native multi-executor assignment: name-only choices, individual deadlines. */
+.bridge-assignee-list{margin:13px 0;display:grid;gap:13px}
+.bridge-assignee-list-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;color:#4a211c}
+.bridge-executor-row{display:grid;grid-template-columns:1.3fr 1.35fr 1fr auto;align-items:end;gap:12px;padding:15px;border-radius:13px;background:#f3e8dc;border:1px solid #ddc5b3}
+.bridge-executor-row label{display:grid;gap:7px;min-width:0;font-size:12px;font-weight:800;color:#4a211c}
+.bridge-executor-row input,.bridge-executor-row select{max-width:100%;min-width:0;box-sizing:border-box;background:#fffaf4;border:1px solid #d5bfae;color:#4a211c;border-radius:10px;min-height:44px;padding:9px 12px;font:inherit}
+.bridge-executor-row .btn{min-height:44px}
+@media(max-width:1050px){.bridge-executor-row{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.bridge-executor-row{grid-template-columns:1fr}}
