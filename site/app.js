@@ -207,7 +207,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}${navButton('inspirations','مصادر الإلهام','file')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','الداش بورد','grid')}${navButton('ideas','الأفكار','file')}${navButton('bridge','إنشاء التكليفات','compare')}${navButton('inspirations','الأفكار الجديدة','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}</nav>
     <div class="menu-label">البيانات والتحليل</div>
     <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
@@ -220,7 +220,7 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات',inspirations:'مصادر الإلهام'})[state.view] || 'لوحة القيادة';
+  const viewName = ({overview:'الداش بورد',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',tasks:'التسليمات والإنتاج',ideas:'الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات',inspirations:'الأفكار الجديدة'})[state.view] || 'الداش بورد';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
     <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
@@ -285,24 +285,20 @@ function insightCards() {
 }
 
 function overviewPage() {
-  const readyCount = PLATFORM_ORDER.filter(k => platformData(k).followers != null).length;
   const ideaList=state.plan?[...state.plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(state.plan.carousels||[]).filter(group=>taskCodes(state.plan,group.code).some(code=>!state.plan.assets.find(asset=>asset.code===code)?.retiredFromIdeaBank))]:[];
   const approvedCount=ideaList.filter(a=>ideaIsApproved(state.plan,a.code)).length;
   const pendingCount=ideaList.filter(a=>!ideaIsApproved(state.plan,a.code)&&!['مطلوب تعديل','مرفوض'].includes(ideaAssets(state.plan,a.code)[0]?.reviewStatus)).length;
   const linkedCount=ideaList.filter(a=>ideaIsLinked(state.plan,a.code)).length;
   const postCount=state.plan?.posts.length||0;
-  return `<section class="workspace-hero card"><div class="workspace-hero-copy"><div class="workspace-eyebrow">${icon('shield','ic-sm')} مركز التحكم في المحتوى | MZJ</div><h1>من فكرة قوية إلى تاسك جاهز للتنفيذ.</h1><p>راجع الأفكار، اعتمد المحتوى المناسب، اختر سيارات الاستوك والمنفذ وموعد التسليم، ثم أنشئ التكليف داخل سيستم التسويق.</p><div class="workspace-hero-actions"><button class="btn workspace-main-cta" data-nav="ideas">فتح مراجعة الأفكار ${icon('arrow','ic-sm')}</button><button class="btn workspace-outline-cta" data-nav="plan">تقويم النشر والتنشيط</button></div></div><div class="workspace-hero-aside"><div class="workspace-progress-icon">${icon('check','ic-lg')}</div><strong>${approvedCount} / ${ideaList.length||0}</strong><span>فكرة معتمدة من بنك الأفكار</span><div class="workspace-progress"><i style="width:${ideaList.length?Math.round(approvedCount/ideaList.length*100):0}%"></i></div><small>لا يتم إنشاء تكليف لفكرة غير معتمدة</small></div></section>
-  <section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى"><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>في انتظار المراجعة</span>${icon('clock','ic-sm')}</div><strong>${pendingCount}</strong><small>افتح البريف وحدد قرار الفكرة</small></button><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>الأفكار المعتمدة</span>${icon('check','ic-sm')}</div><strong>${approvedCount}</strong><small>جاهزة لاختيار السيارات والتكليف</small></button><button class="card workspace-kpi" data-nav="bridge"><div class="workspace-kpi-head"><span>مرتبطة بتاسك</span>${icon('compare','ic-sm')}</div><strong>${linkedCount}</strong><small>تكليفات مسجلة في سيستم التسويق</small></button><button class="card workspace-kpi" data-nav="plan"><div class="workspace-kpi-head"><span>مواعيد النشر</span>${icon('calendar','ic-sm')}</div><strong>${postCount}</strong><small>افتح تقويم النشر الشهري</small></button></section>
-  <div class="workspace-actions-strip"><div><b>خط سير المحتوى</b><span>استيراد فكرة ← مراجعة واعتماد ← تاسك إنتاج ← منتج معتمد ← جدول نشر استراتيجي ← أجندة التسويق</span></div><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
-  <section class="card panel baseline-overview"><div><div class="page-eyebrow">${icon('database','ic-sm')} البيانات المرجعية محفوظة</div><h2>مرجع أداء المنصات قبل الاستراتيجية</h2><p>نتابع نتائج المنصات الأربع ونقارنها بعد بدء التنفيذ، بدون تغيير الأرقام التاريخية.</p></div><div class="baseline-overview-right"><strong>${readyCount} <small>/ 4</small></strong><span>منصات جاهزة للمقارنة</span><button class="btn" data-nav="baseline">عرض المرجع</button></div></section>
-  <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2><p>عدد المتابعين في مرجع كل منصة — بدون جمع جماهير متداخلة</p></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
+  return `<section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى"><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>في انتظار المراجعة</span>${icon('clock','ic-sm')}</div><strong>${pendingCount}</strong><small>افتح البريف وحدد قرار الفكرة</small></button><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>الأفكار المعتمدة</span>${icon('check','ic-sm')}</div><strong>${approvedCount}</strong><small>جاهزة لاختيار السيارات والتكليف</small></button><button class="card workspace-kpi" data-nav="bridge"><div class="workspace-kpi-head"><span>مرتبطة بتاسك</span>${icon('compare','ic-sm')}</div><strong>${linkedCount}</strong><small>تكليفات مسجلة في سيستم التسويق</small></button><button class="card workspace-kpi" data-nav="plan"><div class="workspace-kpi-head"><span>مواعيد النشر</span>${icon('calendar','ic-sm')}</div><strong>${postCount}</strong><small>افتح تقويم النشر الشهري</small></button></section>
+  <div class="ui-page-actions"><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
+  <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
-  <div class="section-heading"><div><h2>قراءة الأداء قبل الانطلاق</h2><p>بيانات حقيقية من اللقطات السابقة، لا مخطط زمني افتراضي</p></div><span class="note-tag">${icon('clock','ic-sm')} مرجع تاريخي</span></div>
+  <div class="section-heading"><div><h2>قراءة الأداء قبل الانطلاق</h2></div><span class="note-tag">${icon('clock','ic-sm')} مرجع تاريخي</span></div>
   <div class="two-cols">${viewsPanel()}${followerPanel()}</div>
-  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2><p>قراءة تحليلية للمؤشرات قبل بداية المحتوى الجديد</p></div></div>
+  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2></div></div>
   ${insightCards()}
-  <div class="future-strip"><div><h3>من المرجع إلى التحسن القابل للقياس</h3><p>بعد اعتماد المحتوى وبدء النشر، نضيف النتائج الفعلية لكل منصة ونقارنها بالمراجع الأربع دون تغيير أرقامها التاريخية.</p></div><button class="btn btn-primary" data-nav="comparison">كيف ستظهر المقارنة؟ ${icon('arrow','ic-sm')}</button></div>
-  ${renderFooter()}`;
+  `;
 }
 
 function metricRows() {
@@ -355,7 +351,7 @@ function baselinePage() {
   ${state.baselineStatus === 'saved-v1' ? upgradePanel() : ''}
   <div class="section-heading"><div><h2>قواعد توثيق البيانات</h2></div></div>
   <div class="card panel"><ul class="methodology">${state.baseline.methodology.map(t=>`<li>${icon('check','ic-sm')}<span>${esc(t)}</span></li>`).join('')}</ul></div>
-  ${renderFooter()}`;
+`;
 }
 
 function detailMetric(label, value, hint = '') {
@@ -397,7 +393,7 @@ function platformPage() {
   ${empty ? `<div class="compare-placeholder" style="margin-top:16px"><div class="rounded-icon">${icon('database','ic-lg')}</div><h2>بيانات Snapchat لم تُستورد بعد</h2><p>مرجع الإصدار القديم v1 لا يتضمن بيانات Snapchat. اختر ملف v2 من المرجع الأساسي حتى تظهر البيانات مع الاحتفاظ بالنسخة التاريخية.</p></div>` : `<div class="detail-grid">${metrics.join('')}</div>`}
   ${key === 'tiktok' ? tiktokExtras(p) : key === 'snapchat' && !empty ? snapchatExtras(p) : ''}
 
-  ${renderFooter()}`;
+`;
 }
 
 
@@ -510,7 +506,7 @@ function comparisonPage() {
     ${[['15 يومًا','اختبار أولي لأداء المحتوى'],['30 يومًا','قراءة شهر تشغيل فعلي'],['90 يومًا','مراجعة اتجاه الأداء'],['شهريًا','تحسين واستمرار']].map(([v,d],i)=>`<div class="card mini-card"><div class="label">${['المراجعة الأولى','المراجعة الثانية','المراجعة الثالثة','المتابعة المستمرة'][i]}</div><div class="value" style="font-size:22px">${v}</div><div class="sub">${d}</div></div>`).join('')}
   </div>
   <div class="notice">${icon('info','ic-sm')} قياس أثر المحتوى على مبيعات السيارات لن يُنسب تلقائيًا إلى المشاهدات. ذلك يحتاج تتبعًا موثوقًا لمصدر الليدات والطلبات داخل CRM في المرحلة اللاحقة، بعد الاتفاق على نطاق الربط.</div>
-  ${renderFooter()}`;
+`;
 }
 
 function settingsPage() {
@@ -534,7 +530,7 @@ function settingsPage() {
   <div class="card panel"><div class="uid-box" style="margin-top:0">${esc(state.user?.uid || '')}</div><button class="btn" data-action="copy-uid">${icon('copy','ic-sm')} نسخ UID</button></div>
   <div class="section-heading"><div><h2>ما الذي تم تنفيذه الآن؟</h2></div></div>
   <div class="card panel"><ul class="methodology"><li>${icon('check','ic-sm')}<span>تسجيل دخول بحساب واحد، وعدم إتاحة إنشاء مستخدمين من السيستم.</span></li><li>${icon('check','ic-sm')}<span>مرجع كامل للمنصات الأربع بعد تثبيت بيانات Snapchat في الإصدار v2.</span></li><li>${icon('check','ic-sm')}<span>إمكانية إنشاء المرجع v2 مرة واحدة مع بقاء v1 محفوظًا بلا تعديل.</span></li><li>${icon('clock','ic-sm')}<span>خطة نشر وإنتاج 28 يومًا، واستيراد JSON، وتكليفات مندوبي الإنتاج، ومراجعة وحفظ تغييرات داخل Firestore؛ الربط الآلي بـCRM غير موجود.</span></li></ul></div>
-  ${renderFooter()}`;
+`;
 }
 
 function modalView() {
@@ -545,10 +541,6 @@ function modalView() {
     <div class="notice">${icon('info','ic-sm')} لا يوجد أي اتصال بنظام التسويق الحالي أو CRM في هذه العملية.</div>
     <div class="modal-actions"><button class="btn" data-action="close-modal">إلغاء</button><button class="btn btn-primary" data-action="save-baseline" ${state.storing?'disabled':''}>${icon('lock','ic-sm')} ${state.storing?'جارٍ الحفظ':'تأكيد وتثبيت المرجع'}</button></div>
   </div></div>`;
-}
-
-function renderFooter() {
-  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإنتاج والنشر 1.6</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
 }
 
 function render() {
@@ -1217,16 +1209,17 @@ app.addEventListener('click', async event => {
   }
   if(action==='bridge-filter-ideas'){
     state.bridge.ideaSearch=document.getElementById('bridge-idea-search')?.value||'';
-    render();document.getElementById('bridge-approved-ideas')?.scrollIntoView({block:'start'});return;
+    render();return;
   }
+  if(action==='bridge-toggle-cars'){state.bridge.carsExpanded=!state.bridge.carsExpanded;render();return;}
   if(action==='bridge-edit-cars'){
     const ideaCode=control.dataset.id||'';
     if(!state.bridge.selectedCodes.includes(ideaCode)){
       state.bridge.error='حدد الفكرة من الجدول أولًا حتى تتمكن من تأكيد سياراتها.';
       render();return;
     }
-    selectBridgeIdea(state,ideaCode,false);state.bridge.error='';
-    render();document.getElementById('bridge-cars-area')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+    selectBridgeIdea(state,ideaCode,false);state.bridge.carsExpanded=true;state.bridge.error='';
+    render();return;
   }
   if(action==='brief-back'){
     if(!canLeaveBrief())return;

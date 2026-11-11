@@ -168,15 +168,11 @@ export function strategyAgendaPage(state){
    <td><small>${e(line.reason)}</small></td>
    <td><button class="btn p-small" data-action="agenda-remove-entry" data-index="${index}">استبعاد</button></td></tr>`;
  }).join('');
- return `<div class="page-header"><div><div class="page-eyebrow">MZJ · استراتيجية المحتوى</div>
- <h1 class="page-title">جدول النشر الاستراتيجي</h1>
- <p class="page-description">منتجات نهائية معتمدة فقط، توزيع يراعي المبيعات ورحلة العميل والجاهزية. لا توجد مسودات نشر.</p></div>
- <button class="btn" data-action="agenda-reload" ${a.loading?'disabled':''}>تحديث المنتجات من التسويق</button></div>
+ return `<div class="ui-page-actions"><button class="btn" data-action="agenda-reload" ${a.loading?'disabled':''}>تحديث المنتجات من التسويق</button></div>
  ${a.error?`<div class="notice warning" role="alert">${e(a.error)}</div>`:''}
  ${a.saved?`<div class="notice good"><strong>تم إنشاء الأجندة ${e(a.saved.planNo||a.saved.id)}</strong> وإرسالها لمراجعة التسويق. الحالة: ${e(a.saved.reviewStatus)}.
  <a href="https://mzj-platform.vercel.app/marketing?plan=${encodeURIComponent(a.saved.id)}" target="_blank" rel="noopener noreferrer">فتح الأجندة في التسويق</a></div>`:''}
  <section class="card panel agenda-strategy-panel"><h2>1 — المنتجات النهائية المعتمدة</h2>
- <p class="p-help">تظهر الملفات النهائية بعد اعتماد التسويق فقط. التصنيف من استراتيجية المحتوى، واسم المنفذ وتاريخ الاعتماد والتسليم من سجل المنتج.</p>
  <div class="agenda-kpis"><div><strong>${products.length}</strong><span>منتجات معتمدة</span></div><div><strong>${selectable.length}</strong><span>متاحة للجدولة</span></div><div><strong>${products.length-selectable.length}</strong><span>مجدولة مسبقًا</span></div></div>
  <label class="agenda-search">البحث في المنتجات<input type="search" id="agenda-product-search" value="${e(a.search)}" placeholder="اسم الفكرة أو التصنيف أو المنفذ"/></label>
  <div class="agenda-table-scroll"><table class="agenda-table"><thead><tr><th>اسم الفكرة</th><th>التصنيف</th><th>النوع</th><th>المقاسات المعتمدة</th><th>التسليم</th><th>اعتماد المنتج</th><th>المنفذ</th><th>الجدولة</th></tr></thead><tbody>
@@ -185,13 +181,11 @@ export function strategyAgendaPage(state){
  <div class="agenda-settings"><label>اسم الأجندة<input id="agenda-name" maxlength="250" value="${e(a.name)}"/></label>
  <label>بداية النشر<input id="agenda-start" type="date" min="${today()}" value="${e(a.start)}"/></label>
  <label>الفترة<select id="agenda-days">${days}</select></label></div>
- <p class="p-help">التوزيع: أولوية المبيعات، التنوع بين التصنيفات، جاهزية كل منتج، تفادي تكرار المنتج والتصنيف، وتوافق المقاسات. لا توجد نسب غير معتمدة.</p>
  <div class="agenda-platforms">${options.map(p=>`<label><input type="checkbox" name="agenda-platform" value="${e(p.id)}" ${a.platformIds===null||selected.has(p.id)?'checked':''}/> ${e(p.name)}</label>`).join('')||'تظهر المنصات بعد توفر المنتجات المعتمدة.'}</div>
  <button class="btn btn-primary" data-action="agenda-build" ${a.loading?'disabled':''}>بناء جدول حسب الاستراتيجية</button>
  ${a.warnings.length?`<div class="notice warning">${a.warnings.map(x=>`<p>${e(x)}</p>`).join('')}</div>`:''}
  </section>
  ${a.generated?`<section class="card panel agenda-strategy-panel"><h2>3 — مراجعة الجدول قبل إنشاء الأجندة</h2>
- <p class="p-help">غيّر التاريخ والمقاسات والمنصة أو استبعد منتجًا. لن تُكتب بيانات في التسويق إلا عند الضغط على إنشاء الأجندة.</p>
  <div class="agenda-table-scroll"><table class="agenda-table agenda-review-table"><thead><tr><th>المنتج والتصنيف</th><th>تاريخ النشر</th><th>المنصات وأنواع النشر</th><th>سبب الاختيار</th><th>إجراء</th></tr></thead><tbody>
  ${rows||'<tr><td colspan="5">لا توجد منتجات جاهزة في هذه الفترة.</td></tr>'}</tbody></table></div>
  <div class="agenda-review-actions"><button class="btn" data-action="agenda-check">فحص الجدول والتعارضات</button>

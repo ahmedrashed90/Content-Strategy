@@ -13,19 +13,20 @@
   <style>:root {
   color-scheme: light;
   --brown: #4a211c;
-  --brown-deep: #341713;
+  --brown-deep: #361b17;
   --brown-light: #713e35;
+  --accent: #8d3f2e;
   --cream: #f3e8dc;
-  --cream-soft: #faf6f1;
-  --paper: #fffbf6;
-  --card: #fffaf6;
-  --muted: #927d75;
-  --line: #e9d9cd;
-  --line-soft: #f0e7df;
-  --rose: #ad7d73;
+  --cream-soft: #faf8f6;
+  --paper: #ffffff;
+  --card: #ffffff;
+  --muted: #7d655c;
+  --line: #ead9cf;
+  --line-soft: #f0e8e3;
+  --rose: #9e6a59;
   --positive: #297b5c;
   --negative: #aa4c51;
-  --shadow: 0 10px 34px rgba(74,33,28,.045);
+  --shadow: 0 6px 24px rgba(74,33,28,.045);
   --radius: 18px;
 }
 * { box-sizing: border-box; }
@@ -50,29 +51,29 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 
 /* App shell */
 .shell { min-height: 100dvh; }
-.sidebar { position: fixed; top: 0; right: 0; bottom: 0; z-index: 30; width: 257px; display: flex; flex-direction: column; background: var(--paper); border-left: 1px solid var(--line); box-shadow: -5px 0 25px rgba(74,33,28,.025); padding: 26px 17px 20px; }
-.brand { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 5px 24px; border-bottom: 1px solid var(--line-soft); text-align: center; }
-.wordmark { direction: ltr; color: var(--brown); font-size: 38px; font-family: Arial, sans-serif; font-style: italic; font-weight: 900; letter-spacing: -5px; line-height: 1.0; padding-right: 5px; }
+.sidebar { position: fixed; top: 0; right: 0; bottom: 0; z-index: 30; width: 257px; display: flex; flex-direction: column; background:var(--brown);color:#fff5ed;border-left:1px solid #6f4038;box-shadow:-6px 0 32px rgba(50,19,14,.11);padding:22px 15px 18px;overflow-y:auto;scrollbar-width:thin; }
+.brand { display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 5px 22px;border-bottom:1px solid #ffffff30;text-align:center;color:#fff9f4; }
+.wordmark { direction: ltr; color:#fff9f4; font-size: 38px; font-family: Arial, sans-serif; font-style: italic; font-weight: 900; letter-spacing: -5px; line-height: 1.0; padding-right: 5px; }
 .brand-ar { font-size: 12px; font-weight: 800; margin-top: 8px; letter-spacing: -.1px; }
-.brand-sub { color: var(--muted); font-size: 10px; font-weight: 600; }
-.menu-label { font-size: 11px; color: #b1a19a; font-weight: 800; padding: 25px 14px 10px; }
+.brand-sub { color:#e7c9be; font-size: 10px; font-weight: 600; }
+.menu-label { font-size: 11px; color:#e0beb3; font-weight: 800; padding: 25px 14px 10px; }
 .nav-group { display: grid; gap: 7px; }
-.nav-btn { display: flex; align-items: center; gap: 12px; width: 100%; text-align: right; border: 1px solid transparent; background: transparent; color: #745a51; border-radius: 12px; padding: 13px 13px; font-size: 13px; font-weight: 800; transition: .15s background, .15s color, .15s border; }
-.nav-btn:hover { background: #f6ede6; color: var(--brown); }
-.nav-btn.active { background: var(--brown); color: #fff8f2; box-shadow: 0 6px 15px rgba(74,33,28,.15); }
+.nav-btn {display:flex;align-items:center;gap:11px;width:100%;text-align:right;border:1px solid transparent;background:transparent;color:#f7e5dd;border-radius:12px;padding:12px 13px;font-size:13px;font-weight:800;transition:.15s background,.15s color,.15s border;}
+.nav-btn:hover {background:#ffffff18;color:#fff;}
+.nav-btn.active {background:var(--cream);color:var(--brown);box-shadow:0 4px 15px rgba(25,8,3,.14);}
 .nav-btn .nav-end { margin-right: auto; color: #a78d80; font-size: 10px; }
 .nav-btn.active .nav-end { color: #e6c9b5; }
-.sidebar-bottom { margin-top: auto; border-top: 1px solid var(--line-soft); padding-top: 18px; }
-.owner-card { border: 1px solid var(--line); border-radius: 13px; background: var(--cream-soft); display: flex; gap: 10px; padding: 11px; align-items: center; }
+.sidebar-bottom {margin-top:auto;border-top:1px solid #ffffff30;padding-top:18px;}
+.owner-card {border:1px solid #ffffff3b;border-radius:13px;background:#ffffff12; display: flex; gap: 10px; padding: 11px; align-items: center; }
 .avatar { width: 35px; height: 35px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; background: var(--cream); color: var(--brown); font-weight: 900; }
 .owner-info { overflow: hidden; min-width: 0; flex: 1; }
 .owner-info strong { font-size: 12px; display: block; }
-.owner-info small { font-size: 10px; color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: right; }
-.logout-btn { display: flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: #957b72; border: 0; width: 100%; padding: 16px 5px 3px; font-size: 12px; font-weight: 700; }
-.logout-btn:hover { color: var(--brown); }
+.owner-info small { font-size: 10px; color:#e9cfc4; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: ltr; text-align: right; }
+.logout-btn { display: flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color:#e9d0c7; border: 0; width: 100%; padding: 16px 5px 3px; font-size: 12px; font-weight: 700; }
+.logout-btn:hover {color:white;}
 .side-scrim { display: none; }
 .main { margin-right: 257px; min-width: 0; }
-.topbar { position: sticky; top: 0; z-index: 15; display: flex; align-items: center; justify-content: space-between; padding: 21px 34px 18px; background: rgba(250,246,241,.94); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line-soft); }
+.topbar { position: sticky; top: 0; z-index: 15; display: flex; align-items: center; justify-content: space-between; padding: 21px 34px 18px; background:rgba(255,255,255,.97);backdrop-filter:blur(14px); border-bottom: 1px solid var(--line-soft); }
 .crumbs { display: flex; align-items: center; gap: 9px; color: #b09a91; font-size: 11px; font-weight: 700; }
 .crumbs b { color: var(--brown); font-size: 12px; }
 .top-actions { display: flex; align-items: center; gap: 11px; }
@@ -80,7 +81,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .small-pill .dot { height: 7px; width: 7px; background: #b98b6a; border-radius: 50%; }
 .solid-dot { background: var(--positive) !important; }
 .menu-toggle { display: none; width: 37px; height: 37px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
-.content { max-width: 1570px; margin: 0 auto; padding: 28px 34px 55px; }
+.content {max-width:1720px;margin:0 auto;padding:22px 26px 48px;}
 
 /* Typography and cards */
 .page-eyebrow { color: var(--rose); font-size: 12px; font-weight: 900; letter-spacing: .2px; display: flex; align-items: center; gap: 7px; }
@@ -99,8 +100,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .positive-text { color: var(--positive); }
 .btn { display: inline-flex; justify-content: center; align-items: center; gap: 8px; padding: 11px 15px; background: var(--paper); color: var(--brown); border: 1px solid var(--line); border-radius: 10px; font-size: 12px; font-weight: 800; transition: transform .15s, box-shadow .15s; white-space: nowrap; }
 .btn:not(:disabled):hover { box-shadow: 0 5px 14px #4a211c13; transform: translateY(-1px); }
-.btn-primary { background: var(--brown); color: #fff8f2; border-color: var(--brown); }
-.btn-tonal { background: var(--cream); border-color: #e9d9ce; }
+.btn-primary {background:var(--accent);color:#fffaf7;border-color:var(--accent);}
+.btn-tonal {background:#fcf6f2;border-color:#e7d5cb;}
 .btn-text { border: 0; background: transparent; color: var(--brown-light); padding: 10px; }
 .btn-danger { background: #fff2ef; border-color: #e4c9c6; color: var(--negative); }
 .rounded-icon { height: 39px; width: 39px; display: grid; place-items: center; border-radius: 12px; background: var(--cream); color: var(--brown); }
@@ -605,11 +606,11 @@ td strong { color: var(--brown); }
 /* v1.5 — unified MZJ editorial workspace; dark brown + light cream only */
 :root{
   --brown:#4A211C;--brown-deep:#341713;--brown-light:#6B4037;
-  --cream:#F3E8DC;--cream-soft:#F7EEE5;--paper:#F8F0E7;
-  --card:#FAF3EA;--muted:#866D63;--line:#DCC8BA;--line-soft:#EBDDD0;
+  --cream:#F3E8DC;--cream-soft:#FAF8F6;--paper:#FFFFFF;
+  --card:#FFFFFF;--muted:#866D63;--line:#E8D7CD;--line-soft:#F0E8E3;
   --shadow:0 9px 26px rgba(74,33,28,.06);--radius:19px;
 }
-body{background:radial-gradient(circle at 78% 1%,rgba(109,72,58,.075),transparent 450px),var(--cream);color:var(--brown-deep)}
+body{background:radial-gradient(circle at 78% 1%,rgba(141,63,46,.035),transparent 560px),var(--cream-soft);color:var(--brown-deep)}
 button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 :focus-visible{outline:2px solid var(--brown)!important;outline-offset:3px}
 .sidebar{width:268px;overflow-y:auto;scrollbar-width:thin;background:var(--brown);border-left:1px solid var(--brown-deep);box-shadow:-14px 0 45px rgba(74,33,28,.09);padding:25px 17px 18px}
@@ -628,7 +629,7 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 .owner-info strong{color:var(--cream)}.owner-info small{color:#E1CABE}
 .logout-btn{color:#E0C7B7}.logout-btn:hover{color:var(--cream)}
 .main{margin-right:268px}
-.topbar{background:rgba(247,238,229,.95);border-color:#E7D5C7;min-height:69px;padding:16px 34px}
+.topbar{background:rgba(255,255,255,.97);border-color:#F0E8E3;min-height:69px;padding:16px 34px}
 .crumbs{color:#987F74}.crumbs b{color:var(--brown);font-weight:900}
 .small-pill{background:#F3E7DC;border-color:#E2CCBD;font-size:11px;padding:8px 10px}
 .content{max-width:1620px;padding-top:31px}
@@ -779,6 +780,402 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 @media(max-width:1180px){.delivery-overview{grid-template-columns:repeat(3,minmax(0,1fr))}.delivery-day{grid-template-columns:140px minmax(0,1fr)}.archive-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:800px){.delivery-overview{grid-template-columns:repeat(2,minmax(0,1fr))}.delivery-day{grid-template-columns:1fr;gap:7px;padding-right:26px}.delivery-date-rail{padding:3px 0}.delivery-node{top:10px}.delivery-item-grid{grid-template-columns:1fr}.archive-grid{grid-template-columns:1fr}.archive-summary{flex-wrap:wrap}.archive-summary input{min-width:0;width:100%}}
 @media(max-width:520px){.delivery-overview{gap:7px}.delivery-metric{padding:13px;min-height:114px}.delivery-metric strong{font-size:25px}.delivery-toolbar{flex-direction:column;align-items:stretch}.delivery-controls{flex-direction:column}.delivery-controls label,.delivery-controls select{width:100%}.delivery-item-facts{grid-template-columns:1fr 1fr}.archive-summary{align-items:stretch;flex-direction:column}.archive-summary>div{margin-left:0}.archive-summary label{display:grid}.archive-summary input{width:100%}}
+
+
+/* v1.7 — focused creative operations: fewer KPI boxes, clearer editorial workflow */
+.calendar-context{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:11px 18px;margin:14px 0;background:#F3E8DC;border:1px solid #e5d1c2;border-radius:14px;color:#4A211C;font-size:13px}
+.calendar-context span:last-child{margin-inline-start:auto;color:#76584a;font-size:12px}
+.calendar-context strong{border-inline-start:1px solid #d3baa9;padding-inline-start:14px;font-size:13px}
+.calendar-workspace{box-shadow:none;border-radius:18px;background:#faf5ed;border-color:#e6d5c7}
+.calendar-toolbar{padding:24px 28px;background:#F3E8DC}
+.calendar-toolbar h2{font-size:24px;letter-spacing:-.3px}
+.calendar-filters{background:#fbf6ee;padding:17px 22px}
+.calendar-body{background:#fcf8f1}
+.calendar-cell{transition:background .15s,border-color .15s;min-height:110px}
+.calendar-cell:hover{background:#f7eee3}
+.calendar-cell-active{box-shadow:inset 0 0 0 2px #4A211C}
+.calendar-side{background:#f5ece0;border-inline-start:1px solid #e3cfc0}
+.calendar-side-heading{background:transparent}
+.calendar-agenda{border:1px solid #e1d0c2;border-radius:16px;overflow:hidden;background:#fbf6ef}
+.calendar-agenda-row{background:transparent;border-bottom:1px solid #e4d5c8}
+.calendar-agenda-row:last-child{border-bottom:none}
+.calendar-agenda-row:hover{background:#f3e8dc}
+.bridge-context{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 22px;padding:16px 19px;border:1px solid #dfc9b9;border-radius:15px;background:#F3E8DC;color:#4A211C;font-size:13px;font-weight:700}
+.bridge-context span{display:flex;gap:8px;align-items:center}
+.bridge-context span:not(:last-child):after{content:"›";color:#a5897b;margin-inline:10px}
+.bridge-workflow{margin-bottom:19px;gap:8px}
+.bridge-workflow span{border-radius:12px;padding:13px}
+.bridge-redesign{grid-template-columns:minmax(0,1.15fr) minmax(310px,.85fr);align-items:start;gap:18px}
+.bridge-redesign .card.panel{background:#fbf7f0;border:1px solid #e4d0c0;border-radius:18px;box-shadow:none;padding:24px}
+.bridge-redesign h2{color:#4A211C;font-size:19px}
+.bridge-redesign .bridge-car-list{max-height:290px;overflow:auto;border:1px solid #dfcbbc;border-radius:12px;background:#F3E8DC;padding:9px}
+.bridge-redesign .bridge-car-option{background:#f9f2e9;border:1px solid #e4d5c9;border-radius:9px;margin-bottom:7px;padding:11px}
+.bridge-redesign .bridge-formats{max-height:250px;overflow:auto;border:1px solid #dfcbbc;border-radius:12px;padding:12px;background:#f7efe5}
+.bridge-redesign .bridge-submit{width:100%;min-height:46px;margin-top:8px}
+.bridge-footnote{margin:15px 0;color:#785b4e;font-size:12px;line-height:1.8}
+.ideas-review-strip,.idea-import-modes{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0 18px}
+.ideas-review-pill{border:1px solid #d9c0ae;background:#F3E8DC;color:#4A211C;border-radius:999px;padding:10px 15px;font:700 13px Tajawal,sans-serif;cursor:pointer;display:flex;gap:8px;align-items:center}
+.ideas-review-pill small{font-size:12px;font-weight:700;opacity:.68}
+.ideas-review-pill.is-selected{background:#4A211C;color:#F3E8DC;border-color:#4A211C}
+.idea-import-modes{margin-top:16px}
+.idea-replace-confirm{border:1px solid #a98d7b;border-radius:12px;background:#F3E8DC;margin:14px 0;padding:15px}
+.idea-replace-confirm label{display:grid;gap:8px;font-weight:700;color:#4A211C}
+.idea-replace-confirm input{max-width:330px;border:1px solid #c8ae9a;border-radius:8px;background:#fbf5ed;padding:12px}
+.idea-replace-confirm p{font-size:12px;color:#765b4e}
+.publication-path{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:#F3E8DC;border:1px solid #e1cdbc;border-radius:15px;padding:16px 18px;margin:18px 0 24px}
+.publication-path span,.publication-path strong{font-size:12px;color:#614033;font-weight:700}
+.publication-path span:not(:last-child):after,.publication-path strong:not(:last-child):after{content:"‹";margin:0 10px;color:#a78976}
+.publication-path strong{color:#4A211C}
+.proposal-layout{display:grid;grid-template-columns:minmax(330px,.95fr) minmax(0,1.05fr);gap:20px;align-items:start}
+.proposal-editor{background:#fbf6ee;border-color:#e1c9b8;box-shadow:none;padding:24px}
+.proposal-form{display:grid;gap:15px}
+.proposal-form label{display:grid;gap:7px;color:#4A211C;font-size:12px;font-weight:800}
+.proposal-form input,.proposal-form textarea,.proposal-form select{width:100%;padding:11px 12px;border:1px solid #d7bdab;border-radius:9px;background:#fdf9f3;color:#4A211C;font:500 13px Tajawal,sans-serif;box-sizing:border-box}
+.proposal-form fieldset{border:1px solid #e2cdbc;border-radius:12px;padding:12px;margin:0}
+.proposal-form legend{font-size:12px;font-weight:800;color:#4A211C;padding:0 7px}
+.proposal-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.proposal-platforms{display:flex;gap:9px;flex-wrap:wrap}
+.proposal-platforms label,.proposal-platforms span{display:flex;align-items:center;gap:5px;background:#F3E8DC;color:#4A211C;border:1px solid #e3ccbb;border-radius:9px;padding:7px 10px;font-size:12px}
+.proposal-platforms input{width:auto}
+.proposal-list{display:grid;align-content:start;gap:12px}
+.proposal-list .section-heading{margin-top:0}
+.proposal-item,.proposal-empty{background:#fbf6ee;border:1px solid #dfcabb;border-radius:15px;padding:18px 20px}
+.proposal-empty{color:#785c4c;font-size:13px;line-height:2}
+.proposal-item-head{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.proposal-item-head strong{font-size:16px;color:#4A211C}
+.proposal-draft-label{font-size:11px;border:1px solid #bfa793;padding:5px 11px;border-radius:99px}
+.proposal-item-meta{display:flex;gap:15px;color:#7c5f4d;font-size:12px;margin:12px 0}
+.proposal-item p{font-size:13px;color:#64493c;line-height:1.7;margin:8px 0}
+.proposal-product-note{font-size:11px!important;color:#8b6654!important}
+@media(max-width:1100px){
+ .bridge-redesign,.proposal-layout{grid-template-columns:1fr}
+ .calendar-context span:last-child{margin-inline-start:0}
+}
+@media(max-width:640px){
+ .bridge-context{flex-direction:column;gap:8px}
+ .bridge-context span:not(:last-child):after{display:none}
+ .bridge-redesign .card.panel,.proposal-editor{padding:16px}
+ .proposal-two{grid-template-columns:1fr}
+ .publication-path{gap:7px;padding:12px}
+ .calendar-toolbar{padding:16px}
+ .calendar-context{padding:12px}
+ .ideas-review-pill{font-size:12px;padding:8px 11px}
+}
+
+
+/* Category badge on 72-idea bank cards; deliberately neutral, readable and compact. */
+.idea-category-label{display:inline-flex;align-items:center;padding:5px 9px;border-radius:8px;border:1px solid #d9c2b2;background:#f3e8dc;color:#4a211c;font-size:.78rem;font-weight:750;line-height:1.5}
+.bridge-multi-list{display:grid;gap:8px;max-height:380px;overflow-y:auto;margin-block:12px;padding-inline-end:4px}
+.bridge-multi-option{display:flex;align-items:flex-start;gap:12px;padding:12px;border:1px solid #dfd0c5;border-radius:12px;background:#f8f1e9;cursor:pointer}
+.bridge-multi-option input{margin-top:5px;flex-shrink:0}
+.bridge-multi-option span{display:grid;gap:3px}
+.bridge-multi-option strong{color:#4a211c}
+.bridge-multi-option small{font-size:.78rem;opacity:.75}
+.bridge-selected-items{display:grid;gap:10px;margin-block:14px}
+.bridge-selected-items .p-scene{margin:0}
+@media(max-width:700px){.bridge-multi-list{max-height:300px}.idea-category-label{font-size:.72rem}}
+
+
+/* Approved creative ideas — one professional task composer, RTL and responsive. */
+.bridge-table-panel,.bridge-car-workspace,.bridge-assignment-panel{padding:25px;margin-bottom:20px}
+.bridge-table-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:17px}
+.bridge-table-heading h2{margin:0 0 7px;font-size:18px;color:#4a211c}
+.bridge-summary-count{background:#f3e8dc;border:1px solid #dfc5b3;border-radius:12px;color:#4a211c;font-size:13px;font-weight:900;padding:10px 15px}
+.bridge-category-tabs{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0 19px}
+.bridge-category-tab{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #d7c3b6;border-radius:12px;background:#fcf8f3;color:#583025;padding:12px 14px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800;transition:background .15s,border-color .15s}
+.bridge-category-tab span{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:7px;background:#eee0d3;font-size:11px}
+.bridge-category-tab:hover{background:#f3e8dc;border-color:#b99784}
+.bridge-category-tab.active{background:#4a211c;color:#f3e8dc;border-color:#4a211c}
+.bridge-category-tab.active span{background:#764b3e;color:#f3e8dc}
+.bridge-table-controls{display:flex;gap:10px;align-items:end;margin:12px 0 16px}
+.bridge-table-controls label{display:grid;gap:7px;flex:1;min-width:200px;color:#583025;font-size:12px;font-weight:800}
+.bridge-table-controls input{height:43px;border:1px solid #d7c3b6;border-radius:11px;background:#fffbf5;color:#4a211c;padding:10px 13px;font:inherit;font-weight:500}
+.bridge-table-controls button{height:43px;min-width:100px}
+.bridge-table-scroll{overflow:auto;border:1px solid #decabc;border-radius:15px;max-height:560px;scrollbar-width:thin}
+.bridge-ideas-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:12px;min-width:900px}
+.bridge-ideas-table thead{position:sticky;top:0;z-index:1;background:#f3e8dc}
+.bridge-ideas-table th{text-align:right;padding:14px 12px;font-weight:900;color:#4a211c;border-bottom:1px solid #d5bbac;white-space:nowrap}
+.bridge-ideas-table td{padding:14px 12px;vertical-align:middle;border-bottom:1px solid #e8d9cc;color:#583b32;line-height:1.65}
+.bridge-ideas-table tbody tr:last-child td{border-bottom:0}
+.bridge-ideas-table tbody tr:nth-child(even){background:rgba(243,232,220,.2)}
+.bridge-ideas-table tbody tr:hover{background:rgba(243,232,220,.5)}
+.bridge-ideas-table tbody tr.bridge-idea-selected{background:#eee0d3}
+.bridge-idea-name strong{display:block;font-size:13px;color:#4a211c;white-space:normal}
+.bridge-idea-name small{font-size:10px;color:#8b746a}
+.bridge-idea-check input{height:18px;width:18px;accent-color:#4a211c;cursor:pointer}
+.bridge-category-chip{display:inline-block;background:#f3e8dc;border:1px solid #ddcabb;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:800;white-space:nowrap}
+.bridge-status-chip{display:inline-block;border:1px solid #e4cbb8;background:#fbf4ec;border-radius:7px;padding:6px 8px;white-space:nowrap;font-weight:800;font-size:11px}
+.bridge-status-chip.is-done{border-color:#afc1ad;background:#f0f6ee;color:#38553b}
+.bridge-status-chip.is-linked{color:#856354}
+.bridge-table-empty{text-align:center!important;color:#866d63!important;padding:34px!important}
+.bridge-selected-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#f3e8dc;border-radius:12px;padding:13px 15px;margin-top:15px;color:#4a211c;font-size:12px}
+.bridge-selected-summary strong{font-size:13px}
+.bridge-chosen-strip{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0 20px}
+.bridge-chosen-chip{display:grid;gap:4px;text-align:right;padding:11px 14px;border-radius:11px;border:1px solid #d9c3b5;background:#fcf8f3;color:#4a211c;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer}
+.bridge-chosen-chip small{font-weight:500;color:#775d4e}
+.bridge-chosen-chip.active{background:#4a211c;border-color:#4a211c;color:#f3e8dc}
+.bridge-chosen-chip.active small{color:#dfc7b7}
+.bridge-car-active{border:1px solid #e1cbbb;background:#fcf8f2;padding:18px;border-radius:14px;margin-bottom:16px}
+.bridge-car-active h3{font-size:17px;margin:0 0 7px}
+.bridge-car-active .bridge-form{display:grid;gap:11px}
+.bridge-car-active .bridge-confirm{width:100%;min-height:46px;font-size:13px}
+.bridge-task-title-preview{display:grid;gap:7px;padding:15px 16px;background:#f3e8dc;border:1px solid #d9c4b5;border-radius:12px;margin:16px 0}
+.bridge-task-title-preview small{font-size:11px;color:#77594b}
+.bridge-task-title-preview strong{font-size:14px;color:#4a211c;overflow-wrap:anywhere}
+.bridge-assign-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.bridge-assign-fields select,.bridge-assign-fields input{min-height:46px}
+.bridge-format-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px;max-height:330px;overflow:auto}
+.bridge-format-option{display:flex!important;align-items:center!important;flex-direction:row!important;gap:12px!important;padding:11px 13px!important;border:1px solid #e1caba;border-radius:10px;background:#fffaf5;cursor:pointer;font-size:12px!important}
+.bridge-format-option input{width:18px;height:18px;flex-shrink:0;accent-color:#4a211c}
+.bridge-format-option span{display:grid;gap:3px}
+.bridge-format-option small{font-weight:500;font-size:10px;color:#816457}
+.bridge-assignment-panel .bridge-submit{min-height:49px;font-size:14px;font-weight:900}
+@media(max-width:950px){.bridge-assign-fields{grid-template-columns:1fr}.bridge-table-panel,.bridge-car-workspace,.bridge-assignment-panel{padding:15px}}
+@media(max-width:600px){.bridge-table-heading{align-items:flex-start}.bridge-table-controls{flex-direction:column;align-items:stretch}.bridge-table-controls label{min-width:0;width:100%}.bridge-category-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.bridge-category-tab{padding:10px 8px;font-size:11px}.bridge-format-grid{grid-template-columns:1fr}.bridge-table-scroll{max-height:430px}}
+
+
+/* Strategic agenda — native Marketing approved products, no local drafts. */
+.agenda-strategy-panel{margin-block:20px;padding:24px}
+.agenda-strategy-panel h2{margin:0 0 14px;color:#4a211c;font-size:18px}
+.agenda-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:15px 0}
+.agenda-kpis>div{display:grid;gap:5px;background:#f3e8dc;color:#4a211c;border:1px solid #dfcbbd;border-radius:12px;padding:13px 16px}
+.agenda-kpis strong{font-size:25px}.agenda-kpis span{font-size:12px}
+.agenda-search{display:grid;gap:8px;font-size:12px;font-weight:800;color:#4a211c;margin:14px 0}
+.agenda-search input,.agenda-settings input,.agenda-settings select,.agenda-review-table input[type=date]{
+ width:100%;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid #d4bbaa;border-radius:10px;padding:11px 12px;
+ color:#4a211c;background:#fffaf4;font:inherit;outline-offset:2px
+}
+.agenda-table-scroll{overflow:auto;border:1px solid #dfc9ba;border-radius:13px;max-height:600px;scrollbar-width:thin}
+.agenda-table{width:100%;min-width:1020px;border-collapse:collapse;table-layout:auto;font-size:12px}
+.agenda-table th{position:sticky;top:0;z-index:1;background:#f3e8dc;text-align:right;white-space:nowrap;padding:13px;color:#4a211c;font-weight:900;border-bottom:1px solid #d7c2b4}
+.agenda-table td{text-align:right;padding:12px;vertical-align:middle;border-bottom:1px solid #e7d7cb;color:#5a3d31}
+.agenda-table tr:last-child td{border-bottom:0}.agenda-table tbody tr:hover{background:#fcf6ee}
+.agenda-table td strong{display:block;color:#4a211c;font-size:13px}.agenda-table td small{display:block;line-height:1.7;color:#826a60;font-size:11px}
+.agenda-settings{display:grid;grid-template-columns:2fr 1fr 1fr;gap:13px;margin:15px 0}
+.agenda-settings label{display:grid;gap:7px;color:#4a211c;font-size:12px;font-weight:850}
+.agenda-platforms{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 20px}
+.agenda-platforms label,.agenda-format-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid #dfcbbd;border-radius:9px;padding:9px 12px;background:#f9f0e6;color:#4a211c;font-size:12px;cursor:pointer}
+.agenda-platforms input,.agenda-format-chip input{width:17px;height:17px;accent-color:#4a211c;flex-shrink:0}
+.agenda-format-options{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:7px}
+.agenda-format-chip{font-size:11px;padding:7px 8px}
+.agenda-review-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-start;margin-top:17px}
+.agenda-strategy-panel .notice{margin-block:14px;line-height:1.8}
+@media(max-width:850px){.agenda-settings{grid-template-columns:1fr}.agenda-strategy-panel{padding:15px}.agenda-format-options{grid-template-columns:1fr}}
+@media(max-width:550px){.agenda-kpis{grid-template-columns:1fr}.agenda-review-actions .btn{width:100%}}
+
+/* One task can have different executors and individually tracked due dates. */
+.bridge-assignees{display:grid;gap:12px;margin:16px 0;padding:16px;border:1px solid var(--border,#d9bbac);border-radius:12px}
+.bridge-assignees h3{margin:0;font-size:16px}
+.bridge-assignee-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto auto;gap:12px;align-items:end;padding:12px;border:1px solid #e2cbbf;border-radius:10px}
+.bridge-assignee-row label{display:grid;gap:6px}
+.bridge-assignee-row input,.bridge-assignee-row select{width:100%;min-height:44px}
+.bridge-assignee-role{font-size:12px;white-space:nowrap;padding-bottom:14px}
+.bridge-assignees>button{justify-self:start}
+@media(max-width:850px){.bridge-assignee-row{grid-template-columns:1fr}.bridge-assignee-role{padding:0}}
+
+/* ─── Inspirations ─────────────────────────────────────────────── */
+.ins-workflow-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px;background:linear-gradient(115deg,#4a211c 0%,#603329 100%);color:#fff5eb;border-radius:var(--radius);margin:16px 0}
+.ins-workflow-banner span{font-size:11px;color:#e9cbb9;font-weight:800}
+.ins-workflow-banner strong{display:block;font-size:13px;margin-top:4px;line-height:2}
+.ins-workflow-banner i{color:#d4a68e;margin:0 4px}
+.ins-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:16px 0}
+.ins-kpi{padding:18px 16px;text-align:center;cursor:pointer;border:2px solid transparent;transition:.15s}
+.ins-kpi strong{display:block;font-size:28px;margin-bottom:4px}
+.ins-kpi span{font-size:12px;color:var(--muted);font-weight:700}
+.ins-kpi-active{border-color:var(--brown);background:var(--cream)}
+.ins-kpi:hover{transform:translateY(-1px);box-shadow:0 5px 14px #4a211c13}
+.ins-filters{display:flex;gap:14px;align-items:end;margin-bottom:16px}
+.ins-filters label{display:grid;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.ins-filters select{min-height:40px;border:1px solid var(--line);border-radius:9px;padding:0 12px;font:inherit;background:var(--paper)}
+.ins-grid{display:grid;gap:14px;margin-top:16px}
+.ins-card{padding:20px 22px}
+.ins-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.ins-date{font-size:11px;color:var(--muted);margin-right:auto;font-weight:700}
+.ins-text{font-size:14px;line-height:2;margin:0 0 10px;white-space:pre-wrap;word-break:break-word}
+.ins-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.ins-tag{display:inline-block;padding:4px 10px;background:var(--cream);border:1px solid var(--line-soft);border-radius:7px;font-size:11px;font-weight:700;color:var(--brown-light)}
+.ins-card-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ins-gen-count{font-size:12px;color:var(--muted);font-weight:700}
+.ins-notes{font-size:12px;color:var(--muted);margin-top:6px}
+.ins-empty{padding:40px;text-align:center}
+.ins-empty h2{margin:0 0 8px}
+.ins-empty p{color:var(--muted);margin:0}
+.ins-form-panel{padding:24px;margin-bottom:16px}
+.ins-form{display:grid;gap:16px;margin-top:14px}
+.ins-form label{display:grid;gap:6px;font-size:13px;font-weight:700}
+.ins-form textarea,.ins-form input,.ins-form select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:inherit;background:var(--paper)}
+.ins-form textarea{resize:vertical;min-height:90px}
+.ins-char-count{font-size:11px;color:var(--muted);text-align:left;direction:ltr}
+@media(max-width:700px){.ins-kpis{grid-template-columns:repeat(2,1fr)}.ins-card-foot{flex-direction:column;align-items:stretch}}
+
+
+/* MZJ interface: shared controls, light cards and page chrome */
+.ui-page-actions{display:flex;flex-wrap:wrap;gap:9px;align-items:center;justify-content:flex-start;margin-bottom:16px;min-height:42px}
+.ui-page-actions:empty{display:none}
+.card,.panel,.calendar-workspace{background-color:#fff}
+.btn{background:#fff;border-color:#e4cfc4;color:var(--brown);min-height:39px}
+.btn:hover:not(:disabled){border-color:#bb8875}
+.btn-primary,.btn-primary:hover:not(:disabled){background:var(--accent);color:#fffaf7;border-color:var(--accent)}
+.btn-danger{background:#fff2ef;color:var(--negative);border-color:#e4c9c6}
+.btn-tonal{background:var(--cream-soft)}
+input,select,textarea{accent-color:var(--accent)}
+.workspace-kpis{margin-top:0}
+.workspace-kpi{background:#fff;border:1px solid #e6d5cb;border-top:3px solid #a97865;min-height:116px;padding:16px 18px}
+.workspace-kpi strong{color:var(--brown);font-size:30px}
+.workspace-kpi small{display:none}
+.platform-tile{background:#fff;border-top:3px solid #ac7965}
+.section-heading{margin-top:21px}
+.section-heading p{display:none}
+.ideas-review-strip{margin:0 0 17px;gap:10px}
+.ideas-review-pill{background:#fff;border-radius:12px;padding:11px 16px}
+.ideas-review-pill.is-selected{background:var(--accent);border-color:var(--accent);color:#fff}
+.ideas-filters{padding:15px;border:1px solid var(--line);background:#fff;border-radius:15px;gap:10px;margin-top:0}
+.idea-review-card{border:1px solid var(--line);border-top:3px solid #ac7965;background:#fff;min-height:255px}
+.idea-review-card .idea-review-meta{border-top:1px solid var(--line-soft)}
+.archive-summary{margin:0 0 17px;background:#fff}
+.archive-card{background:#fff;border-top:3px solid #aa7968}
+.agenda-strategy-panel{margin:0 0 17px;background:#fff;border:1px solid var(--line)}
+.agenda-kpis>div{background:#fcf7f4;border-color:var(--line)}
+.ins-kpi{background:#fff;border:1px solid var(--line);border-radius:14px}
+.ins-kpi-active{background:#fbf1eb;border-color:var(--accent)}
+.ins-filters{margin-top:10px}
+.ins-form-panel,.ins-card{background:#fff}
+
+/* Publication calendar: an airy month grid and an independent daily details pane. */
+.calendar-workspace{background:#fff;border-color:var(--line);box-shadow:var(--shadow);border-radius:18px}
+.calendar-toolbar{background:#fff;padding:17px 20px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+.calendar-toolbar h2{font-size:20px;margin:0}
+.calendar-month-label{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.calendar-month-count{background:#f8eee8;border:1px solid #ead7cc;padding:7px 11px;border-radius:10px;font-weight:800;font-size:11px;color:var(--brown-light)}
+.calendar-month-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.calendar-month-controls input{border-radius:10px;border:1px solid var(--line);background:#fff;max-width:165px}
+.calendar-filters{background:#fff;padding:14px 17px;gap:9px}
+.calendar-filters select,.calendar-filters input{background:#fff;border:1px solid var(--line)}
+.calendar-body{background:#fff;grid-template-columns:minmax(0,1fr) minmax(255px,28%)}
+.calendar-main{padding:14px}
+.calendar-weekdays{background:#f8f0eb;border-radius:10px;margin-bottom:8px}
+.calendar-grid{gap:5px}
+.calendar-cell{background:#fff;border-color:#ebded6;min-height:105px;border-radius:10px}
+.calendar-cell:hover{background:#fcf4ef}
+.calendar-cell-outside{background:#f8f6f4}
+.calendar-cell-filled{border-color:#d9b9a8}
+.calendar-cell-active{background:#fff8f3;box-shadow:inset 0 0 0 2px var(--accent);border-color:var(--accent)}
+.calendar-cell-chip{background:#f7ebe4;border-color:#a87461}
+.calendar-chip-late{background:#fce8e7;border-color:#be6b66}
+.calendar-chip-published,.calendar-chip-ready{background:#eaf5ef;border-color:#60a680}
+.calendar-chip-working{background:#fff2de;border-color:#c99851}
+.calendar-side{background:#fcf8f6;border-inline-start:1px solid var(--line);max-height:715px}
+.calendar-side-heading{padding:16px;border-bottom:1px solid var(--line)}
+.calendar-side-scroll{padding:12px;gap:10px}
+.calendar-entry{background:#fff;border:1px solid var(--line);border-radius:12px}
+.calendar-agenda{background:#fff;border-color:var(--line)}
+.calendar-agenda-row{background:#fff;min-height:76px}
+
+/* Deliveries and production: full-width grouped data, without a timeline. */
+.delivery-overview{margin:0 0 15px;gap:11px}
+.delivery-metric{min-height:97px;padding:16px 18px;border:1px solid var(--line);border-top:3px solid #ad806f;background:#fff;box-shadow:var(--shadow)}
+.delivery-metric span{color:var(--brown-light);font-size:12px}
+.delivery-metric strong{font-size:28px}
+.delivery-metric-alert{border-color:#dfb1ac;border-top-color:var(--negative);background:#fff6f5}
+.delivery-toolbar{background:#fff;margin-bottom:14px;flex-wrap:wrap;padding:13px 17px}
+.delivery-groups{display:grid;gap:13px}
+.delivery-group{overflow:hidden}
+.delivery-group-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;background:#fbf5f1;border-bottom:1px solid var(--line)}
+.delivery-group-heading strong{font-size:14px;color:var(--brown)}
+.delivery-list-scroll{overflow-x:auto;scrollbar-width:thin}
+.delivery-list{width:100%;min-width:850px;border-collapse:collapse;table-layout:fixed}
+.delivery-list th{position:sticky;top:0;background:#f9f2ed;padding:11px 12px;font-size:11px;white-space:nowrap;color:var(--brown-light)}
+.delivery-list td{padding:13px 12px;vertical-align:middle;border-bottom:1px solid var(--line-soft);font-size:12px;color:var(--brown-deep);overflow-wrap:anywhere}
+.delivery-list tr:last-child td{border-bottom:0}
+.delivery-list tr:hover td{background:#fffaf7}
+.delivery-list tr.delivery-row-late td:first-child{border-right:3px solid var(--negative)}
+.delivery-list th:nth-child(1){width:14%}
+.delivery-list th:nth-child(2){width:27%}
+.delivery-list th:nth-child(3){width:12%}
+.delivery-list th:nth-child(4){width:14%}
+.delivery-list th:nth-child(5){width:12%}
+.delivery-list th:nth-child(6){width:10%}
+.delivery-list th:nth-child(7){width:19%}
+.delivery-name-cell strong{display:block;margin-top:5px;font-size:13px}
+.delivery-date-cell{white-space:nowrap}
+.delivery-row-actions{display:flex;gap:6px;flex-wrap:wrap}
+.delivery-row-actions .btn{padding:7px 9px}
+
+/* Three-pane task creation, all steps visible and independently scrollable on desktop. */
+.bridge-steps-layout{display:grid;grid-template-columns:minmax(0,1.03fr) minmax(0,1fr) minmax(0,1.06fr);gap:13px;align-items:stretch;height:calc(100dvh - 225px);min-height:560px}
+.bridge-steps-layout>.card.panel{padding:16px;margin:0;min-width:0;min-height:0;max-height:100%;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;background:#fff;border:1px solid var(--line);border-top:3px solid #a46b56}
+.bridge-steps-layout h2{font-size:15px;line-height:1.5;margin:0;color:var(--brown)}
+.bridge-steps-layout .bridge-table-heading{gap:8px;margin:0 0 12px}
+.bridge-steps-layout .bridge-summary-count{font-size:11px;padding:7px 9px;border-radius:9px;background:#f8eee8}
+.bridge-heading-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.bridge-category-tabs{flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:thin;margin:6px 0 12px;padding-bottom:5px}
+.bridge-category-tab{white-space:nowrap;flex-shrink:0;border-radius:9px;padding:9px;font-size:11px}
+.bridge-category-tab.active,.bridge-chosen-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.bridge-category-tab.active span{background:#ffffff2d}
+.bridge-table-controls{margin:8px 0 12px;gap:7px}
+.bridge-table-controls label{min-width:0;font-size:11px}
+.bridge-table-controls input{height:39px;background:#fff}
+.bridge-table-controls button{height:39px;min-width:65px}
+.bridge-approved-list{display:grid;gap:9px}
+.bridge-idea-option{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;display:grid;gap:9px}
+.bridge-idea-option:hover{background:#fdf9f6}
+.bridge-idea-option.bridge-idea-selected{border-color:#ae7967;background:#fbf2ec}
+.bridge-idea-option-main{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.bridge-idea-checkbox{display:flex;align-items:start;gap:9px;cursor:pointer;font-size:12px;line-height:1.6;color:var(--brown);min-width:0}
+.bridge-idea-checkbox input{width:17px;height:17px;flex-shrink:0;margin:2px 0 0;accent-color:var(--accent)}
+.bridge-idea-checkbox strong{font-size:13px;overflow-wrap:anywhere}
+.bridge-idea-option-details{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:10px;color:var(--muted)}
+.bridge-idea-option .bridge-status-chip{font-size:10px;white-space:normal;align-self:flex-start;padding:4px 7px}
+.bridge-idea-option .bridge-category-chip{font-size:10px;white-space:normal;padding:4px 7px}
+.bridge-idea-option>.btn{justify-self:start}
+.bridge-selected-summary{gap:6px;padding:10px;margin-top:12px;font-size:10px}
+.bridge-chosen-strip{flex-wrap:nowrap;overflow-x:auto;padding:2px 0 9px;gap:7px;margin:9px 0}
+.bridge-chosen-chip{min-width:135px;max-width:200px;flex-shrink:0;font-size:11px;padding:9px}
+.bridge-step-body{min-width:0}
+.bridge-car-active{padding:12px;margin:0;background:#fff;border:1px solid var(--line)}
+.bridge-car-active h3{font-size:13px}
+.bridge-car-list{max-height:300px;overflow:auto;scrollbar-width:thin}
+.bridge-car-option{background:#fff}
+.bridge-stock-summary{padding:8px 10px;font-size:11px;background:#f8eee8}
+.bridge-assignment-panel .bridge-step-body{padding-top:0}
+.bridge-assign-fields{grid-template-columns:1fr}
+.bridge-assignees{padding:10px;margin:10px 0;gap:9px}
+.bridge-assignee-row{grid-template-columns:1fr;gap:9px;padding:10px}
+.bridge-assignee-role{white-space:normal;padding:0;font-size:10px}
+.bridge-formats{padding:10px}
+.bridge-format-grid{grid-template-columns:1fr;max-height:280px}
+.bridge-format-option{padding:9px!important;font-size:11px!important}
+.bridge-task-title-preview{padding:10px;margin:10px 0}
+.bridge-task-title-preview strong{font-size:12px}
+.bridge-steps-layout .bridge-submit{white-space:normal;font-size:12px;min-height:45px}
+@media(max-width:1200px){
+ .bridge-steps-layout{grid-template-columns:repeat(2,minmax(0,1fr));height:auto;min-height:0}
+ .bridge-steps-layout>.card.panel{max-height:730px}
+ .bridge-assignment-panel{grid-column:1/-1}
+ .bridge-assignment-panel .bridge-assignee-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:780px){
+ .calendar-body{grid-template-columns:1fr}
+ .calendar-side{max-height:420px;border-right:0;border-top:1px solid var(--line)}
+ .delivery-overview{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .bridge-steps-layout{grid-template-columns:1fr}
+ .bridge-assignment-panel{grid-column:auto}
+ .bridge-assignment-panel .bridge-assignee-row{grid-template-columns:1fr}
+ .bridge-steps-layout>.card.panel{max-height:650px}
+ .ui-page-actions{margin-bottom:12px}
+}
+@media(max-width:550px){
+ .calendar-toolbar{padding:13px}
+ .calendar-main{overflow-x:auto}
+ .calendar-weekdays,.calendar-grid{min-width:570px}
+ .calendar-filters{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .calendar-cell{min-height:85px}
+ .delivery-overview{gap:7px}
+ .delivery-metric{padding:10px;min-height:83px}
+ .delivery-metric strong{font-size:23px}
+ .bridge-steps-layout>.card.panel{padding:12px}
+ .ideas-review-pill{padding:9px 11px;font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -816,7 +1213,8 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v6h5M8 12h7M8 16h7"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
   </svg>
-  <div id="app"><div class="shell"><div class="main" style="margin-right:0"><main class="content"><div class="page-header"><div><div class="page-eyebrow">إدارة النشر</div><h1 class="page-title">تقويم النشر والتنشيط</h1><p class="page-description">تقويم شهري مرن حسب تاريخ النشر الفعلي للخطة، مع فصل واضح بين موعد التسليم وموعد النشر.</p></div><div class="p-actions"><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار JSON</button><button class="btn" data-action="calendar-new-post">إضافة موعد نشر</button><button class="btn" data-action="export-plan">تصدير نسخة JSON</button></div></div><div class="calendar-summary"><div><span class="calendar-summary-label">مواعيد نشر الشهر</span><strong>25</strong></div><div><span class="calendar-summary-label">منشور</span><strong>0</strong></div><div><span class="calendar-summary-label">جاهز للنشر</span><strong>0</strong></div><div><span class="calendar-summary-label">متأخر</span><strong>0</strong></div></div><section class="calendar-workspace"><div class="calendar-toolbar"><div><span class="calendar-eyebrow">خطة النشر الشهرية</span><h2>ديسمبر 2026</h2></div><div class="calendar-month-controls"><button class="btn" data-action="calendar-prev" aria-label="الشهر السابق">‹</button><input id="calendar-month" type="month" value="2026-12" aria-label="اختر شهر التقويم"/><button class="btn" data-action="calendar-next" aria-label="الشهر التالي">›</button><button class="btn" data-action="calendar-today">الشهر الحالي</button></div></div>
+  <div id="app"><div class="shell"><div class="main" style="margin-right:0"><main class="content"><div class="ui-page-actions"><button class="btn btn-primary" data-action="calendar-new-post">إضافة موعد نشر</button></div>
+    <section class="calendar-workspace"><div class="calendar-toolbar"><div class="calendar-month-label"><h2>ديسمبر 2026</h2><span class="calendar-month-count">25 موعد نشر</span></div><div class="calendar-month-controls"><button class="btn" data-action="calendar-prev" aria-label="الشهر السابق">‹</button><input id="calendar-month" type="month" value="2026-12" aria-label="اختر شهر التقويم"/><button class="btn" data-action="calendar-next" aria-label="الشهر التالي">›</button><button class="btn" data-action="calendar-today">الشهر الحالي</button></div></div>
       <div class="calendar-filters"><label>المنصة<select id="calendar-platform"><option value="all" selected>كل المنصات</option><option value="instagram" >إنستجرام</option><option value="facebook" >فيسبوك</option><option value="tiktok" >تيك توك</option><option value="snapchat" >سناب شات</option></select></label><label>المنفذ<select id="calendar-executor"><option value="all" selected>الكل</option><option value="محمود" >محمود</option><option value="بلال" >بلال</option><option value="عبدالله" >عبدالله</option></select></label><label>المحتوى<select id="calendar-media"><option value="all" selected>صورة وفيديو</option><option value="image" >صورة</option><option value="video" >فيديو</option></select></label><label>الحالة<select id="calendar-status"><option value="all" selected>كل الحالات</option><option value="مخطط" >مخطط</option><option value="قيد التجهيز" >قيد التجهيز</option><option value="قيد المراجعة" >قيد المراجعة</option><option value="جاهز للنشر" >جاهز للنشر</option><option value="منشور" >منشور</option><option value="مؤجل" >مؤجل</option><option value="متأخر" >متأخر</option></select></label><label class="calendar-search">بحث<input id="plan-filter" type="search" placeholder="اسم الفكرة أو كودها" value=""/></label><button class="btn" data-action="apply-plan-filter">بحث</button><button class="btn" data-action="clear-plan-filter">مسح</button></div>
       <div class="calendar-body"><section class="calendar-main" aria-label="التقويم الشهري"><div class="calendar-weekdays"><span>الأحد</span><span>الاثنين</span><span>الثلاثاء</span><span>الأربعاء</span><span>الخميس</span><span>الجمعة</span><span>السبت</span></div><div class="calendar-grid"><div class="calendar-cell calendar-cell-outside" aria-hidden="true"></div><div class="calendar-cell calendar-cell-outside" aria-hidden="true"></div><button type="button" class="calendar-cell   " data-action="calendar-select-day" data-date="2026-12-01" aria-label="الثلاثاء 1 ديسمبر 2026، 0 منشورات" aria-pressed="false">
       <span class="calendar-date-number">1</span>
@@ -949,7 +1347,7 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
     <div class="calendar-entry-meta"><span>محمود</span><span>20:00</span><span>التسليم: 29 نوفمبر 2026</span></div>
     <div class="calendar-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div>
     <div class="calendar-entry-actions"><button class="btn p-small" data-action="open-post" data-id="P01">تفاصيل النشر</button><button class="btn p-small" data-action="open-asset" data-id="V01">البريف</button></div>
-  </article></div><button class="btn btn-primary calendar-add-day" data-action="calendar-new-post" data-date="2026-12-07">جدولة فكرة في هذا اليوم</button></aside></div></section><div class="section-heading"><div><h2>قائمة نشر الشهر</h2><p>الترتيب حسب تاريخ النشر. افتح الفكرة لعرض البريف والكابشن والهاشتاج بالكامل.</p></div></div><div class="calendar-agenda"><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>07</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">الصورة مو كفاية</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P01">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>08</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">السيارة عجبتك؟ تأكد من فئتها قبل تقرر.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P02">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>09</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">نفس الاسم، مو نفس التفاصيل</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P03">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>10</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">قبل الحجز، طابق التفاصيل</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P04">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>11</strong><span>الجمعة</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">بعد الطلب... وين وصلت الإجراءات؟</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 2 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P05">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>12</strong><span>السبت</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">من ١٩٨٤... والمعلومة الواضحة أساس الاختيار.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 2 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P06">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>13</strong><span>الأحد</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">واسعة؟ خلنا نجرب</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 2 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P07">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>14</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">أغراضك تحكم</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P08">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>15</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">المساحة اللي تحتاجها... جرّبها، لا تخمّنها.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P09">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>16</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">سيارتان... واستخدامك يفصل</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P10">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>17</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">اختَر على استخدامك</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P11">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>18</strong><span>الجمعة</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">كاش أو تمويل... وضّح طلبك</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 9 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P12">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>19</strong><span>السبت</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">أنت بمدينتك... وبداية الاختيار من موقعنا.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 9 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P13">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>20</strong><span>الأحد</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">من مدينتك تبدأ</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 9 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P14">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>21</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">الفرق اللي تحسه وأنت جالس</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P15">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>22</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">تفصيلة تستخدمها كل يوم... تستحق تجربها قبل الاختيار.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P16">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>23</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">قبل المفتاح... فيه تجهيز</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P17">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>24</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">طلبك خطوة بخطوة</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P18">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>25</strong><span>الجمعة</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">كلمة عميل... ونشوف معناها</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 16 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P19">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>26</strong><span>السبت</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">عرض السيارة مو رقم لحاله... التفاصيل تفرق.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 16 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P20">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>27</strong><span>الأحد</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">عرض السعر مو رقم لحاله</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 16 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P21">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>28</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">ثلاث زوايا... وقرار أوضح</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P22">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>29</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">احتياجك اليومي أهم من لقطة تعجبك.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P23">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>30</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">طلب الشركة يبدأ بالاحتياج</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P24">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>31</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">جهّز استفسارك وخذ إجابة أوضح</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P25">فتح التفاصيل</button></article></div><div class="notice">يُعرض لكل فكرة نوع «صورة» أو «فيديو» فقط. عدد الصور والتفاصيل التنفيذية تظهر داخل البريف؛ النشر لا يتم تلقائيًا من النظام.</div></main></div></div></div>
+  </article></div><button class="btn btn-primary calendar-add-day" data-action="calendar-new-post" data-date="2026-12-07">جدولة فكرة في هذا اليوم</button></aside></div></section><div class="section-heading"><div><h2>قائمة نشر الشهر</h2></div></div><div class="calendar-agenda"><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>07</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">الصورة مو كفاية</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P01">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>08</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">السيارة عجبتك؟ تأكد من فئتها قبل تقرر.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P02">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>09</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">نفس الاسم، مو نفس التفاصيل</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P03">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>10</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">قبل الحجز، طابق التفاصيل</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 29 نوفمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P04">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>11</strong><span>الجمعة</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">بعد الطلب... وين وصلت الإجراءات؟</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 2 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P05">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>12</strong><span>السبت</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">من ١٩٨٤... والمعلومة الواضحة أساس الاختيار.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 2 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P06">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>13</strong><span>الأحد</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">واسعة؟ خلنا نجرب</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 2 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P07">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>14</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">أغراضك تحكم</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P08">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>15</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">المساحة اللي تحتاجها... جرّبها، لا تخمّنها.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P09">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>16</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">سيارتان... واستخدامك يفصل</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P10">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>17</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">اختَر على استخدامك</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 6 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P11">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>18</strong><span>الجمعة</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">كاش أو تمويل... وضّح طلبك</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 9 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P12">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>19</strong><span>السبت</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">أنت بمدينتك... وبداية الاختيار من موقعنا.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 9 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P13">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>20</strong><span>الأحد</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">من مدينتك تبدأ</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 9 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P14">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>21</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">الفرق اللي تحسه وأنت جالس</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P15">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>22</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">تفصيلة تستخدمها كل يوم... تستحق تجربها قبل الاختيار.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P16">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>23</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">قبل المفتاح... فيه تجهيز</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P17">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>24</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">طلبك خطوة بخطوة</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 13 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P18">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>25</strong><span>الجمعة</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">كلمة عميل... ونشوف معناها</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 16 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P19">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>26</strong><span>السبت</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">عرض السيارة مو رقم لحاله... التفاصيل تفرق.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 16 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P20">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>27</strong><span>الأحد</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">عرض السعر مو رقم لحاله</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 16 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P21">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>28</strong><span>الاثنين</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">ثلاث زوايا... وقرار أوضح</div><div class="calendar-agenda-meta"><span>فيديو</span><span>محمود</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P22">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>29</strong><span>الثلاثاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">احتياجك اليومي أهم من لقطة تعجبك.</div><div class="calendar-agenda-meta"><span>صورة</span><span>محمود</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P23">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>30</strong><span>الأربعاء</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">طلب الشركة يبدأ بالاحتياج</div><div class="calendar-agenda-meta"><span>فيديو</span><span>بلال</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span> <span class="plan-pill p-platform">تيك توك</span> <span class="plan-pill p-platform">سناب شات</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P24">فتح التفاصيل</button></article><article class="calendar-agenda-row"><div class="calendar-agenda-date"><strong>31</strong><span>الخميس</span></div><div class="calendar-agenda-content"><div class="calendar-agenda-title">جهّز استفسارك وخذ إجابة أوضح</div><div class="calendar-agenda-meta"><span>صورة · 4 صور</span><span>عبدالله</span><span>تسليم 20 ديسمبر 2026</span><span>20:00</span></div></div><div class="calendar-agenda-platforms"><span class="plan-pill p-platform">إنستجرام</span> <span class="plan-pill p-platform">فيسبوك</span></div><div><span class="plan-pill p-neutral">مخطط</span></div><button class="btn p-small" data-action="open-post" data-id="P25">فتح التفاصيل</button></article></div></main></div></div></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   
 </body>

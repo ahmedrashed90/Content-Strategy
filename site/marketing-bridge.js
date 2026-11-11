@@ -24,7 +24,7 @@ export function newBridgeState() {
  return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
   category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
   formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignments:[{assignee:'',dueOn:nowInRiyadh()}],
-  remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:''};
+  remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true};
 }
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category))throw Error('تصنيف غير معتمد');
@@ -120,16 +120,11 @@ export function bridgePage(state) {
     const executor=row.marketingExecutorName||row.executor||'لم يُحدد';
     const disabled=lockedByCategory;
     const stateText=linked?'تم التكليف سابقًا · متاح لإعادة الاستخدام':isConfirmed?'السيارات مؤكدة':'بانتظار تحديد السيارات';
-    return `<tr class="${checked?'bridge-idea-selected':''}">
-     <td class="bridge-idea-check"><label aria-label="اختيار ${escape(row.title)}"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${checked?'checked':''} ${disabled?'disabled':''}/></label></td>
-     <td class="bridge-idea-name"><strong>${escape(row.title)}</strong><small>فكرة ${index+1}</small></td>
-     <td><span class="bridge-category-chip">${escape(row.marketingCategory)}</span></td>
-     <td>${escape(executor)}</td>
-     <td>${escape(media)}</td>
-     <td><span class="bridge-status-chip ${linked?'is-linked':isConfirmed?'is-done':''}">${escape(stateText)}</span></td>
-     <td><button type="button" class="btn p-small" data-action="bridge-edit-cars" data-id="${escape(row.code)}"
-       ${!checked?'disabled':''}>${isConfirmed?'تعديل السيارات':'اختيار السيارات'}</button></td>
-    </tr>`;
+    return `<article class="bridge-idea-option ${checked?'bridge-idea-selected':''}">
+      <div class="bridge-idea-option-main"><label class="bridge-idea-checkbox" aria-label="اختيار ${escape(row.title)}"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${checked?'checked':''} ${disabled?'disabled':''}/><strong>${escape(row.title)}</strong></label><span class="bridge-status-chip ${linked?'is-linked':isConfirmed?'is-done':''}">حالة السيارات: ${escape(stateText)}</span></div>
+      <div class="bridge-idea-option-details"><span class="bridge-category-chip">${escape(row.marketingCategory)}</span><span>${escape(media)}</span><span>المنفذ المقترح: ${escape(executor)}</span></div>
+      <button type="button" class="btn p-small" data-action="bridge-edit-cars" data-id="${escape(row.code)}" ${!checked?'disabled':''}>${isConfirmed?'تعديل السيارات':'اختيار السيارات'}</button>
+    </article>`;
   }).join('');
   const stockOptions=bridge.stock.filter(car=>!bridge.stockSearch||formatStock(car).toLowerCase().includes(bridge.stockSearch.toLowerCase()))
     .slice(0,80).map(car=>{
@@ -156,33 +151,29 @@ export function bridgePage(state) {
     return `<button type="button" class="bridge-category-tab ${active?'active':''}" data-action="bridge-pick-category" data-category="${escape(cat)}" aria-pressed="${active?'true':'false'}">
        ${escape(cat)}<span>${count}</span></button>`;
   }).join('');
-  return `<div class="page-header"><div><div class="page-eyebrow">التكليفات الإبداعية</div>
-   <h1 class="page-title">إنشاء تاسك من الأفكار المعتمدة</h1>
-   <p class="page-description">حدد الأفكار من الجدول، ثم اختر سيارات كل فكرة، وأكمل تفاصيل التاسك.</p></div>
-   <div class="p-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div></div>
+  return `<div class="ui-page-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div>
    ${bridge.error?`<div class="notice warning" id="bridge-error" role="alert">${escape(bridge.error)}</div>`:''}
    ${!plan?'<div class="notice warning">حمّل خطة المحتوى أولًا.</div>':`
+   <div class="bridge-steps-layout">
    <section class="card panel bridge-table-panel" id="bridge-approved-ideas">
-     <div class="bridge-table-heading"><div><h2>01 — الأفكار المعتمدة</h2><p class="p-help">كل الأفكار المعتمدة ظاهرة. التصفية اختيارية، ولا يمكن جمع تصنيفين في نفس التاسك.</p></div><span class="bridge-summary-count">${all.length} فكرة معتمدة</span></div>
+     <div class="bridge-table-heading"><h2>01 — الأفكار المعتمدة</h2><span class="bridge-summary-count">${all.length} فكرة معتمدة</span></div>
      <div class="bridge-category-tabs"><button type="button" class="bridge-category-tab ${!bridge.category?'active':''}" data-action="bridge-pick-category" data-category="" aria-pressed="${!bridge.category?'true':'false'}">كل التصنيفات <span>${all.length}</span></button>${choices}</div>
      <div class="bridge-table-controls"><label>بحث باسم الفكرة أو المنفذ<input id="bridge-idea-search" type="search" value="${escape(bridge.ideaSearch||'')}" placeholder="ابحث عن فكرة أو منفذ"/></label>
        <button type="button" class="btn" data-action="bridge-filter-ideas">بحث</button></div>
-     <div class="bridge-table-scroll"><table class="bridge-ideas-table"><thead><tr><th>تحديد</th><th>الفكرة المعتمدة</th><th>التصنيف</th><th>المنفذ المقترح</th><th>المحتوى</th><th>حالة السيارات</th><th>إجراء</th></tr></thead><tbody>${table||'<tr><td colspan="7" class="bridge-table-empty">لا توجد أفكار معتمدة مطابقة للبحث والتصنيف.</td></tr>'}</tbody></table></div>
+     <div class="bridge-approved-list">${table||'<div class="bridge-table-empty">لا توجد أفكار معتمدة مطابقة للبحث والتصنيف.</div>'}</div>
      ${chosen.length?`<div class="bridge-selected-summary"><strong>تم تحديد ${chosen.length} فكرة</strong>
        <span>التصنيف: ${escape(bridge.category)}</span><span>المتبقي لتأكيد السيارات: ${pendingConfirms}</span></div>`:''}
    </section>
-   ${chosen.length?`
    <section class="card panel bridge-car-workspace" id="bridge-cars-area">
-     <div class="bridge-table-heading"><div><h2>02 — تأكيد السيارات لكل فكرة</h2>
-       <p class="p-help">افتح «اختيار السيارات» أمام أي فكرة من الجدول، أو اخترها من القائمة أدناه، ثم احفظ اختياراتها.</p></div>
-       <span class="bridge-summary-count">${chosen.length-pendingConfirms} / ${chosen.length} مؤكد</span></div>
+     <div class="bridge-table-heading"><h2>02 — تأكيد السيارات لكل فكرة</h2><div class="bridge-heading-actions"><span class="bridge-summary-count">${chosen.length-pendingConfirms} / ${chosen.length} مؤكد</span><button type="button" class="btn p-small bridge-collapse-toggle" data-action="bridge-toggle-cars" aria-expanded="${bridge.carsExpanded!==false}" aria-controls="bridge-cars-body">${bridge.carsExpanded===false?'فتح':'إغلاق'}</button></div></div>
+     ${bridge.carsExpanded!==false?`<div id="bridge-cars-body" class="bridge-step-body">${chosen.length?`
      <div class="bridge-chosen-strip">${chosen.map(row=>{
        const done=taskCodes(plan,row.code).every(code=>plan.assets.find(a=>a.code===code)?.creativeApprovedAt);
        return `<button type="button" data-action="bridge-edit-cars" data-id="${escape(row.code)}" class="bridge-chosen-chip ${current?.code===row.code?'active':''}">
          ${escape(row.title)}<small>${done?'تم تأكيد السيارات':'يحتاج تأكيد'}</small></button>`;
      }).join('')}</div>
      ${current?`<div class="bridge-car-active"><h3>${escape(current.title)}</h3>
-       <p class="p-help">لكل فكرة سياراتها الخاصة. لن تتغير اختيارات الأفكار الأخرى.</p>
+
        <form id="bridge-approval" class="p-edit-form bridge-form">
          <label>نوع اختيار السيارات<select id="bridge-mode" name="carMode" ${pending?'disabled':''}>
            ${opt('none','لا تحتاج سيارة محددة',bridge.mode)}${opt('single','سيارة واحدة أو أكثر',bridge.mode)}
@@ -194,11 +185,10 @@ export function bridgePage(state) {
          <button type="submit" class="btn btn-primary bridge-confirm" ${pending||bridge.busy?'disabled':''}>
            ${selectionCurrent?'حفظ تأكيد السيارات':'تأكيد سيارات هذه الفكرة والمتابعة'}</button>
        </form></div>`:''}
-     ${remaining.length?`<div class="notice warning">الأفكار التي تحتاج تأكيد السيارات: ${remaining.map(row=>escape(row.title)).join('، ')}</div>`:
-       '<div class="notice good">تم تأكيد اختيارات كل الأفكار. يمكنك إكمال إنشاء التاسك.</div>'}
+     `:''}</div>`:''}
    </section>
    <section class="card panel bridge-assignment-panel" id="bridge-assignment-area"><h2>03 — تفاصيل التاسك وإنشاؤه</h2>
-     <p class="p-help">يمكن تكليف أكثر من منفذ داخل نفس التاسك، ولكل منفذ تاريخ تسليم خاص به. قسم التصوير يسلم رابط Google Drive بدل الملفات النهائية.</p>
+     ${chosen.length?`<div class="bridge-step-body">
      ${nameError?`<div class="notice warning">${escape(nameError)}</div>`:''}
      ${taskName?`<div class="bridge-task-title-preview"><small>الاسم النهائي للتاسك</small><strong>${escape(taskName)}</strong></div>`:''}
      <form id="bridge-assign" class="p-edit-form bridge-form">
@@ -222,15 +212,12 @@ export function bridgePage(state) {
          <button type="button" class="btn" data-action="bridge-add-assignee" ${lockDraft||assignments.length>=10?'disabled':''}>+ إضافة منفذ آخر</button>
        </div>
        ${imageKinds.includes('image')?formats('image'):''}${imageKinds.includes('video')?formats('video'):''}
-       <div class="notice ${ready?'good':'warning'}">${ready?'الأفكار جاهزة للتكليف. اختر المنفذين والمقاسات ومواعيد التسليم.':
-         'يجب تأكيد السيارات لكل فكرة قبل إنشاء التاسك. الأفكار المكلفة سابقًا متاحة مجددًا.'}</div>
        <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!!nameError||bridge.busy?'disabled':''}>
          ${chosen.some(row=>taskCodes(plan,row.code).some(code=>plan.assets.find(a=>a.code===code)?.integrationDraft))?
            'استكمال إنشاء التاسك المحفوظ':'إنشاء تاسك واحد يحتوي '+chosen.length+' فكرة'}</button>
-     </form>
-   </section>`:''}
-   `}
-   <p class="bridge-footnote">يتم إنشاء تاسك واحد فقط في التسويق عند الضغط على زر الإنشاء. لن يتم تعديل التاسكات السابقة.</p>`;
+     </form></div>`:''}
+   </section></div>
+   `}`;
 }
 export function currentApproval(state) {
   const idea=getIdea(state.plan,state.bridge.ideaCode);

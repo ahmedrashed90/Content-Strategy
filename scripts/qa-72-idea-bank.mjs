@@ -34,11 +34,11 @@ assert.equal(state.bridge.selectedCodes.length,2);
 assert(bridgePage(state).includes('تعريفي - مواصفات السيارات ('+a.title+' + '+b.title+')'));
 assert(!bridgePage(state).includes('MZJA26V01'));
 
-// Approved ideas appear in a searchable categorized table, without additional
+// Approved ideas appear in a searchable categorized card list, without additional
 // approval/modification of unrelated ideas. Car confirmation is per idea.
 const tableState={plan,bridge:newBridgeState()};
 const listing=bridgePage(tableState);
-assert(listing.includes('bridge-ideas-table'));
+assert(listing.includes('bridge-approved-list'));
 assert(listing.includes('المنفذ المقترح'));
 assert(listing.includes('حالة السيارات'));
 assert(listing.includes('bridge-category-tab'));

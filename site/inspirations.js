@@ -130,7 +130,7 @@ export function inspirationsPage(state) {
   const form = ins.formOpen ? `
     <section class="card panel ins-form-panel">
       <h2>إضافة مصدر إلهام جديد</h2>
-      <p class="page-description">اكتب أي مصدر إلهام: سؤال عميل، تريند في السوق، عرض موسمي، ملاحظة من فريق المبيعات، أو أي شي تحب يتحول لمحتوى.</p>
+
       <form id="inspiration-form" class="p-edit-form ins-form">
         <label>نوع المصدر
           <select name="type">
@@ -181,25 +181,11 @@ export function inspirationsPage(state) {
     </article>`;
   }).join('');
 
-  const actions = `<button class="btn btn-primary" data-action="ins-open-form">${ins.formOpen ? 'إغلاق النموذج' : 'إضافة مصدر إلهام'}</button>
+  const actions = `<button class="btn btn-primary" data-action="ins-open-form">${ins.formOpen ? 'إغلاق النموذج' : 'بحث عن الأفكار'}</button>
     <button class="btn" data-action="ins-refresh" ${ins.loading ? 'disabled' : ''}>تحديث</button>`;
 
   return `
-    <div class="page-header">
-      <div>
-        <div class="page-eyebrow">مصادر الإلهام</div>
-        <h1 class="page-title">مصادر الإلهام</h1>
-        <p class="page-description">اكتب أي مصدر إلهام هنا وكلود هيقرأه ويولّد أفكار محتوى بالبريف الكامل ويرجعها "مقترحة" للمراجعة.</p>
-      </div>
-      <div class="p-actions">${actions}</div>
-    </div>
-
-    <div class="ins-workflow-banner">
-      <div>
-        <span>آلية العمل</span>
-        <strong>اكتب مصدر الإلهام <i>←</i> كلود يقرأ + يقرأ الأفكار الحالية <i>←</i> يولّد أفكار جديدة <i>←</i> ترجع "مقترحة" للمراجعة <i>←</i> تعتمد أو تعدّل أو ترفض</strong>
-      </div>
-    </div>
+    <div class="ui-page-actions">${actions}</div>
 
     <div class="ins-kpis">
       <button class="card ins-kpi ${statusFilter === 'all' ? 'ins-kpi-active' : ''}" data-action="ins-filter-status" data-status="all">
@@ -229,11 +215,8 @@ export function inspirationsPage(state) {
     ${form}
 
     <div class="ins-grid">
-      ${cards || `<div class="card panel ins-empty">
-        <h2>لا توجد مصادر إلهام${statusFilter !== 'all' ? ' بهذه الحالة' : ' بعد'}</h2>
-        <p>اضغط "إضافة مصدر إلهام" واكتب أي شيء يلهمك: سؤال عميل، موديل جديد، عرض موسمي، ملاحظة من المبيعات…</p>
-      </div>`}
+      ${cards}
     </div>
 
-    <div class="notice">مصادر الإلهام محفوظة في Firestore تحت حسابك فقط. كلود يقرأها عبر API ويولّد أفكار جديدة بنفس بنية البريف المعتمدة.</div>`;
+    `;
 }
