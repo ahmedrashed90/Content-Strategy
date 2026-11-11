@@ -6,6 +6,7 @@ import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,t
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
+import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
 const app = document.getElementById('app');
 const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
@@ -61,7 +62,8 @@ const state = {
   briefBaseline: '',
   selectedPostId: null,
   selectedAssetCode: null,
-  bridge: newBridgeState()
+  bridge: newBridgeState(),
+  inspirations: newInspirationState()
 };
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -205,7 +207,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}${navButton('inspirations','مصادر الإلهام','file')}</nav>
     <div class="menu-label">البيانات والتحليل</div>
     <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
@@ -218,7 +220,7 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
+  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات',inspirations:'مصادر الإلهام'})[state.view] || 'لوحة القيادة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
     <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
@@ -559,8 +561,8 @@ function render() {
     return;
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
-  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state) };
+  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals','inspirations'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state), inspirations: ()=>inspirationsPage(state) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -976,6 +978,24 @@ app.addEventListener('submit', event => {
   if(event.target.id==='post-editor'){
     event.preventDefault();savePostEditor(event.target);return;
   }
+  if(event.target.id==='inspiration-form'){
+    event.preventDefault();
+    const form=event.target;
+    const type=form.elements.namedItem('type')?.value||'other';
+    const text=form.elements.namedItem('text')?.value?.trim()||'';
+    const tagsRaw=form.elements.namedItem('tags')?.value||'';
+    const tags=tagsRaw.split(/[,،]/).map(t=>t.trim()).filter(Boolean);
+    if(!text){toast('اكتب نص مصدر الإلهام.');return;}
+    state.inspirations.saving=true;render();
+    try{
+      const item=await createInspiration({type,text,tags});
+      state.inspirations.items.unshift(item);
+      state.inspirations.formOpen=false;state.inspirations.formText='';state.inspirations.formTags='';
+      toast('تم حفظ مصدر الإلهام بنجاح.');
+    }catch(err){toast(err?.message||'تعذر الحفظ');}
+    finally{state.inspirations.saving=false;render();}
+    return;
+  }
   if(event.target.id==='schedule-editor'){
     event.preventDefault();void saveSchedule(event.target);return;
   }
@@ -1002,6 +1022,10 @@ app.addEventListener('change', async event => {
     render();return;
   }
 
+  if(event.target.id==='ins-type-filter'){state.inspirations.typeFilter=event.target.value;render();return;}
+  if(event.target.name==='text'&&event.target.closest('#inspiration-form')){state.inspirations.formText=event.target.value;return;}
+  if(event.target.name==='type'&&event.target.closest('#inspiration-form')){state.inspirations.formType=event.target.value;return;}
+  if(event.target.name==='tags'&&event.target.closest('#inspiration-form')){state.inspirations.formTags=event.target.value;return;}
   if(event.target.id==='agenda-product-search'){state.agenda.search=event.target.value;return;}
   if(event.target.id==='agenda-name'){state.agenda.name=event.target.value;return;}
   if(event.target.id==='agenda-start'){state.agenda.start=event.target.value;state.agenda.generated=false;render();return;}
@@ -1115,6 +1139,7 @@ app.addEventListener('click', async event => {
   const nav = event.target.closest('[data-nav]');
   if(nav?.dataset.nav==='bridge' && !state.bridge.stock.length && !state.bridge.loading){void reloadBridge(state.bridge).then(render);}
   if(nav?.dataset.nav==='proposals'&&!state.agenda.loading){void loadAgendaProducts(state).then(render);}
+  if(nav?.dataset.nav==='inspirations'&&!state.inspirations.items.length&&!state.inspirations.loading){void refreshInspirations(state.inspirations).then(render);}
   if (nav) {
     if(!canLeaveBrief())return;
     state.briefBaseline='';
@@ -1132,6 +1157,20 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='ins-open-form'){state.inspirations.formOpen=!state.inspirations.formOpen;render();return;}
+  if(action==='ins-cancel-form'){state.inspirations.formOpen=false;state.inspirations.formText='';state.inspirations.formTags='';render();return;}
+  if(action==='ins-refresh'){void refreshInspirations(state.inspirations).then(render);return;}
+  if(action==='ins-filter-status'){state.inspirations.filter=control.dataset.status||'all';render();return;}
+  if(action==='ins-archive'){
+    const id=control.dataset.id;if(!id)return;
+    try{await updateInspiration(id,{status:'مؤرشف'});const item=state.inspirations.items.find(x=>x.id===id);if(item)item.status='مؤرشف';toast('تم أرشفة مصدر الإلهام.');}catch(err){toast(err?.message||'تعذرت الأرشفة');}
+    render();return;
+  }
+  if(action==='ins-reactivate'){
+    const id=control.dataset.id;if(!id)return;
+    try{await updateInspiration(id,{status:'جديد'});const item=state.inspirations.items.find(x=>x.id===id);if(item)item.status='جديد';toast('تم استرجاع مصدر الإلهام.');}catch(err){toast(err?.message||'تعذر الاسترجاع');}
+    render();return;
+  }
   if(action==='agenda-reload'){await loadAgendaProducts(state);render();return;}
   if(action==='agenda-build'){
     try{

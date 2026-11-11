@@ -84,6 +84,27 @@ service cloud.firestore {
       }
     }
 
+    // Inspiration sources written by the owner; read by Claude via API.
+    match /contentPlans/mzj-2026-launch-cycle-01/inspirations/{inspirationId} {
+      allow get, list: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.id == inspirationId
+        && request.resource.data.type is string
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.status in ['جديد','تم التوليد','مؤرشف']
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner()
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.status in ['جديد','تم التوليد','مؤرشف']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'text','type','tags','status','generatedIdeas','notes','updatedAt'
+        ])
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
     // Owner-only strategy publishing proposals. No Marketing agenda is created here.
     match /contentPlans/mzj-2026-launch-cycle-01/publishingProposals/{proposalId} {
       allow get, list: if isOwner();

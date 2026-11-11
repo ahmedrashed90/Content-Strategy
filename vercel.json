@@ -23,6 +23,9 @@
   "functions": {
     "api/marketing-bridge.js": {
       "maxDuration": 30
+    },
+    "api/inspirations.js": {
+      "maxDuration": 30
     }
   }
 }

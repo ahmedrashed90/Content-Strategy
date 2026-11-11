@@ -1,6 +1,9 @@
 {
   "name": "mzj-content-strategy",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
 }
