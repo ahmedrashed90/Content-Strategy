@@ -16,11 +16,12 @@ export async function loadPublishingPlan() {
   const reference = api.doc(db,...base);
   const found = await api.getDoc(reference);
   if (!found.exists()) return null;
-  const [assets,posts] = await Promise.all([
+  const [assets,posts,runs] = await Promise.all([
     api.getDocs(api.collection(db,...base,'assets')),
-    api.getDocs(api.collection(db,...base,'posts'))
+    api.getDocs(api.collection(db,...base,'posts')),
+    api.getDocs(api.collection(db,...base,'taskRuns'))
   ]);
-  return { ...found.data(),
+  return { ...found.data(), taskRuns:runs.docs.map(doc=>({id:doc.id,...doc.data()})),
     assets: assets.docs.map(doc=>doc.data()).sort((a,b)=>a.code.localeCompare(b.code)),
     posts: posts.docs.map(doc=>doc.data()).sort((a,b)=>String(a.publicationDate||'').localeCompare(String(b.publicationDate||'')) || String(a.time||'').localeCompare(String(b.time||'')) || String(a.id).localeCompare(String(b.id)))
   };
@@ -90,6 +91,28 @@ export async function linkMarketingTask(links) {
     marketingLinkedAt:api.serverTimestamp(),updatedAt:api.serverTimestamp()
   });
   await batch.commit();
+}
+
+// Each attempt to execute an approved idea is an INDEPENDENT record.
+// Never overwrite the original idea or the prior Marketing task link.
+export async function saveStrategyTaskRun(requestKey,data){
+  const {db,api}=await sdk();
+  const ref=api.doc(db,...base,'taskRuns',requestKey);
+  const previous=await api.getDoc(ref);
+  if(previous.exists()){
+    if(JSON.stringify(previous.data().draft)!==JSON.stringify(data.draft))
+      throw Error('بيانات التكليف المحفوظ اختلفت. افتح الطلب السابق قبل إنشاء جديد.');
+    return {id:requestKey,...previous.data()};
+  }
+  await api.setDoc(ref,{draft:data.draft,status:'pending',createdAt:api.serverTimestamp()});
+  return {id:requestKey,draft:data.draft,status:'pending'};
+}
+export async function finishStrategyTaskRun(requestKey,result){
+  const {db,api}=await sdk();
+  const ref=api.doc(db,...base,'taskRuns',requestKey);
+  await api.updateDoc(ref,{status:'linked',taskId:result.id,taskNo:result.taskNo,
+    linkedItems:result.items.map(i=>({id:i.id,clientKey:i.client_key})),
+    linkedAt:api.serverTimestamp()});
 }
 
 // Adds new ideas WITHOUT modifying existing posts, assets, or root plan metadata.
