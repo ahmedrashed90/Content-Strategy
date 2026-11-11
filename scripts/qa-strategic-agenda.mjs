@@ -13,7 +13,7 @@ const selected=[
 ];
 assert(selected.every(Boolean));
 const state={plan:{assets:imported,carousels:[],posts:[]},agenda:newAgendaState()};
-const start='2099-11-15';state.agenda.start=start;state.agenda.days=15;
+const start='2099-11-15';state.agenda.start=start;state.agenda.days=15;state.agenda.platformIds=['platform-1'];
 state.agenda.products=selected.map((idea,index)=>({
   productId:`00000000-0000-4000-8000-${String(index+1).padStart(12,'0')}`,
   sourcePlanId:PLAN_ID,ideaCode:idea.code,
