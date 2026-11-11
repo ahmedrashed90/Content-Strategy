@@ -1,6 +1,6 @@
 import { connectFirebase } from './firebase.js';
 import { getIdea, taskCodes, toBriefText, ideaIsApproved, reviewStatusFor, nowInRiyadh } from './planner.js';
-import { PLAN_ID, updateManyAssets, linkMarketingTask } from './plan-firebase.js';
+import { PLAN_ID, saveStrategyTaskRun, finishStrategyTaskRun } from './plan-firebase.js';
 import { validISODate } from './idea-import.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -30,6 +30,7 @@ export function newBridgeState() {
  return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
   category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
   formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignee:'',dueOn:nowInRiyadh(),
+  carSelections:{},assignments:[{role:'production',assignee:'',dueOn:nowInRiyadh()}],
   remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:''};
 }
 export function selectBridgeCategory(state, category) {
@@ -37,36 +38,23 @@ export function selectBridgeCategory(state, category) {
  Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',error:''});
 }
 export function toggleBridgeIdea(state,code,checked) {
- const idea=getIdea(state.plan,code),bridge=state.bridge;
+ const bridge=state.bridge,idea=getIdea(state.plan,code);
  if(!eligible(idea)||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو غير متاحة');
- if(checked&&bridge.category&&idea.marketingCategory!==bridge.category)
-   throw Error('لا يمكن جمع فكرتين من تصنيفين مختلفين في تاسك واحد');
+ if(checked&&bridge.category&&bridge.category!==idea.marketingCategory)
+   throw Error('لا يمكن اختيار أكثر من تصنيف داخل تاسك واحد');
  if(checked&&!bridge.category)bridge.category=idea.marketingCategory;
- const previous=historicalLinkedTask(state.plan,idea);
- if(previous)throw Error('سبق إنشاء تكليف لهذه الفكرة في نسخة سابقة: '+(previous.marketingTaskNo||previous.marketingTaskId)+'. راجع التكليف القديم قبل إعادة التكليف.');
- if(checked && selectionCodes(bridge).length>=30)throw Error('الحد الأقصى 30 فكرة في التاسك الواحد');
- const stored=state.plan?.assets?.find(a=>a.code===code)?.integrationDraft;
- if(checked&&Array.isArray(stored?.ideaCodes)){
-   const ready=stored.ideaCodes.map(c=>getIdea(state.plan,c));
-   if(ready.some(row=>!eligible(row)||row.marketingCategory!==bridge.category))throw Error('تعذر استعادة مجموعة التكليف المحفوظة');
-   bridge.selectedCodes=[...stored.ideaCodes];
- }else bridge.selectedCodes=checked?[...selectionCodes(bridge).filter(x=>x!==code),code]:selectionCodes(bridge).filter(x=>x!==code);
- if(!bridge.selectedCodes.includes(bridge.ideaCode)) selectBridgeIdea(state,bridge.selectedCodes[0]||'',false);
+ if(checked&&selectionCodes(bridge).length>=30)throw Error('الحد الأقصى 30 فكرة');
+ bridge.selectedCodes=checked?[...selectionCodes(bridge).filter(x=>x!==code),code]:selectionCodes(bridge).filter(x=>x!==code);
+ if(!bridge.selectedCodes.includes(bridge.ideaCode))selectBridgeIdea(state,bridge.selectedCodes[0]||'',false);
 }
-export function selectBridgeIdea(state, code, add=true) {
- const idea=getIdea(state.plan,code);
- if(idea && !eligible(idea))throw Error('هذه الفكرة موقوفة أو ليست ضمن البنك النشط');
- const first=idea ? state.plan?.assets.find(asset=>asset.code===taskCodes(state.plan,code)[0]) : null;
- if(idea && (state.bridge.category!==idea.marketingCategory))Object.assign(state.bridge,{category:idea.marketingCategory,selectedCodes:[]});
- if(idea && add){
-   const stored=first?.integrationDraft?.ideaCodes;
-   if(Array.isArray(stored)&&stored.length&&first?.integrationRequestKey&&!first?.marketingTaskId)
-     state.bridge.selectedCodes=stored.filter(c=>getIdea(state.plan,c)?.marketingCategory===idea.marketingCategory);
-   else if(!state.bridge.selectedCodes.includes(code))state.bridge.selectedCodes.push(code);
- }
- state.bridge.ideaCode=code||'';
- state.bridge.mode=first?.approvedCarMode || 'single';
- state.bridge.chosenStocks=(first?.approvedVehicles || []).map(stockId);
+export function selectBridgeIdea(state,code,add=true){
+ const idea=getIdea(state.plan,code),bridge=state.bridge;
+ if(idea&&!eligible(idea))throw Error('الفكرة غير متاحة');
+ if(idea&&bridge.category!==idea.marketingCategory)Object.assign(bridge,{category:idea.marketingCategory,selectedCodes:[]});
+ if(idea&&add&&!bridge.selectedCodes.includes(code))bridge.selectedCodes.push(code);
+ bridge.ideaCode=code||'';
+ const selection=bridge.carSelections[code]||{mode:'single',cars:[],confirmed:false};
+ bridge.mode=selection.mode;bridge.chosenStocks=[...selection.cars];
 }
 export async function fetchBridge(resource, options={}) {
   const {auth} = await connectFirebase();
@@ -99,35 +87,31 @@ export function bridgePage(state) {
   const current=chosen.find(row=>row.code===bridge.ideaCode)||chosen[0]||null;
   const codes=current?taskCodes(plan,current.code):[];
   const assets=codes.map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-  const confirmed=assets.length>0&&assets.every(a=>Boolean(a.creativeApprovedAt));
-  const pending=assets.some(a=>a.integrationRequestKey&&!a.marketingTaskId);
-  const savedMode=assets[0]?.approvedCarMode||'single';
-  const savedCars=(assets[0]?.approvedVehicles||[]).map(stockId).sort();
+  const confirmed=Boolean(bridge.carSelections[current?.code]?.confirmed);
+  const pending=false;
+  const savedMode=bridge.carSelections[current?.code]?.mode||'single';
+  const savedCars=[...(bridge.carSelections[current?.code]?.cars||[])].sort();
   const selectedCars=[...bridge.chosenStocks].sort();
   const selectionCurrent=confirmed&&savedMode===bridge.mode&&JSON.stringify(savedCars)===JSON.stringify(selectedCars);
-  const ready=chosen.length>0&&chosen.length===selectionCodes(bridge).length&&chosen.every(row=>{
-    const linked=historicalLinkedTask(plan,row);
-    const rows=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-    return !linked&&rows.length>0&&rows.every(item=>item.creativeApprovedAt&&!item.marketingTaskId
-       &&(!item.integrationRequestKey||item.integrationDraft));
-  });
-  const remaining=chosen.filter(row=>taskCodes(plan,row.code).some(code=>!plan.assets.find(a=>a.code===code)?.creativeApprovedAt));
-  const pendingDraft=assets[0]?.integrationDraft||null,lockDraft=Boolean(pending&&pendingDraft);
+  const ready=chosen.length>0&&chosen.every(row=>bridge.carSelections[row.code]?.confirmed);
+  const remaining=chosen.filter(row=>!bridge.carSelections[row.code]?.confirmed);
+  const pendingDraft=null,lockDraft=false;
   const typePref=bridge.category.startsWith('تعريفي')?'تعريف':bridge.category.startsWith('بيعي')?'بيع':'';
   const matchingTypes=bridge.taskTypes.filter(t=>String(t.name||'').includes(typePref));
   const taskTypeDefault=pendingDraft?.typeId||bridge.taskTypeId||(matchingTypes.length===1?matchingTypes[0].id:'');
   const proposedExecutor=bridge.assignee;
   const table=visible.map((row,index)=>{
     const rowAssets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-    const previous=historicalLinkedTask(plan,row);
-    const linked=rowAssets.some(a=>a.marketingTaskId)||Boolean(previous);
+    const linkedCount=(plan.taskRuns||[]).filter(run=>run.status==='linked'&&run.draft?.ideaCodes?.includes(row.code)).length+
+      (rowAssets.some(a=>a.marketingTaskId)||historicalLinkedTask(plan,row)?1:0);
+    const linked=false;
     const checked=selectionCodes(bridge).includes(row.code);
     const lockedByCategory=Boolean(bridge.category&&row.marketingCategory!==bridge.category);
-    const isConfirmed=rowAssets.length&&rowAssets.every(a=>a.creativeApprovedAt);
+    const isConfirmed=Boolean(bridge.carSelections[row.code]?.confirmed);
     const media=row.kind==='video'?'فيديو':'صور · '+Math.max(1,Number(row.imageCount)||row.imageSlides?.length||1);
     const executor=row.marketingExecutorName||row.executor||'لم يُحدد';
     const disabled=linked||lockedByCategory;
-    const stateText=linked?'تم التكليف سابقًا':isConfirmed?'السيارات مؤكدة':'بانتظار تحديد السيارات';
+    const stateText=(isConfirmed?'السيارات مؤكدة':'بانتظار تحديد السيارات')+(linkedCount?' · تم استخدامها '+linkedCount+' مرة':'');
     return `<tr class="${checked?'bridge-idea-selected':''}">
      <td class="bridge-idea-check"><label aria-label="اختيار ${escape(row.title)}"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${checked?'checked':''} ${disabled?'disabled':''}/></label></td>
      <td class="bridge-idea-name"><strong>${escape(row.title)}</strong><small>فكرة ${index+1}</small></td>
@@ -185,7 +169,7 @@ export function bridgePage(state) {
        <p class="p-help">افتح «اختيار السيارات» أمام أي فكرة من الجدول، أو اخترها من القائمة أدناه، ثم احفظ اختياراتها.</p></div>
        <span class="bridge-summary-count">${chosen.length-pendingConfirms} / ${chosen.length} مؤكد</span></div>
      <div class="bridge-chosen-strip">${chosen.map(row=>{
-       const done=taskCodes(plan,row.code).every(code=>plan.assets.find(a=>a.code===code)?.creativeApprovedAt);
+       const done=Boolean(bridge.carSelections[row.code]?.confirmed);
        return `<button type="button" data-action="bridge-edit-cars" data-id="${escape(row.code)}" class="bridge-chosen-chip ${current?.code===row.code?'active':''}">
          ${escape(row.title)}<small>${done?'تم تأكيد السيارات':'يحتاج تأكيد'}</small></button>`;
      }).join('')}</div>
@@ -206,104 +190,116 @@ export function bridgePage(state) {
        '<div class="notice good">تم تأكيد اختيارات كل الأفكار. يمكنك إكمال إنشاء التاسك.</div>'}
    </section>
    <section class="card panel bridge-assignment-panel" id="bridge-assignment-area"><h2>03 — تفاصيل التاسك وإنشاؤه</h2>
-     <p class="p-help">المنفذ واحد للتاسك بالكامل، وأسماء الأفكار تظل مستقلة داخل المطلوبات.</p>
+     <p class="p-help">يمكنك اختيار منفذ أو أكثر، ولكل منفذ موعد تسليم مستقل. التصوير يسلّم رابط Google Drive.</p>
      ${nameError?`<div class="notice warning">${escape(nameError)}</div>`:''}
      ${taskName?`<div class="bridge-task-title-preview"><small>الاسم النهائي للتاسك</small><strong>${escape(taskName)}</strong></div>`:''}
      <form id="bridge-assign" class="p-edit-form bridge-form">
        <div class="bridge-assign-fields">
          <label>نوع التاسك في التسويق<select name="taskTypeId" required>
            <option value="">اختر النوع</option>${bridge.taskTypes.map(t=>opt(t.id,t.name,taskTypeDefault)).join('')}</select></label>
-         <label>المنفذ المكلف<select name="assignee" required>
-           <option value="">اختر المنفذ</option>${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name+' - '+row.department_name,
-             pendingDraft?pendingDraft.assigneeId+'|'+pendingDraft.departmentId:proposedExecutor)).join('')}</select></label>
-         <label>تاريخ التسليم<input name="dueOn" type="date" min="${nowInRiyadh()}"
-           value="${pendingDraft?.dueOn||bridge.dueOn||nowInRiyadh()}" required/></label></div>
+</div>
+       <div class="bridge-assignee-list"><div class="bridge-assignee-list-head"><strong>المنفذون ومواعيد التسليم</strong><button class="btn" type="button" data-action="bridge-add-executor">إضافة منفذ</button></div>
+       ${bridge.assignments.map((assignment,index)=>`<div class="bridge-executor-row">
+         <label>طبيعة المطلوب<select name="executor-role-${index}" ${assignment.role==='shooting'&&!imageKinds.includes('video')?'disabled':''}>
+           ${opt('production','المونتاج / التصميم والملفات النهائية',assignment.role)}
+           ${imageKinds.includes('video')?opt('shooting','التصوير وتسليم رابط Google Drive',assignment.role):''}
+         </select></label>
+         <label>المنفذ<select name="executor-person-${index}" required><option value="">اختر الاسم</option>
+           ${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name,assignment.assignee)).join('')}</select></label>
+         <label>تاريخ تسليم المنفذ<input type="date" name="executor-due-${index}" min="${nowInRiyadh()}" value="${escape(assignment.dueOn)}" required/></label>
+         ${index>0?'<button class="btn" type="button" data-action="bridge-remove-executor" data-index="'+index+'">حذف</button>':''}
+       </div>`).join('')}
+       </div><div class="bridge-assign-fields"></div>
        ${imageKinds.includes('image')?formats('image'):''}${imageKinds.includes('video')?formats('video'):''}
        <div class="notice ${ready?'good':'warning'}">${ready?'كل الأفكار مؤكدة وجاهزة. اختر المنفذ والمقاسات لإنشاء التاسك.':
-         'لا يمكن إنشاء التاسك حتى يتم تأكيد سيارات كل فكرة والتأكد من عدم تكليفها سابقًا.'}</div>
+         'لا يمكن إنشاء التاسك حتى يتم تأكيد سيارات كل فكرة.'}</div>
        <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!!nameError||bridge.busy?'disabled':''}>
-         ${chosen.some(row=>taskCodes(plan,row.code).some(code=>plan.assets.find(a=>a.code===code)?.integrationDraft))?
+         ${false?
            'استكمال إنشاء التاسك المحفوظ':'إنشاء تاسك واحد يحتوي '+chosen.length+' فكرة'}</button>
      </form>
    </section>`:''}
    `}
    <p class="bridge-footnote">يتم إنشاء تاسك واحد فقط في التسويق عند الضغط على زر الإنشاء. لن يتم تعديل التاسكات السابقة.</p>`;
 }
-export function currentApproval(state) {
-  const idea=getIdea(state.plan,state.bridge.ideaCode);
-  const assets=(idea?taskCodes(state.plan,idea.code):[]).map(code=>state.plan.assets.find(a=>a.code===code)).filter(Boolean);
-  return { idea,assets,carMode:assets[0]?.approvedCarMode||'',cars:assets[0]?.approvedVehicles||[],approved:assets.length>0 && assets.every(a=>Boolean(a.creativeApprovedAt)) };
+export function currentApproval(state){
+ const idea=getIdea(state.plan,state.bridge.ideaCode);
+ const choice=state.bridge.carSelections[idea?.code]||{mode:'single',cars:[],confirmed:false};
+ return {idea,assets:idea?taskCodes(state.plan,idea.code).map(code=>state.plan.assets.find(a=>a.code===code)).filter(Boolean):[],
+   carMode:choice.mode,cars:choice.cars.map(id=>state.bridge.stock.find(car=>stockId(car)===id)).filter(Boolean),approved:choice.confirmed};
 }
-export async function approveBridgeIdea(state, mode, selectedCars) {
-  const {idea,assets}=currentApproval(state);
-  if(!idea || !assets.length || !ideaIsApproved(state.plan,idea.code))throw Error('يجب مراجعة الفكرة واعتمادها قبل اختيار السيارات');
-  if(assets.some(a=>a.marketingTaskId || a.integrationRequestKey))throw Error('هذه الفكرة مرتبطة بتاسك أو بطلب محفوظ ولا يمكن تعديل السيارات');
-  if(!['none','single','compare'].includes(mode))throw Error('نوع اختيار السيارات غير صحيح');
-  if(mode==='single' && selectedCars.length<1 || mode==='compare' && selectedCars.length<2 || mode==='none' && selectedCars.length)throw Error('Car selection does not match the comparison requirement');
-  const chosen=selectedCars.map(value=>{const obj=JSON.parse(value);return state.bridge.stock.find(car=>stockId(car)===JSON.stringify(obj));});
-  if(chosen.some(v=>!v)||new Set(selectedCars).size!==selectedCars.length)throw Error('One or more selected cars are no longer available');
-  const approval={approvedVehicles:chosen,approvedCarMode:mode,creativeApprovedAt:new Date().toISOString(),integrationRequestKey:''};
-  await updateManyAssets(assets.map(a=>a.code),approval);
-  for(const asset of assets)Object.assign(asset,approval);
-  return chosen;
+export async function approveBridgeIdea(state,mode,selectedCars){
+ const {idea}=currentApproval(state);
+ if(!idea||!ideaIsApproved(state.plan,idea.code))throw Error('اعتمد الفكرة أولًا');
+ if(!['none','single','compare'].includes(mode)||mode==='single'&&!selectedCars.length||
+   mode==='compare'&&selectedCars.length<2||mode==='none'&&selectedCars.length)
+   throw Error('راجع السيارات المختارة ونوع المحتوى');
+ if(new Set(selectedCars).size!==selectedCars.length||
+   selectedCars.some(id=>!state.bridge.stock.some(car=>stockId(car)===id)))
+   throw Error('يوجد اختيار سيارة غير صالح');
+ // Car selection belongs to this NEW task run, never to the master idea.
+ state.bridge.carSelections[idea.code]={mode,cars:[...selectedCars],confirmed:true};
+ return selectedCars;
 }
-export async function assignBridgeIdea(state,form) {
+const briefLead=(idea,cars)=>'بريف إبداعي: '+idea.title+
+ (cars.length?'\nالسيارات المعتمدة:\n'+cars.map(formatStock).join('\n'):'\nلا توجد سيارة محددة لهذه الفكرة');
+const briefExplanation=idea=>['الجمهور والهدف:',idea.audienceAndGoal||'','الرسالة:',idea.message||''].join('\n');
+export async function assignBridgeIdea(state,form){
  const plan=state.plan,bridge=state.bridge,ideas=selectedIdeas(state);
- if(!ideas.length||ideas.length>30||ideas.some(idea=>!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(plan,idea.code)||historicalLinkedTask(plan,idea)))
-   throw Error('لازم تختار من 1 إلى 30 فكرة معتمدة من نفس التصنيف');
- const name=groupedName(bridge.category,ideas);
- const groups=ideas.map(idea=>({idea,assets:taskCodes(plan,idea.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean)}));
- if(groups.some(group=>!group.assets.length||group.assets.some(a=>!a.creativeApprovedAt||a.marketingTaskId)))throw Error('يجب تأكيد السيارات لكل فكرة والتأكد أنها غير مرتبطة بتاسك');
- const taskTypeId=String(form.elements.namedItem('taskTypeId')?.value||'');
- const assigned=String(form.elements.namedItem('assignee')?.value||'').split('|');
- const dueOn=String(form.elements.namedItem('dueOn')?.value||'');
- const formatsByKind=Object.fromEntries(['image','video'].map(kind=>[kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
- if(!validISODate(dueOn)||(dueOn<nowInRiyadh()&&!groups.some(g=>g.assets.some(a=>a.integrationDraft?.dueOn===dueOn))))throw Error('حدد تاريخ تسليم صحيحًا');
- if(!bridge.taskTypes.some(t=>t.id===taskTypeId))throw Error('اختر نوع التاسك المعتمد');
- const person=bridge.executors.find(row=>row.user_id===assigned[0]&&row.department_id===assigned[1]);
- if(!person)throw Error('اختر منفذًا مؤهلًا في سيستم التسويق');
- for(const kind of new Set(ideas.map(imageOrVideo))){
-  const formats=formatsByKind[kind];
-  if(!formats.length||formats.some(id=>!bridge.formats.some(f=>f.id===id&&f.mediaKinds?.includes(kind))))throw Error('اختر مقاسات '+(kind==='image'?'الصور':'الفيديو')+' المناسبة');
- }
- const pending=groups.flatMap(g=>g.assets).filter(a=>a.integrationRequestKey&&!a.marketingTaskId);
- let requestKey='';
- if(pending.length){
-  const keys=[...new Set(pending.map(x=>x.integrationRequestKey))];
-  const draft=pending[0].integrationDraft;
-  if(keys.length!==1||pending.length!==groups.flatMap(g=>g.assets).length||!draft?.ideaCodes||
-    JSON.stringify(draft.ideaCodes)!==JSON.stringify(ideas.map(x=>x.code))||
-    draft.typeId!==taskTypeId||draft.assigneeId!==assigned[0]||draft.departmentId!==assigned[1]||
-    draft.dueOn!==dueOn||draft.name!==name||JSON.stringify(draft.formatIdsByKind)!==JSON.stringify(formatsByKind))
-    throw Error('يوجد تكليف سابق غير مكتمل. لا تغيّر المجموعة أو البيانات؛ استكمل الطلب نفسه أولًا.');
-  requestKey=keys[0];
- } else {
-  requestKey=crypto.randomUUID();
-  const draft={ideaCodes:ideas.map(x=>x.code),typeId:taskTypeId,assigneeId:assigned[0],departmentId:assigned[1],formatIdsByKind:formatsByKind,dueOn,name};
-  const assets=groups.flatMap(g=>g.assets);
-  await updateManyAssets(assets.map(a=>a.code),{integrationRequestKey:requestKey,integrationDraft:draft,dueDate:dueOn});
-  for(const asset of assets)Object.assign(asset,{integrationRequestKey:requestKey,integrationDraft:draft,dueDate:dueOn});
- }
- const items=await Promise.all(groups.map(async({idea,assets})=>{
-  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(requestKey+':'+idea.code));
-  const bytes=new Uint8Array(digest).slice(0,16);bytes[6]=(bytes[6]&15)|0x50;bytes[8]=(bytes[8]&63)|0x80;
-  const h=[...bytes].map(v=>v.toString(16).padStart(2,'0')).join('');
-  const clientKey=[h.slice(0,8),h.slice(8,12),h.slice(12,16),h.slice(16,20),h.slice(20,32)].join('-');
-  const first=assets[0],cars=first.approvedVehicles||[];
-  const full=toBriefText(plan,idea.code).replace(/^المنفذ:.*$/m,'المنفذ: '+person.full_name);
-  const stockText=cars.length?'\n\nالسيارات المعتمدة:\n'+cars.map(formatStock).join('\n'):'';
-  if((full+stockText).length>20000)throw Error('البريف يتجاوز 20,000 حرف. يجب مراجعته دون اختصاره قبل إرساله للتسويق: '+idea.title);
-  return {clientKey,departmentId:assigned[1],assigneeId:assigned[0],mediaKind:imageOrVideo(idea),
-   ideaName:idea.title,idea:full+stockText,explanation:'',dueOn,formatIds:formatsByKind[imageOrVideo(idea)]};
- }));
- const result=await fetchBridge('assignments',{body:{requestKey,typeId:taskTypeId,name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items}});
- const links=groups.flatMap((group,index)=>{
-  const itemId=result.items?.find(x=>x.client_key===items[index].clientKey)?.id;
-  return group.assets.map(asset=>({code:asset.code,taskId:result.id,taskNo:result.taskNo,itemId:itemId||'',executorName:person.full_name}));
+ if(!ideas.length||ideas.length>30||ideas.some(x=>!eligible(x)||!ideaIsApproved(plan,x.code)||x.marketingCategory!==bridge.category))
+   throw Error('حدد أفكارًا معتمدة من نفس التصنيف');
+ if(ideas.some(x=>!bridge.carSelections[x.code]?.confirmed))throw Error('أكد السيارات لكل فكرة');
+ const name=groupedName(bridge.category,ideas),typeId=String(form.elements.namedItem('taskTypeId')?.value||'');
+ if(!bridge.taskTypes.some(x=>x.id===typeId))throw Error('اختر نوع التاسك');
+ const executors=bridge.assignments.map((_,index)=>{
+   const role=String(form.elements.namedItem('executor-role-'+index)?.value||'');
+   const identity=String(form.elements.namedItem('executor-person-'+index)?.value||'').split('|');
+   const dueOn=String(form.elements.namedItem('executor-due-'+index)?.value||'');
+   const person=bridge.executors.find(x=>x.user_id===identity[0]&&x.department_id===identity[1]);
+   if(!person||!['production','shooting'].includes(role)||!validISODate(dueOn)||dueOn<nowInRiyadh())
+     throw Error('اختر اسم المنفذ ونوع المطلوب وتاريخ تسليمه الصحيح');
+   if(role==='shooting'&&!ideas.some(x=>imageOrVideo(x)==='video'))throw Error('التصوير خاص بأفكار الفيديو');
+   return {role,person,dueOn};
  });
- if(links.some(l=>!l.itemId))throw Error('تم إنشاء التاسك لكن نتيجة ربط المطلوبات غير مكتملة؛ أعد المحاولة بنفس الطلب');
- await linkMarketingTask(links);
- for(const {code,taskId,taskNo,itemId,executorName} of links){const asset=plan.assets.find(a=>a.code===code);Object.assign(asset,{marketingTaskId:taskId,marketingTaskNo:taskNo,marketingItemId:itemId,marketingExecutorName:executorName});}
+ if(!executors.some(x=>x.role==='production'))throw Error('أضف منفذًا للملفات النهائية');
+ if(executors.filter(x=>x.role==='shooting').length>1)throw Error('حدد مصورًا واحدًا لكل تاسك');
+ const unique=new Set(executors.map(x=>x.person.user_id+'|'+x.role));
+ if(unique.size!==executors.length)throw Error('لا تكرر نفس المنفذ لنفس نوع المطلوب');
+ const formatsByKind=Object.fromEntries(['image','video'].map(kind=>[kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(input=>input.value)]));
+ for(const kind of new Set(ideas.map(imageOrVideo)))if(!formatsByKind[kind].length||
+   formatsByKind[kind].some(id=>!bridge.formats.some(f=>f.id===id&&f.mediaKinds?.includes(kind))))
+   throw Error('حدد مقاسات '+(kind==='image'?'الصور':'الفيديو'));
+ const draft={ideaCodes:ideas.map(x=>x.code),typeId,name,executors:executors.map(x=>({
+   role:x.role,assigneeId:x.person.user_id,departmentId:x.person.department_id,dueOn:x.dueOn})),
+   formatIdsByKind,carSelections:Object.fromEntries(ideas.map(x=>[x.code,bridge.carSelections[x.code]]))};
+ let pending=(plan.taskRuns||[]).find(x=>x.status==='pending'&&JSON.stringify(x.draft)===JSON.stringify(draft));
+ const requestKey=pending?.id||crypto.randomUUID();
+ await saveStrategyTaskRun(requestKey,{draft});
+ if(!pending){pending={id:requestKey,status:'pending',draft};plan.taskRuns=[...(plan.taskRuns||[]),pending];}
+ const items=[],sourceCodes=[];
+ for(const idea of ideas){
+   const cars=bridge.carSelections[idea.code].cars.map(id=>bridge.stock.find(car=>stockId(car)===id)).filter(Boolean);
+   for(const assignment of executors){
+     if(assignment.role==='shooting'&&imageOrVideo(idea)!=='video')continue;
+     const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(requestKey+':'+idea.code+':'+assignment.role+':'+assignment.person.user_id));
+     const bytes=new Uint8Array(digest).slice(0,16);bytes[6]=(bytes[6]&15)|0x50;bytes[8]=(bytes[8]&63)|0x80;
+     const h=[...bytes].map(v=>v.toString(16).padStart(2,'0')).join('');
+     const clientKey=[h.slice(0,8),h.slice(8,12),h.slice(12,16),h.slice(16,20),h.slice(20,32)].join('-');
+     const shooting=assignment.role==='shooting';
+     const creativeBrief=toBriefText(plan,idea.code)+'\n\nالسيارات المعتمدة:\n'+(cars.map(formatStock).join('\n')||'لا توجد سيارة محددة');
+     const brief=briefLead(idea,cars);
+     if(creativeBrief.length>50000)throw Error('البريف الإبداعي أطول من الحد المسموح: '+idea.title);
+     items.push({clientKey,departmentId:assignment.person.department_id,assigneeId:assignment.person.user_id,
+       mediaKind:imageOrVideo(idea),deliveryKind:shooting?'shooting_link':'final_files',
+       ideaName:shooting?'تصوير مشاهد: '+idea.title:(imageOrVideo(idea)==='video'?'فيديو: ':'صورة: ')+idea.title,
+       idea:brief,explanation:briefExplanation(idea),creativeBrief,
+       dueOn:assignment.dueOn,formatIds:shooting?[]:formatsByKind[imageOrVideo(idea)]});
+     sourceCodes.push(idea.code);
+   }
+ }
+ const result=await fetchBridge('assignments',{body:{requestKey,typeId,name,
+   source:{planId:PLAN_ID,ideaCodes:sourceCodes},items}});
+ await finishStrategyTaskRun(requestKey,result);
+ Object.assign(pending,{status:'linked',taskId:result.id,taskNo:result.taskNo});
  return result;
 }
 export async function checkBridgeTask(state){
