@@ -282,7 +282,7 @@ export function postDetailPage(state){
       <label>النص الثاني للقصة<textarea name="storyFrame2" rows="2">${e(post.story?.frame2||'')}</textarea></label>
       <button class="btn btn-primary" type="submit" ${state.planSaving?'disabled':''}>${state.planSaving?'جارٍ الحفظ…':'حفظ تعديلات النشر والتكليف'}</button>
       <p class="p-help">لا يوجد نشر آلي. تغيير الفكرة هنا لا يلغي أصول الإنتاج أو يضيف كميات جديدة للفريق.</p>
-    </form><div class="p-detail-side">${briefCard(p,post.ideaCode,true)}<section class="card panel"><h3>تسليم الملف</h3>${taskCodes(p,post.ideaCode).map(id=>{const a=p.assets.find(x=>x.code===id);return a?`<p>${pill(a.code)} ${e(a.executor)} · ${dl(a.dueDate)} · ${statusTag(a.status)}</p>`:'';}).join('')}</section></div></div>`;
+    </form><div class="p-detail-side">${briefCard(p,post.ideaCode,true)}<section class="card panel"><h3>تسليم الملف</h3>${taskCodes(p,post.ideaCode).map(id=>{const a=p.assets.find(x=>x.code===id);return a?`<p>${e(a.title||"المطلوب")} · ${e(a.executor)} · ${dl(a.dueDate)} · ${statusTag(a.status)}</p>`:'';}).join('')}</section></div></div>`;
 }
 
 function briefCard(plan,code,embedded=false){
