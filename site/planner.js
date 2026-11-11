@@ -376,6 +376,32 @@ export function toBriefText(plan,code){
   return lines.join('\n');
 }
 
+/** Delivery-ready document text. Brief/vehicles and audience/message live in
+ * separate Marketing fields; this contains only the creative treatment. */
+export function toCreativeTreatmentText(plan,code){
+  const idea=getIdea(plan,code);
+  if(!idea)return '';
+  const lines=[`المعالجة الإبداعية — ${idea.title}`];
+  if(idea.creativeTreatment)lines.push('التصور / المعالجة:',idea.creativeTreatment);
+  lines.push('الهوك:',idea.hook||idea.screenText||'—',
+    'النص / الفويس أوفر:',idea.script||'—', 'السيناريو التفصيلي:');
+  if(idea.kind==='video'){
+    for(const scene of idea.scenes||[])lines.push(`المشهد ${scene.number}: ${scene.title||''}`,
+      `الحدث: ${scene.visual||''}`,`الكاميرا: ${scene.camera||''}`,`الفويس أوفر: ${scene.voiceOver||''}`,
+      `نص الشاشة: ${scene.screenText||''}`,`الصوت: ${scene.sound||''}`,`الانتقال: ${scene.transition||''}`,'');
+    if(idea.shootingAssets)lines.push('مطلوبات التصوير:',idea.shootingAssets);
+    if(idea.qualityNotes)lines.push('معايير الجودة:',idea.qualityNotes);
+  }else if(idea.kind==='carousel'){
+    (idea.slideCodes||[]).forEach((id,index)=>{const slide=getIdea(plan,id);
+      lines.push(`الصورة ${index+1}`,`النص: ${slide?.screenText||''}`,`التصميم: ${slide?.visualDescription||''}`,'');});
+  }else{
+    for(const [index,slide] of imageCards(idea).entries())lines.push(`الصورة ${index+1}: ${slide.title||''}`,
+      `النص: ${cleanVisualText(slide.screenText)}`,`التصور: ${cleanVisualText(slide.visualDescription)}`,
+      slide.notes?`ملاحظات: ${slide.notes}`:'','');
+  }
+  return lines.filter(line=>line!==undefined).join('\n');
+}
+
 export function teamHandoffText(plan,person,week=0){
  const assets=plan.assets.filter(a=>(person==='الكل'||a.executor===person)&&(!week||a.week===week)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)||a.code.localeCompare(b.code));
  return `MZJ - تكليفات الإنتاج\nتبدأ التكليفات 20 نوفمبر 2026\nالمنفذ: ${person}\n\n`+assets.map(a=>toBriefText(plan,a.code)).join('\n\n'+('=').repeat(45)+'\n\n');

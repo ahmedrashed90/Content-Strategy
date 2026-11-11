@@ -76,7 +76,7 @@ export default async function handler(request,response) {
   const assign = method === 'POST' && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.action === 'assign';
   const agenda = method === 'POST' && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.action === 'agenda';
   if (!read && !assign && !agenda) return responseJson(response,405,{ok:false,error:'Unsupported integration action'});
-  if ((assign || agenda) && Number(request.headers['content-length'] || 0) > 90000) return responseJson(response,413,{ok:false,error:'Assignment is too large'});
+  if ((assign || agenda) && Number(request.headers['content-length'] || 0) > 1048576) return responseJson(response,413,{ok:false,error:'Assignment is too large'});
   try {
     await requireOwner(request);
   } catch (error) {

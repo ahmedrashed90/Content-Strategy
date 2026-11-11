@@ -84,11 +84,16 @@ export async function updateReviewAssetRows(rows){
 export async function linkMarketingTask(links) {
   const {db,api}=await sdk();
   const batch=api.writeBatch(db);
-  for(const link of links)batch.update(api.doc(db,...base,'assets',link.code),{
-    marketingTaskId:link.taskId,marketingTaskNo:link.taskNo,
-    marketingItemId:link.itemId,marketingExecutorName:link.executorName,
-    marketingLinkedAt:api.serverTimestamp(),updatedAt:api.serverTimestamp()
-  });
+  for(const link of links){
+    const previous=link.previousTask&&link.previousTask.taskId!==link.taskId?[link.previousTask]:[];
+    const history=[...(link.previousMarketingTasks||[]),...previous].slice(-30);
+    batch.update(api.doc(db,...base,'assets',link.code),{
+      marketingTaskId:link.taskId,marketingTaskNo:link.taskNo,
+      marketingItemId:link.itemId,marketingExecutorName:link.executorName,
+      previousMarketingTasks:history,dueDate:link.newDueDate,integrationRequestKey:'',integrationDraft:null,
+      marketingLinkedAt:api.serverTimestamp(),updatedAt:api.serverTimestamp()
+    });
+  }
   await batch.commit();
 }
 

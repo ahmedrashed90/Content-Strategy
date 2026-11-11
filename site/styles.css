@@ -949,3 +949,13 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 .agenda-strategy-panel .notice{margin-block:14px;line-height:1.8}
 @media(max-width:850px){.agenda-settings{grid-template-columns:1fr}.agenda-strategy-panel{padding:15px}.agenda-format-options{grid-template-columns:1fr}}
 @media(max-width:550px){.agenda-kpis{grid-template-columns:1fr}.agenda-review-actions .btn{width:100%}}
+
+/* One task can have different executors and individually tracked due dates. */
+.bridge-assignees{display:grid;gap:12px;margin:16px 0;padding:16px;border:1px solid var(--border,#d9bbac);border-radius:12px}
+.bridge-assignees h3{margin:0;font-size:16px}
+.bridge-assignee-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto auto;gap:12px;align-items:end;padding:12px;border:1px solid #e2cbbf;border-radius:10px}
+.bridge-assignee-row label{display:grid;gap:6px}
+.bridge-assignee-row input,.bridge-assignee-row select{width:100%;min-height:44px}
+.bridge-assignee-role{font-size:12px;white-space:nowrap;padding-bottom:14px}
+.bridge-assignees>button{justify-self:start}
+@media(max-width:850px){.bridge-assignee-row{grid-template-columns:1fr}.bridge-assignee-role{padding:0}}

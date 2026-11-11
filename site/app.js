@@ -1032,10 +1032,13 @@ app.addEventListener('change', async event => {
   if(event.target.closest?.('#bridge-assign')){
     const form=event.target.closest('#bridge-assign');
     state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
-    state.bridge.assignee=form.elements.namedItem('assignee')?.value||'';
-    state.bridge.dueOn=form.elements.namedItem('dueOn')?.value||nowInRiyadh();
+    state.bridge.assignments=state.bridge.assignments.map((entry,index)=>({
+      assignee:form.elements.namedItem('assignee_'+index)?.value||entry.assignee||'',
+      dueOn:form.elements.namedItem('dueOn_'+index)?.value||entry.dueOn||nowInRiyadh()
+    }));
     state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
       kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+    if(event.target.matches?.('select[name^="assignee_"]'))render();
     return;
   }
   if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
@@ -1159,6 +1162,15 @@ app.addEventListener('click', async event => {
     try{await saveStrategyAgenda(state);toast('تم إنشاء الأجندة وإرسالها إلى المراجعة في التسويق.');}
     catch(error){state.agenda.error=error?.message||'تعذر إنشاء أجندة في التسويق';}
     render();return;
+  }
+  if(action==='bridge-add-assignee'){
+    if(state.bridge.assignments.length<10){state.bridge.assignments.push({assignee:'',dueOn:nowInRiyadh()});render();}
+    return;
+  }
+  if(action==='bridge-remove-assignee'){
+    const index=Number(control.dataset.index);
+    if(index>0&&index<state.bridge.assignments.length){state.bridge.assignments.splice(index,1);render();}
+    return;
   }
   if(action==='bridge-pick-category'){
     try{selectBridgeCategory(state,control.dataset.category||'');render();}
