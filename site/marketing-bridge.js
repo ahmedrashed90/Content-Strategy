@@ -15,6 +15,12 @@ const eligible = idea => idea && !idea.retiredFromIdeaBank && !idea.requiresVeri
 const selectionCodes = bridge => [...new Set(bridge.selectedCodes||[])];
 const ideaRows = plan => plan ? [...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))] : [];
 const selectedIdeas = state => selectionCodes(state.bridge).map(code=>getIdea(state.plan,code)).filter(Boolean);
+const historicalLinkedTask = (plan,idea) => {
+ const key=String(idea?.title||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
+ if(!key)return null;
+ return (plan?.assets||[]).find(x=>x.retiredFromIdeaBank&&x.marketingTaskId&&
+   String(x.title||'').normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase()===key)||null;
+};
 const groupedName = (category,ideas) => {
  const name=category+' ('+ideas.map(idea=>idea.title).join(' + ')+')';
  if(name.length>250)throw Error('عنوان التاسك أطول من 250 حرفًا؛ اختر أفكارًا أقل أو أسماء أقصر، بدون قص العناوين.');
@@ -28,6 +34,8 @@ export function selectBridgeCategory(state, category) {
 export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
  if(!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو خارج التصنيف المحدد');
+ const previous=historicalLinkedTask(state.plan,idea);
+ if(previous)throw Error('سبق إنشاء تكليف لهذه الفكرة في نسخة سابقة: '+(previous.marketingTaskNo||previous.marketingTaskId)+'. راجع التكليف القديم قبل إعادة التكليف.');
  if(checked && selectionCodes(bridge).length>=30)throw Error('الحد الأقصى 30 فكرة في التاسك الواحد');
  const stored=state.plan?.assets?.find(a=>a.code===code)?.integrationDraft;
  if(checked&&Array.isArray(stored?.ideaCodes)){
@@ -112,8 +120,9 @@ export function bridgePage(state) {
         <label>تصنيف التاسك<select id="bridge-category"><option value="">اختر التصنيف</option>${CAMPAIGN_CATEGORIES.map(cat=>opt(cat,cat,bridge.category)).join('')}</select></label>
         ${bridge.category?`<div class="bridge-multi-list">${categorized.map(row=>{
           const rowAssets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-          const locked=rowAssets.some(a=>a.marketingTaskId),confirmed=rowAssets.every(a=>a.creativeApprovedAt);
-          return `<label class="bridge-multi-option"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${selectionCodes(bridge).includes(row.code)?'checked':''} ${!ideaIsApproved(plan,row.code)||locked?'disabled':''}/><span><strong>${escape(row.title)}</strong><small>${row.kind==='video'?'فيديو':(Number(row.imageCount)||1)+' صور'} · ${locked?'مرتبط بتاسك':!ideaIsApproved(plan,row.code)?'بانتظار الاعتماد':confirmed?'السيارات مؤكدة':'يحتاج تأكيد السيارات'}</small></span></label>`;
+          const historical=historicalLinkedTask(plan,row);
+          const locked=rowAssets.some(a=>a.marketingTaskId)||Boolean(historical),confirmed=rowAssets.every(a=>a.creativeApprovedAt);
+          return `<label class="bridge-multi-option"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${selectionCodes(bridge).includes(row.code)?'checked':''} ${!ideaIsApproved(plan,row.code)||locked?'disabled':''}/><span><strong>${escape(row.title)}</strong><small>${row.kind==='video'?'فيديو':(Number(row.imageCount)||1)+' صور'} · ${locked?'له تكليف سابق'+(historical?' '+(historical.marketingTaskNo||''):''):!ideaIsApproved(plan,row.code)?'بانتظار الاعتماد':confirmed?'السيارات مؤكدة':'يحتاج تأكيد السيارات'}</small></span></label>`;
         }).join('')||'<p>لا توجد أفكار لهذا التصنيف.</p>'}</div>`:'<p class="p-help">اختر تصنيفًا لعرض الأفكار التابعة له.</p>'}
         <div class="notice">${chosen.length?'عدد الأفكار المختارة: '+chosen.length:'اختر فكرة واحدة على الأقل'}${taskName?'<br/>اسم التاسك: <strong>'+escape(taskName)+'</strong>':''}${nameError?'<br/>'+escape(nameError):''}</div>
       </section>
@@ -164,7 +173,7 @@ export async function approveBridgeIdea(state, mode, selectedCars) {
 }
 export async function assignBridgeIdea(state,form) {
  const plan=state.plan,bridge=state.bridge,ideas=selectedIdeas(state);
- if(!ideas.length||ideas.length>30||ideas.some(idea=>!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(plan,idea.code)))
+ if(!ideas.length||ideas.length>30||ideas.some(idea=>!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(plan,idea.code)||historicalLinkedTask(plan,idea)))
    throw Error('لازم تختار من 1 إلى 30 فكرة معتمدة من نفس التصنيف');
  const name=groupedName(bridge.category,ideas);
  const groups=ideas.map(idea=>({idea,assets:taskCodes(plan,idea.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean)}));
