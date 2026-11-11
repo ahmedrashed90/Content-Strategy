@@ -861,3 +861,61 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 .bridge-selected-items{display:grid;gap:10px;margin-block:14px}
 .bridge-selected-items .p-scene{margin:0}
 @media(max-width:700px){.bridge-multi-list{max-height:300px}.idea-category-label{font-size:.72rem}}
+
+
+/* Approved creative ideas — one professional task composer, RTL and responsive. */
+.bridge-table-panel,.bridge-car-workspace,.bridge-assignment-panel{padding:25px;margin-bottom:20px}
+.bridge-table-heading{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:17px}
+.bridge-table-heading h2{margin:0 0 7px;font-size:18px;color:#4a211c}
+.bridge-summary-count{background:#f3e8dc;border:1px solid #dfc5b3;border-radius:12px;color:#4a211c;font-size:13px;font-weight:900;padding:10px 15px}
+.bridge-category-tabs{display:flex;flex-wrap:wrap;gap:9px;margin:15px 0 19px}
+.bridge-category-tab{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #d7c3b6;border-radius:12px;background:#fcf8f3;color:#583025;padding:12px 14px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800;transition:background .15s,border-color .15s}
+.bridge-category-tab span{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:7px;background:#eee0d3;font-size:11px}
+.bridge-category-tab:hover{background:#f3e8dc;border-color:#b99784}
+.bridge-category-tab.active{background:#4a211c;color:#f3e8dc;border-color:#4a211c}
+.bridge-category-tab.active span{background:#764b3e;color:#f3e8dc}
+.bridge-table-controls{display:flex;gap:10px;align-items:end;margin:12px 0 16px}
+.bridge-table-controls label{display:grid;gap:7px;flex:1;min-width:200px;color:#583025;font-size:12px;font-weight:800}
+.bridge-table-controls input{height:43px;border:1px solid #d7c3b6;border-radius:11px;background:#fffbf5;color:#4a211c;padding:10px 13px;font:inherit;font-weight:500}
+.bridge-table-controls button{height:43px;min-width:100px}
+.bridge-table-scroll{overflow:auto;border:1px solid #decabc;border-radius:15px;max-height:560px;scrollbar-width:thin}
+.bridge-ideas-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:12px;min-width:900px}
+.bridge-ideas-table thead{position:sticky;top:0;z-index:1;background:#f3e8dc}
+.bridge-ideas-table th{text-align:right;padding:14px 12px;font-weight:900;color:#4a211c;border-bottom:1px solid #d5bbac;white-space:nowrap}
+.bridge-ideas-table td{padding:14px 12px;vertical-align:middle;border-bottom:1px solid #e8d9cc;color:#583b32;line-height:1.65}
+.bridge-ideas-table tbody tr:last-child td{border-bottom:0}
+.bridge-ideas-table tbody tr:nth-child(even){background:rgba(243,232,220,.2)}
+.bridge-ideas-table tbody tr:hover{background:rgba(243,232,220,.5)}
+.bridge-ideas-table tbody tr.bridge-idea-selected{background:#eee0d3}
+.bridge-idea-name strong{display:block;font-size:13px;color:#4a211c;white-space:normal}
+.bridge-idea-name small{font-size:10px;color:#8b746a}
+.bridge-idea-check input{height:18px;width:18px;accent-color:#4a211c;cursor:pointer}
+.bridge-category-chip{display:inline-block;background:#f3e8dc;border:1px solid #ddcabb;border-radius:7px;padding:6px 8px;font-size:11px;font-weight:800;white-space:nowrap}
+.bridge-status-chip{display:inline-block;border:1px solid #e4cbb8;background:#fbf4ec;border-radius:7px;padding:6px 8px;white-space:nowrap;font-weight:800;font-size:11px}
+.bridge-status-chip.is-done{border-color:#afc1ad;background:#f0f6ee;color:#38553b}
+.bridge-status-chip.is-linked{color:#856354}
+.bridge-table-empty{text-align:center!important;color:#866d63!important;padding:34px!important}
+.bridge-selected-summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#f3e8dc;border-radius:12px;padding:13px 15px;margin-top:15px;color:#4a211c;font-size:12px}
+.bridge-selected-summary strong{font-size:13px}
+.bridge-chosen-strip{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0 20px}
+.bridge-chosen-chip{display:grid;gap:4px;text-align:right;padding:11px 14px;border-radius:11px;border:1px solid #d9c3b5;background:#fcf8f3;color:#4a211c;font-family:inherit;font-size:12px;font-weight:900;cursor:pointer}
+.bridge-chosen-chip small{font-weight:500;color:#775d4e}
+.bridge-chosen-chip.active{background:#4a211c;border-color:#4a211c;color:#f3e8dc}
+.bridge-chosen-chip.active small{color:#dfc7b7}
+.bridge-car-active{border:1px solid #e1cbbb;background:#fcf8f2;padding:18px;border-radius:14px;margin-bottom:16px}
+.bridge-car-active h3{font-size:17px;margin:0 0 7px}
+.bridge-car-active .bridge-form{display:grid;gap:11px}
+.bridge-car-active .bridge-confirm{width:100%;min-height:46px;font-size:13px}
+.bridge-task-title-preview{display:grid;gap:7px;padding:15px 16px;background:#f3e8dc;border:1px solid #d9c4b5;border-radius:12px;margin:16px 0}
+.bridge-task-title-preview small{font-size:11px;color:#77594b}
+.bridge-task-title-preview strong{font-size:14px;color:#4a211c;overflow-wrap:anywhere}
+.bridge-assign-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.bridge-assign-fields select,.bridge-assign-fields input{min-height:46px}
+.bridge-format-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px;max-height:330px;overflow:auto}
+.bridge-format-option{display:flex!important;align-items:center!important;flex-direction:row!important;gap:12px!important;padding:11px 13px!important;border:1px solid #e1caba;border-radius:10px;background:#fffaf5;cursor:pointer;font-size:12px!important}
+.bridge-format-option input{width:18px;height:18px;flex-shrink:0;accent-color:#4a211c}
+.bridge-format-option span{display:grid;gap:3px}
+.bridge-format-option small{font-weight:500;font-size:10px;color:#816457}
+.bridge-assignment-panel .bridge-submit{min-height:49px;font-size:14px;font-weight:900}
+@media(max-width:950px){.bridge-assign-fields{grid-template-columns:1fr}.bridge-table-panel,.bridge-car-workspace,.bridge-assignment-panel{padding:15px}}
+@media(max-width:600px){.bridge-table-heading{align-items:flex-start}.bridge-table-controls{flex-direction:column;align-items:stretch}.bridge-table-controls label{min-width:0;width:100%}.bridge-category-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.bridge-category-tab{padding:10px 8px;font-size:11px}.bridge-format-grid{grid-template-columns:1fr}.bridge-table-scroll{max-height:430px}}
