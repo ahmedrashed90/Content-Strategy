@@ -209,13 +209,12 @@ export function bridgePage(state) {
          <label>تاريخ تسليم المنفذ<input type="date" name="executor-due-${index}" min="${nowInRiyadh()}" value="${escape(assignment.dueOn)}" required/></label>
          ${index>0?'<button class="btn" type="button" data-action="bridge-remove-executor" data-index="'+index+'">حذف</button>':''}
        </div>`).join('')}
-       </div><div class="bridge-assign-fields"></div>
+       </div>
        ${imageKinds.includes('image')?formats('image'):''}${imageKinds.includes('video')?formats('video'):''}
        <div class="notice ${ready?'good':'warning'}">${ready?'كل الأفكار مؤكدة وجاهزة. اختر المنفذ والمقاسات لإنشاء التاسك.':
          'لا يمكن إنشاء التاسك حتى يتم تأكيد سيارات كل فكرة.'}</div>
        <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!!nameError||bridge.busy?'disabled':''}>
-         ${false?
-           'استكمال إنشاء التاسك المحفوظ':'إنشاء تاسك واحد يحتوي '+chosen.length+' فكرة'}</button>
+         ${'إنشاء تاسك واحد يحتوي '+chosen.length+' فكرة'}</button>
      </form>
    </section>`:''}
    `}
@@ -290,7 +289,7 @@ export async function assignBridgeIdea(state,form){
      if(creativeBrief.length>50000)throw Error('البريف الإبداعي أطول من الحد المسموح: '+idea.title);
      items.push({clientKey,departmentId:assignment.person.department_id,assigneeId:assignment.person.user_id,
        mediaKind:imageOrVideo(idea),deliveryKind:shooting?'shooting_link':'final_files',
-       ideaName:shooting?'تصوير مشاهد: '+idea.title:(imageOrVideo(idea)==='video'?'فيديو: ':'صورة: ')+idea.title,
+       ideaName:imageOrVideo(idea)==='video'?'فيديو':'صورة',
        idea:brief,explanation:briefExplanation(idea),creativeBrief,
        dueOn:assignment.dueOn,formatIds:shooting?[]:formatsByKind[imageOrVideo(idea)]});
      sourceCodes.push(idea.code);
