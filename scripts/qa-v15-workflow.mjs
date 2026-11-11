@@ -21,7 +21,7 @@ assert(bankBefore.includes('استيراد أفكار JSON'));
 assert(!bankBefore.includes('كاروسيل')&&!bankBefore.includes('صورة منشور'));
 const briefBefore=assetDetailPage(state);
 assert(briefBefore.includes('id="idea-review-form"') && briefBefore.includes('value="معتمد"'));
-assert(briefBefore.includes('value="مطلوب تعديل"') && briefBefore.includes('value="مرفوض"'));
+assert(!briefBefore.match(/<form id="idea-review-form"[\s\S]*?<\/form>/)?.[0].includes('value="مطلوب تعديل"') && briefBefore.includes('value="مرفوض"'));
 assert(!briefBefore.includes('id="bridge-assign"'));
 selectBridgeIdea(state,'V01');
 let bridgeBefore=bridgePage(state);
@@ -32,7 +32,7 @@ source.reviewStatus='معتمد';source.reviewNotes='مراجعة كاملة د�
 source.reviewHistory=[{status:'معتمد',at:source.reviewedAt,notes:source.reviewNotes}];
 assert(ideaIsApproved(plan,'V01'));
 const approvedBrief=assetDetailPage(state);
-assert(approvedBrief.includes('تجهيز التكليف')&&approvedBrief.includes('سجل قرارات المراجعة'));
+assert(approvedBrief.includes('تجهيز تكليف جديد')&&approvedBrief.includes('سجل المراجعات'));
 assert(approvedBrief.includes('إلغاء الاعتماد وإعادة للمراجعة'));
 assert(!briefBefore.includes('إلغاء الاعتماد وإعادة للمراجعة'));
 assert(approvedBrief.includes('تاريخ التسليم المقترح'));
@@ -54,9 +54,9 @@ assert(bridgeAfter.includes('name="dueOn" required'));
 source.marketingTaskId='task-123';source.marketingTaskNo='TASK-123';source.marketingExecutorName='محمود';
 assert(bridgePage(state).includes('TASK-123'));
 assert(!bridgePage(state).includes('id="bridge-assign"'));
-assert(!assetDetailPage(state).includes('id="idea-review-form"'));
-assert(!assetDetailPage(state).includes('إلغاء الاعتماد وإعادة للمراجعة'));
-assert(assetDetailPage(state).includes('التكليف في سيستم التسويق'));
+assert(assetDetailPage(state).includes('id="idea-review-form"'));
+assert(assetDetailPage(state).includes('إلغاء الاعتماد وإعادة للمراجعة'));
+assert(assetDetailPage(state).includes('سيستم التسويق'));
 // New monthly JSON batches never overwrite legacy assets; no executor required before approval.
 const batch=prepareIdeaBatch({schema:'mzj-ideas-batch/v1',batchId:'FUTURE-2027',ideas:[
   {title:'مقارنة بين سيارتين بصورة واحدة',type:'صورة',imageCount:1,platforms:['instagram']},
@@ -94,4 +94,4 @@ fs.writeFileSync(path.join(root,'qa/ideas-workspace.html'),snapshot(bankBefore))
 fs.writeFileSync(path.join(root,'qa/review-workflow.html'),snapshot(approvedBrief));
 fs.writeFileSync(path.join(root,'qa/monthly-calendar.html'),snapshot(calendar));
 fs.writeFileSync(path.join(root,'qa/task-creation.html'),snapshot(bridgeAfter));
-console.log('PASS: Review gating, decisions, timeline, approved car selection, mandatory due date, immutable task link, future JSON imports and monthly calendar.');
+console.log('PASS: Review gating, decisions, timeline, approved car selection, mandatory due date, historical task link, future JSON imports and monthly calendar.');

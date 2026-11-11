@@ -58,7 +58,7 @@ service cloud.firestore {
             'executor','status','dueDate','comments','updatedAt',
             'approvedVehicles','approvedCarMode','creativeApprovedAt','integrationRequestKey','integrationDraft',
             'reviewStatus','reviewNotes','reviewedAt','reviewedByUid','reviewHistory',
-            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt'
+            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks'
           ])
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;

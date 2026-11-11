@@ -1,8 +1,8 @@
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
-import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, importPublishingIdeas, createPublishingPost } from './plan-firebase.js';
-import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, createPublishingPost } from './plan-firebase.js';
+import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
 
@@ -51,6 +51,10 @@ const state = {
   ideaKind: 'all',
   ideaReviewFilter: 'all',
   ideaSearch: '',
+  archiveSearch: '',
+  briefReturnView: 'ideas',
+  briefReturnScrollY: 0,
+  briefBaseline: '',
   selectedPostId: null,
   selectedAssetCode: null,
   bridge: newBridgeState()
@@ -197,7 +201,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
     <div class="menu-label">البيانات والتحليل</div>
     <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
@@ -210,7 +214,7 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
+  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
     <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
@@ -289,7 +293,7 @@ function overviewPage() {
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
   <div class="section-heading"><div><h2>قراءة الأداء قبل الانطلاق</h2><p>بيانات حقيقية من اللقطات السابقة، لا مخطط زمني افتراضي</p></div><span class="note-tag">${icon('clock','ic-sm')} مرجع تاريخي</span></div>
   <div class="two-cols">${viewsPanel()}${followerPanel()}</div>
-  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2><p>ملاحظات مرجعية تُقارن بالمحتوى المنشور لاحقًا، وليست أرقام مبيعات</p></div></div>
+  <div class="section-heading"><div><h2>ما الذي تخبرنا به الأرقام؟</h2><p>قراءة تحليلية للمؤشرات قبل بداية المحتوى الجديد</p></div></div>
   ${insightCards()}
   <div class="future-strip"><div><h3>من المرجع إلى التحسن القابل للقياس</h3><p>بعد اعتماد المحتوى وبدء النشر، نضيف النتائج الفعلية لكل منصة ونقارنها بالمراجع الأربع دون تغيير أرقامها التاريخية.</p></div><button class="btn btn-primary" data-nav="comparison">كيف ستظهر المقارنة؟ ${icon('arrow','ic-sm')}</button></div>
   ${renderFooter()}`;
@@ -386,7 +390,7 @@ function platformPage() {
   <section class="card detail-hero"><div><div class="page-eyebrow">${esc(p.name)} | خط الأساس</div><h2>${esc(p.name)}</h2><p>${esc(p.source)}</p><p><strong>فترة القياس:</strong> ${esc(p.period)}</p></div>${platformLogo(key,'logo')}</section>
   ${empty ? `<div class="compare-placeholder" style="margin-top:16px"><div class="rounded-icon">${icon('database','ic-lg')}</div><h2>بيانات Snapchat لم تُستورد بعد</h2><p>مرجع الإصدار القديم v1 لا يتضمن بيانات Snapchat. اختر ملف v2 من المرجع الأساسي حتى تظهر البيانات مع الاحتفاظ بالنسخة التاريخية.</p></div>` : `<div class="detail-grid">${metrics.join('')}</div>`}
   ${key === 'tiktok' ? tiktokExtras(p) : key === 'snapchat' && !empty ? snapchatExtras(p) : ''}
-  ${!empty ? `<div class="section-heading"><div><h2>ملاحظات المصدر</h2><p>سياق الأرقام قبل بدء الاستراتيجية</p></div></div><div class="card panel"><ul class="methodology">${p.notes.map(note=>`<li>${icon('info','ic-sm')}<span>${esc(note)}</span></li>`).join('')}</ul></div>`:''}
+
   ${renderFooter()}`;
 }
 
@@ -538,7 +542,7 @@ function modalView() {
 }
 
 function renderFooter() {
-  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإنتاج والنشر 1.5</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
+  return `<footer class="footer"><span>MZJ | منظومة استراتيجية المحتوى المستقلة · الإنتاج والنشر 1.6</span><span>هدفنا النهائي: قياس محتوى يؤدي إلى عملاء مؤهلين ومبيعات سيارات فعلية</span></footer>`;
 }
 
 function render() {
@@ -551,8 +555,8 @@ function render() {
     return;
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
-  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','schedule','post','asset','bridge'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state) };
+  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -746,7 +750,7 @@ async function saveAssetEditor(form){
   const codes=taskCodes(state.plan,code);
   const executor=form.elements.namedItem('executor')?.value;
   const status=form.elements.namedItem('status')?.value;
-  const comments=form.elements.namedItem('comments')?.value||'';
+  const comments=form.elements.namedItem('comments')?.value ?? state.plan.assets.find(a=>a.code===taskCodes(state.plan,code)[0])?.comments ?? '';
   const dueDate=form.elements.namedItem('dueDate')?.value||'';
   if(!codes.length||ideaAssets(state.plan,code).some(a=>a.marketingTaskId||a.integrationRequestKey)||
      (executor!==''&&!PEOPLE.includes(executor))||!TASK_STATUSES.includes(status)||
@@ -758,7 +762,7 @@ async function saveAssetEditor(form){
     if(codes.length>1)await updateManyAssets(codes,changes);
     else await updatePublishingAsset(code,changes);
     state.plan.assets=state.plan.assets.map(a=>codes.includes(a.code)?{...a,...changes}:a);
-    toast('تم حفظ معلومات تخطيط الإنتاج داخل الاستراتيجية.');render();
+    toast('تم حفظ معلومات تخطيط الإنتاج داخل الاستراتيجية.');render();state.briefBaseline=readBriefDraft();
   }catch(err){toast('فشل حفظ معلومات التخطيط. راجع صلاحيات Firebase والاتصال.');console.warn(err);}
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ التخطيط داخل الاستراتيجية';}}
 }
@@ -766,40 +770,46 @@ async function saveIdeaReview(form,decision){
   if(!state.plan||state.planSaving||isLocalPreview)return;
   const code=form.elements.namedItem('ideaCode')?.value||'';
   const assets=ideaAssets(state.plan,code);
-  const notes=String(form.elements.namedItem('reviewNotes')?.value||'').trim().slice(0,3000);
-  if(!assets.length||!REVIEW_STATUSES.includes(decision)){
-    toast('قرار المراجعة غير صالح.');return;
+  if(!assets.length||!REVIEW_STATUSES.includes(decision)){toast('قرار المراجعة غير صالح.');return;}
+  const current=ideaIsApproved(state.plan,code)?'معتمد':assets.every(a=>a.reviewStatus==='مرفوض')?'مرفوض':'بانتظار المراجعة';
+  const restoring=decision==='بانتظار المراجعة';
+  if(assets.some(a=>a.integrationRequestKey&&!a.marketingTaskId)){
+    toast('فيه طلب تكليف غير محسوم. لازم نتحقق من حالته قبل تغيير مراجعة الفكرة علشان ما يتكررش التاسك.');return;
   }
-  // Unapproval is a review-only transition. Never unlock an idea already sent
-  // (or potentially sent) to Marketing, even if the response was interrupted.
-  if(assets.some(a=>a.marketingTaskId||a.integrationRequestKey)){
-    toast('لا يمكن إلغاء اعتماد فكرة مرتبطة بطلب تاسك في سيستم التسويق.');return;
-  }
-  const resetting=decision==='بانتظار المراجعة';
-  if(resetting){
-    if(!ideaIsApproved(state.plan,code)){
-      toast('هذه الفكرة ليست معتمدة حاليًا.');return;
+  if(restoring && !['معتمد','مرفوض'].includes(current)){toast('الفكرة أصلًا بانتظار المراجعة.');return;}
+  if(current==='مرفوض'&&!restoring){toast('استرجع الفكرة من الأرشيف أولًا ثم قرر اعتمادها.');return;}
+  const hasLinked=assets.some(a=>Boolean(a.marketingTaskId));
+  if(restoring && !window.confirm(hasLinked?
+    'إعادة الفكرة للمراجعة؟ سيتم الاحتفاظ برقم التاسك الحالي في سجل التكليفات السابقة، ولن يتم حذفه أو تعديله داخل سيستم التسويق. عند إعادة اعتماد الفكرة تقدر تعمل تكليف جديد.':
+    'إعادة الفكرة للمراجعة؟ سيظل البريف وسجل القرارات محفوظين.'))return;
+  if(decision==='مرفوض'&&!window.confirm('رفض الفكرة ونقلها إلى أرشيف الأفكار؟ يمكنك استرجاعها للمراجعة في أي وقت.'))return;
+  const time=new Date().toISOString();
+  const rows=assets.map(asset=>{
+    const history=[...(Array.isArray(asset.reviewHistory)?asset.reviewHistory:[]).slice(-49),{status:decision,at:time,reviewedByUid:state.user.uid}];
+    const changes={reviewStatus:decision,reviewNotes:'',reviewedAt:restoring?null:time,reviewedByUid:restoring?'':state.user.uid,reviewHistory:history};
+    if(decision!=='معتمد')Object.assign(changes,{creativeApprovedAt:null,approvedCarMode:'',approvedVehicles:[]});
+    if(restoring){
+      if(asset.marketingTaskId){
+        const record={taskId:asset.marketingTaskId,taskNo:asset.marketingTaskNo||'',itemId:asset.marketingItemId||'',executorName:asset.marketingExecutorName||'',linkedAt:asset.marketingLinkedAt||'',dueDate:asset.dueDate||'',requestKey:asset.integrationRequestKey||'',archivedAt:time};
+        changes.previousMarketingTasks=[...(Array.isArray(asset.previousMarketingTasks)?asset.previousMarketingTasks:[]).slice(-29),record];
+      }
+      Object.assign(changes,{marketingTaskId:'',marketingTaskNo:'',marketingItemId:'',marketingExecutorName:'',marketingLinkedAt:null,integrationRequestKey:'',integrationDraft:null});
     }
-    if(!window.confirm('إلغاء اعتماد هذه الفكرة وإعادتها إلى انتظار المراجعة؟ لن يتم حذف البريف أو سجل القرارات، وسيُلغى اختيار السيارات المعتمد حتى تعيد اعتماد الفكرة.'))return;
-  }
-  if((decision==='مطلوب تعديل'||decision==='مرفوض')&&!notes){
-    toast('اكتب ملاحظات المراجعة قبل طلب التعديل أو الرفض.');return;
-  }
-  const timestamp=new Date().toISOString();
-  const historyNote=resetting?(notes||'إلغاء الاعتماد وإعادة الفكرة للمراجعة'):notes;
-  const history=[...(Array.isArray(assets[0].reviewHistory)?assets[0].reviewHistory:[]).slice(-24),
-    {status:decision,notes:historyNote,at:timestamp,reviewedByUid:state.user.uid}];
-  const change={reviewStatus:decision,reviewNotes:resetting?'':notes,
-    reviewedAt:resetting?null:timestamp,reviewedByUid:resetting?'':state.user.uid,reviewHistory:history};
-  if(decision!=='معتمد')Object.assign(change,{creativeApprovedAt:null,approvedCarMode:'',approvedVehicles:[]});
+    return {code:asset.code,changes};
+  });
   state.planSaving=true;
   try{
-    await updateManyAssets(assets.map(a=>a.code),change);
-    state.plan.assets=state.plan.assets.map(a=>assets.some(b=>b.code===a.code)?{...a,...change}:a);
-    toast(resetting?'تم إلغاء الاعتماد. الفكرة الآن بانتظار المراجعة من جديد.':decision==='معتمد'?'تم اعتماد الفكرة. يمكنك الآن اختيار السيارات وإنشاء التكليف.':`تم تسجيل قرار المراجعة: ${decision}`);
-  }catch(err){console.warn('Review save failed:',err?.code||err?.message);toast('تعذر حفظ المراجعة. تحقق من قواعد Firestore والاتصال.');}
-  finally{state.planSaving=false;render();}
+    await updateReviewAssetRows(rows);
+    const updates=new Map(rows.map(row=>[row.code,row.changes]));
+    state.plan.assets=state.plan.assets.map(a=>updates.has(a.code)?{...a,...updates.get(a.code)}:a);
+    if(restoring){state.bridge.ideaCode='';toast(hasLinked?'تمت إعادة الفكرة للمراجعة وحفظ التاسك السابق في السجل.':'تمت إعادة الفكرة للمراجعة.');}
+    else if(decision==='مرفوض'){state.view='archive';toast('تم حفظ الفكرة في الأرشيف.');}
+    else toast('تم اعتماد الفكرة. يمكنك تجهيز التكليف.');
+    state.briefBaseline='';
+  }catch(error){console.warn('Review save failed:',error?.code||error?.message);toast('تعذر حفظ قرار المراجعة. تحقق من قواعد Firebase.');}
+  finally{state.planSaving=false;render();if(state.view==='asset')state.briefBaseline=readBriefDraft();}
 }
+
 async function savePostEditor(form){
   if(!state.plan||state.planSaving||isLocalPreview)return;
   const post=state.plan.posts.find(p=>p.id===state.selectedPostId);if(!post)return;
@@ -818,7 +828,7 @@ async function savePostEditor(form){
   const url=val('publishedUrl').trim();
   if(status==='منشور' && !/^https:\/\/[^\s]+$/.test(url)){toast('لحالة منشور، أضف رابط المنشور الصحيح أولًا.');return;}
   const changes={publicationDate:date,time,ideaCode,ideaTitle:idea.title,platforms,
-    captionsByPlatform,hashtagsByPlatform,status,publishedUrl:url,notes:val('notes'),
+    captionsByPlatform,hashtagsByPlatform,status,publishedUrl:url,notes:form.elements.namedItem('notes')?.value ?? post.notes ?? '',
     actualPublicationDate:post.actualPublicationDate||(status==='منشور'?new Date().toISOString().slice(0,10):null),
     story:{...post.story,frame1:val('storyFrame1'),frame2:val('storyFrame2')}
   };
@@ -864,7 +874,7 @@ async function saveSchedule(form){
   const id=`P${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2,6).toUpperCase()}`;
   const post={id,publicationDate:date,time,ideaCode,ideaTitle:idea.title,platforms,
     captionsByPlatform:{...(idea.captionsByPlatform||{})},hashtagsByPlatform:{...(idea.hashtagsByPlatform||{})},
-    status:'مخطط',publishedUrl:'',notes:value('notes').slice(0,2000),actualPublicationDate:null,
+    status:'مخطط',publishedUrl:'',notes:'',actualPublicationDate:null,
     story:{code:'',frame1:'',frame2:''}
   };
   state.planSaving=true;
@@ -1000,10 +1010,25 @@ app.addEventListener('change', async event => {
   } catch(err) { toast('تعذر قراءة ملف JSON. تأكد من اختيار الملف الأصلي.'); }
 });
 
+function readBriefDraft(){
+  return JSON.stringify([...app.querySelectorAll('#idea-review-form [name], #asset-editor [name]')].map(field=>[field.name,field.type==='checkbox'?field.checked:field.value]));
+}
+function canLeaveBrief(){
+  return state.view!=='asset'||!state.briefBaseline||readBriefDraft()===state.briefBaseline||window.confirm('فيه تغييرات في البريف لسه ما اتحفظتش. ترجع من غير حفظ؟');
+}
+function openBrief(code){
+  const previous=state.view;
+  if(previous!=='asset'){state.briefReturnView=previous;state.briefReturnScrollY=window.scrollY||0;}
+  state.selectedAssetCode=code;
+  state.view='asset';render();state.briefBaseline=readBriefDraft();
+  window.scrollTo({top:0,behavior:'instant'});
+}
 app.addEventListener('click', async event => {
   const nav = event.target.closest('[data-nav]');
   if(nav?.dataset.nav==='bridge' && !state.bridge.stock.length && !state.bridge.loading){void reloadBridge(state.bridge).then(render);}
   if (nav) {
+    if(!canLeaveBrief())return;
+    state.briefBaseline='';
     state.view = nav.dataset.nav;
     state.mobileNav = false;
     state.modal = null;
@@ -1018,6 +1043,12 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='brief-back'){
+    if(!canLeaveBrief())return;
+    state.view=state.briefReturnView||'ideas';state.briefBaseline='';render();
+    window.scrollTo({top:state.briefReturnScrollY||0,behavior:'instant'});return;
+  }
+  if(action==='archive-search'){state.archiveSearch=app.querySelector('#archive-search')?.value||'';render();return;}
   if(action==='calendar-prev'||action==='calendar-next'){
     const current=state.calendarMonth||[...state.plan.posts].sort((a,b)=>a.publicationDate.localeCompare(b.publicationDate))[0]?.publicationDate.slice(0,7)||nowInRiyadh().slice(0,7);
     const [y,m]=current.split('-').map(Number);
@@ -1043,7 +1074,7 @@ app.addEventListener('click', async event => {
     state.selectedPostId=control.dataset.id;state.view='post';render();window.scrollTo({top:0,behavior:'instant'});return;
   }
   if(action==='open-asset'){
-    state.selectedAssetCode=control.dataset.id;state.view='asset';render();window.scrollTo({top:0,behavior:'instant'});return;
+    openBrief(control.dataset.id);return;
   }
   if(action==='apply-plan-filter'){state.planFilter=app.querySelector('#plan-filter')?.value||'';render();return;}
   if(action==='clear-plan-filter'){state.planFilter='';state.calendarExecutor='all';state.calendarPlatform='all';state.calendarMedia='all';state.calendarStatus='all';render();return;}
