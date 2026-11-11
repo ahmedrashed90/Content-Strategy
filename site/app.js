@@ -776,6 +776,8 @@ async function saveIdeaReview(form,decision){
   const code=form.elements.namedItem('ideaCode')?.value||'';
   const assets=ideaAssets(state.plan,code);
   if(!assets.length||!REVIEW_STATUSES.includes(decision)){toast('قرار المراجعة غير صالح.');return;}
+  const reviewIdea=getIdea(state.plan,code);
+  if(decision==='معتمد' && (reviewIdea?.requiresVerification || reviewIdea?.sourceStatus==='موقوف')){toast('هذه الفكرة موقوفة لحين اعتماد شروطها ومعلوماتها الأصلية.');return;}
   const current=ideaIsApproved(state.plan,code)?'معتمد':assets.every(a=>a.reviewStatus==='مرفوض')?'مرفوض':'بانتظار المراجعة';
   const restoring=decision==='بانتظار المراجعة';
   if(assets.some(a=>a.integrationRequestKey&&!a.marketingTaskId)){
