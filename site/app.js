@@ -1015,6 +1015,16 @@ app.addEventListener('change', async event => {
   }
 
   if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
+  if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
+  if(event.target.closest?.('#bridge-assign')){
+    const form=event.target.closest('#bridge-assign');
+    state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
+    state.bridge.assignee=form.elements.namedItem('assignee')?.value||'';
+    state.bridge.dueOn=form.elements.namedItem('dueOn')?.value||nowInRiyadh();
+    state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
+      kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+    return;
+  }
   if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
   if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
@@ -1105,6 +1115,24 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='bridge-pick-category'){
+    try{selectBridgeCategory(state,control.dataset.category||'');render();}
+    catch(error){state.bridge.error=error?.message||'تعذر اختيار التصنيف';render();}
+    return;
+  }
+  if(action==='bridge-filter-ideas'){
+    state.bridge.ideaSearch=document.getElementById('bridge-idea-search')?.value||'';
+    render();document.getElementById('bridge-approved-ideas')?.scrollIntoView({block:'start'});return;
+  }
+  if(action==='bridge-edit-cars'){
+    const ideaCode=control.dataset.id||'';
+    if(!state.bridge.selectedCodes.includes(ideaCode)){
+      state.bridge.error='حدد الفكرة من الجدول أولًا حتى تتمكن من تأكيد سياراتها.';
+      render();return;
+    }
+    selectBridgeIdea(state,ideaCode,false);state.bridge.error='';
+    render();document.getElementById('bridge-cars-area')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+  }
   if(action==='brief-back'){
     if(!canLeaveBrief())return;
     state.view=state.briefReturnView||'ideas';state.briefBaseline='';render();
