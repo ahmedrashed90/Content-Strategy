@@ -1,11 +1,11 @@
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
-import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, loadPublishingProposals, createPublishingProposal, createPublishingPost } from './plan-firebase.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
-import { proposalsPage, proposalFromForm } from './proposals.js';
+import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 
 const app = document.getElementById('app');
 const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
@@ -45,8 +45,7 @@ const state = {
   scheduleDate: '',
   ideaImportOpen: false,
   ideaReplaceMode: false,
-  proposals: [],
-  proposalSaving: false,
+  agenda: newAgendaState(),
   pendingIdeaBatch: null,
   ideaImportError: '',
   importExecutor: '',
@@ -206,7 +205,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','مقترحات النشر','file')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
     <div class="menu-label">البيانات والتحليل</div>
     <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
@@ -219,7 +218,7 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'مقترحات النشر',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
+  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
     <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
@@ -292,7 +291,7 @@ function overviewPage() {
   const postCount=state.plan?.posts.length||0;
   return `<section class="workspace-hero card"><div class="workspace-hero-copy"><div class="workspace-eyebrow">${icon('shield','ic-sm')} مركز التحكم في المحتوى | MZJ</div><h1>من فكرة قوية إلى تاسك جاهز للتنفيذ.</h1><p>راجع الأفكار، اعتمد المحتوى المناسب، اختر سيارات الاستوك والمنفذ وموعد التسليم، ثم أنشئ التكليف داخل سيستم التسويق.</p><div class="workspace-hero-actions"><button class="btn workspace-main-cta" data-nav="ideas">فتح مراجعة الأفكار ${icon('arrow','ic-sm')}</button><button class="btn workspace-outline-cta" data-nav="plan">تقويم النشر والتنشيط</button></div></div><div class="workspace-hero-aside"><div class="workspace-progress-icon">${icon('check','ic-lg')}</div><strong>${approvedCount} / ${ideaList.length||0}</strong><span>فكرة معتمدة من بنك الأفكار</span><div class="workspace-progress"><i style="width:${ideaList.length?Math.round(approvedCount/ideaList.length*100):0}%"></i></div><small>لا يتم إنشاء تكليف لفكرة غير معتمدة</small></div></section>
   <section class="workspace-kpis" aria-label="مؤشرات سير عمل المحتوى"><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>في انتظار المراجعة</span>${icon('clock','ic-sm')}</div><strong>${pendingCount}</strong><small>افتح البريف وحدد قرار الفكرة</small></button><button class="card workspace-kpi" data-nav="ideas"><div class="workspace-kpi-head"><span>الأفكار المعتمدة</span>${icon('check','ic-sm')}</div><strong>${approvedCount}</strong><small>جاهزة لاختيار السيارات والتكليف</small></button><button class="card workspace-kpi" data-nav="bridge"><div class="workspace-kpi-head"><span>مرتبطة بتاسك</span>${icon('compare','ic-sm')}</div><strong>${linkedCount}</strong><small>تكليفات مسجلة في سيستم التسويق</small></button><button class="card workspace-kpi" data-nav="plan"><div class="workspace-kpi-head"><span>مواعيد النشر</span>${icon('calendar','ic-sm')}</div><strong>${postCount}</strong><small>افتح تقويم النشر الشهري</small></button></section>
-  <div class="workspace-actions-strip"><div><b>خط سير المحتوى</b><span>استيراد فكرة ← مراجعة واعتماد ← تاسك إنتاج ← منتج معتمد ← مقترح نشر ← أجندة التسويق</span></div><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
+  <div class="workspace-actions-strip"><div><b>خط سير المحتوى</b><span>استيراد فكرة ← مراجعة واعتماد ← تاسك إنتاج ← منتج معتمد ← جدول نشر استراتيجي ← أجندة التسويق</span></div><button class="btn btn-primary" data-action="open-idea-import">استيراد أفكار جديدة</button></div>
   <section class="card panel baseline-overview"><div><div class="page-eyebrow">${icon('database','ic-sm')} البيانات المرجعية محفوظة</div><h2>مرجع أداء المنصات قبل الاستراتيجية</h2><p>نتابع نتائج المنصات الأربع ونقارنها بعد بدء التنفيذ، بدون تغيير الأرقام التاريخية.</p></div><div class="baseline-overview-right"><strong>${readyCount} <small>/ 4</small></strong><span>منصات جاهزة للمقارنة</span><button class="btn" data-nav="baseline">عرض المرجع</button></div></section>
   <div class="section-heading"><div><h2>الحسابات تحت المتابعة</h2><p>عدد المتابعين في مرجع كل منصة — بدون جمع جماهير متداخلة</p></div><button class="btn btn-text" data-nav="platforms">التفاصيل ${icon('arrow','ic-sm')}</button></div>
   <div class="platform-grid">${PLATFORM_ORDER.map(platformTile).join('')}</div>
@@ -561,7 +560,7 @@ function render() {
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
   if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>proposalsPage(state) };
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -632,7 +631,6 @@ async function boot() {
           if(state.user?.uid!==user.uid)return;
           state.plan=loaded;
           state.planStatus=loaded?'saved':'missing';
-          if(loaded){try{state.proposals=await loadPublishingProposals();}catch(err){state.proposals=[];console.warn('Publishing proposals unavailable:',err?.code||err.message);}}
           state.planError='';
         }catch(err){
           state.plan=null;
@@ -895,15 +893,6 @@ async function saveReplacementBatch(){
     toast('فشل استبدال بنك الأفكار.');
   }finally{state.planSaving=false;render();}
 }
-async function savePublishingProposal(form){
-  if(state.proposalSaving||isLocalPreview)return;
-  let proposal;
-  try{proposal=proposalFromForm(form,state.plan);}catch(err){toast(err.message);return;}
-  state.proposalSaving=true;
-  try{state.proposals=await createPublishingProposal(proposal);toast('تم حفظ مقترح النشر كمسودة داخل الاستراتيجية.');render();}
-  catch(err){console.warn('Proposal save failed:',err?.code||err.message);toast('تعذر حفظ المقترح؛ تحقق من قواعد Firestore.');}
-  finally{state.proposalSaving=false;render();}
-}
 async function saveSchedule(form){
   if(!state.plan||state.planSaving||isLocalPreview)return;
   const value=name=>form.elements.namedItem(name)?.value||'';
@@ -932,24 +921,40 @@ async function saveSchedule(form){
 
 async function submitBridgeApproval(form) {
   if (state.bridge.busy || isLocalPreview) return;
-  const selected = [...state.bridge.chosenStocks];
-  state.bridge.busy=true;
+  const currentCode=state.bridge.ideaCode;
+  const selected=[...state.bridge.chosenStocks];
+  state.bridge.busy=true;state.bridge.error='';
   try {
-    await approveBridgeIdea(state, form.elements.namedItem('carMode').value, selected);
-    toast('تم حفظ اختيار السيارات للفكرة المعتمدة. يمكنك تجهيز التكليف الآن.');
+    await approveBridgeIdea(state,form.elements.namedItem('carMode').value,selected);
+    const outstanding=state.bridge.selectedCodes.find(code=>code!==currentCode &&
+      taskCodes(state.plan,code).some(id=>!state.plan.assets.find(asset=>asset.code===id)?.creativeApprovedAt));
+    if(outstanding) selectBridgeIdea(state,outstanding,false);
+    toast(outstanding?'تم تأكيد السيارات. انتقل لتأكيد الفكرة التالية.':'اكتمل تأكيد السيارات. انتقل لإنشاء التاسك.');
+    state.bridge.focusAfterSave=outstanding?'bridge-cars-area':'bridge-assignment-area';
+  } catch(error) {
+    state.bridge.error=error?.message||'تعذر تأكيد السيارات. لم يتم إنشاء تاسك.';
+  } finally {
+    // Always render after removing busy, otherwise the form stays disabled forever.
+    state.bridge.busy=false;
     render();
-  } catch(error) { toast(error?.message || 'Approval failed'); }
-  finally { state.bridge.busy=false; }
+    const target=state.bridge.focusAfterSave;
+    state.bridge.focusAfterSave='';
+    if(target)document.getElementById(target)?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
 }
 async function submitBridgeAssignment(form) {
-  if (state.bridge.busy || isLocalPreview) return;
-  state.bridge.busy=true;
+  if(state.bridge.busy||isLocalPreview)return;
+  state.bridge.busy=true;state.bridge.error='';
   try {
     const result=await assignBridgeIdea(state,form);
-    toast(`\u062a\u0645 \u0625\u0646\u0634\u0627\u0621 \u062a\u0627\u0633\u0643 ${result.taskNo} \u0648\u0631\u0628\u0637\u0647.`);
-    render();
-  } catch(error) { toast(error?.message || '\u062a\u0639\u0630\u0631 \u0627\u0644\u0631\u0628\u0637. \u0623\u0639\u062f \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0629 \u0648\u0644\u0646 \u064a\u062a\u0643\u0631\u0631 \u0627\u0644\u062a\u0627\u0633\u0643.'); }
-  finally { state.bridge.busy=false; }
+    toast('تم إنشاء تاسك '+result.taskNo+' وربطه بالأفكار المختارة.');
+    state.bridge.lastCreatedTask={name:result.taskNo,title:result.name||'',id:result.id};
+  } catch(error) {
+    state.bridge.error=error?.message||'تعذر إنشاء التاسك. لم تتم إعادة المحاولة تلقائيًا لمنع التكرار.';
+  } finally {
+    state.bridge.busy=false;render();
+    if(state.bridge.error)document.getElementById('bridge-error')?.scrollIntoView({behavior:'smooth',block:'center'});
+  }
 }
 
 app.addEventListener('submit', event => {
@@ -971,7 +976,6 @@ app.addEventListener('submit', event => {
   if(event.target.id==='post-editor'){
     event.preventDefault();savePostEditor(event.target);return;
   }
-  if(event.target.id==='proposal-create'){event.preventDefault();void savePublishingProposal(event.target);return;}
   if(event.target.id==='schedule-editor'){
     event.preventDefault();void saveSchedule(event.target);return;
   }
@@ -998,7 +1002,42 @@ app.addEventListener('change', async event => {
     render();return;
   }
 
+  if(event.target.id==='agenda-product-search'){state.agenda.search=event.target.value;return;}
+  if(event.target.id==='agenda-name'){state.agenda.name=event.target.value;return;}
+  if(event.target.id==='agenda-start'){state.agenda.start=event.target.value;state.agenda.generated=false;render();return;}
+  if(event.target.id==='agenda-days'){state.agenda.days=Number(event.target.value);state.agenda.generated=false;render();return;}
+  if(event.target.matches?.('input[name="agenda-platform"]')){
+    state.agenda.platformIds=[...app.querySelectorAll('input[name="agenda-platform"]:checked')].map(x=>x.value);
+    state.agenda.generated=false;render();return;
+  }
+  if(event.target.matches?.('input[name^="agenda-date-"]')){
+    const index=Number(event.target.name.slice('agenda-date-'.length));
+    if(state.agenda.entries[index])state.agenda.entries[index].date=event.target.value;
+    return;
+  }
+  if(event.target.matches?.('input[name^="agenda-format-"]')){
+    const index=Number(event.target.name.slice('agenda-format-'.length));
+    const row=state.agenda.entries[index],p=strategyProducts(state).find(x=>x.productId===row?.productId);
+    if(!row||!p)return;
+    const selected=[...app.querySelectorAll('input[name="agenda-format-'+index+'"]:checked')].map(x=>x.value);
+    const map=new Map();
+    for(const format of availableFormats(p).filter(x=>selected.includes(x.id))){
+      if(!map.has(format.platformId))map.set(format.platformId,{platformId:format.platformId,postTypes:[]});
+      map.get(format.platformId).postTypes.push({postTypeId:format.id,budget:0});
+    }
+    row.platforms=[...map.values()];return;
+  }
   if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
+  if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
+  if(event.target.closest?.('#bridge-assign')){
+    const form=event.target.closest('#bridge-assign');
+    state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
+    state.bridge.assignee=form.elements.namedItem('assignee')?.value||'';
+    state.bridge.dueOn=form.elements.namedItem('dueOn')?.value||nowInRiyadh();
+    state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
+      kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+    return;
+  }
   if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
   if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
@@ -1072,6 +1111,7 @@ function openBrief(code){
 app.addEventListener('click', async event => {
   const nav = event.target.closest('[data-nav]');
   if(nav?.dataset.nav==='bridge' && !state.bridge.stock.length && !state.bridge.loading){void reloadBridge(state.bridge).then(render);}
+  if(nav?.dataset.nav==='proposals'&&!state.agenda.loading){void loadAgendaProducts(state).then(render);}
   if (nav) {
     if(!canLeaveBrief())return;
     state.briefBaseline='';
@@ -1089,6 +1129,55 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if(action==='agenda-reload'){await loadAgendaProducts(state);render();return;}
+  if(action==='agenda-build'){
+    try{
+      state.agenda.name=app.querySelector('#agenda-name')?.value||state.agenda.name;
+      state.agenda.start=app.querySelector('#agenda-start')?.value||state.agenda.start;
+      state.agenda.days=Number(app.querySelector('#agenda-days')?.value||state.agenda.days);
+      state.agenda.platformIds=[...app.querySelectorAll('input[name="agenda-platform"]:checked')].map(x=>x.value);
+      buildStrategicAgenda(state);state.agenda.error='';
+    }catch(error){state.agenda.error=error?.message||'تعذر بناء الجدول';}
+    render();return;
+  }
+  if(action==='agenda-remove-entry'){
+    state.agenda.entries.splice(Number(control.dataset.index),1);state.agenda.requestKey='';
+    render();return;
+  }
+  if(action==='agenda-check'){
+    try{validateStrategyAgenda(state);state.agenda.error='';toast('تم فحص التواريخ والمنتجات والمقاسات والتعارضات بنجاح.');}
+    catch(error){state.agenda.error=error?.message||'يوجد تعارض في الجدول';render();}
+    return;
+  }
+  if(action==='agenda-create'){
+    if(isLocalPreview)return;
+    // Persist any unsaved input values before making a single idempotent request.
+    state.agenda.name=app.querySelector('#agenda-name')?.value||state.agenda.name;
+    for(const [index,row] of state.agenda.entries.entries()){
+      row.date=app.querySelector('input[name="agenda-date-'+index+'"]')?.value||row.date;
+    }
+    try{await saveStrategyAgenda(state);toast('تم إنشاء الأجندة وإرسالها إلى المراجعة في التسويق.');}
+    catch(error){state.agenda.error=error?.message||'تعذر إنشاء أجندة في التسويق';}
+    render();return;
+  }
+  if(action==='bridge-pick-category'){
+    try{selectBridgeCategory(state,control.dataset.category||'');render();}
+    catch(error){state.bridge.error=error?.message||'تعذر اختيار التصنيف';render();}
+    return;
+  }
+  if(action==='bridge-filter-ideas'){
+    state.bridge.ideaSearch=document.getElementById('bridge-idea-search')?.value||'';
+    render();document.getElementById('bridge-approved-ideas')?.scrollIntoView({block:'start'});return;
+  }
+  if(action==='bridge-edit-cars'){
+    const ideaCode=control.dataset.id||'';
+    if(!state.bridge.selectedCodes.includes(ideaCode)){
+      state.bridge.error='حدد الفكرة من الجدول أولًا حتى تتمكن من تأكيد سياراتها.';
+      render();return;
+    }
+    selectBridgeIdea(state,ideaCode,false);state.bridge.error='';
+    render();document.getElementById('bridge-cars-area')?.scrollIntoView({behavior:'smooth',block:'start'});return;
+  }
   if(action==='brief-back'){
     if(!canLeaveBrief())return;
     state.view=state.briefReturnView||'ideas';state.briefBaseline='';render();

@@ -26,14 +26,22 @@ const groupedName = (category,ideas) => {
  if(name.length>250)throw Error('عنوان التاسك أطول من 250 حرفًا؛ اختر أفكارًا أقل أو أسماء أقصر، بدون قص العناوين.');
  return name;
 };
-export function newBridgeState() { return { stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',category:'',selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',formatIds:[],taskTypeId:'',assignee:'',remoteTasks:{},busy:false }; }
+export function newBridgeState() {
+ return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
+  category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
+  formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignee:'',dueOn:nowInRiyadh(),
+  remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:''};
+}
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category))throw Error('تصنيف غير معتمد');
- Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:''});
+ Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',error:''});
 }
 export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
- if(!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو خارج التصنيف المحدد');
+ if(!eligible(idea)||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو غير متاحة');
+ if(checked&&bridge.category&&idea.marketingCategory!==bridge.category)
+   throw Error('لا يمكن جمع فكرتين من تصنيفين مختلفين في تاسك واحد');
+ if(checked&&!bridge.category)bridge.category=idea.marketingCategory;
  const previous=historicalLinkedTask(state.plan,idea);
  if(previous)throw Error('سبق إنشاء تكليف لهذه الفكرة في نسخة سابقة: '+(previous.marketingTaskNo||previous.marketingTaskId)+'. راجع التكليف القديم قبل إعادة التكليف.');
  if(checked && selectionCodes(bridge).length>=30)throw Error('الحد الأقصى 30 فكرة في التاسك الواحد');
@@ -66,7 +74,7 @@ export async function fetchBridge(resource, options={}) {
   const idToken = await auth.currentUser.getIdToken();
   const url = new URL('/api/marketing-bridge',window.location.origin);
   if (!options.body) { url.searchParams.set('resource',resource); if(options.taskId)url.searchParams.set('taskId',options.taskId); }
-  const reply = await fetch(url,{method:options.body?'POST':'GET',headers:{Authorization:`Bearer ${idToken}`, ...(options.body?{'Content-Type':'application/json'}:{})},...(options.body?{body:JSON.stringify({action:'assign',...options.body})}:{})});
+  const reply = await fetch(url,{method:options.body?'POST':'GET',headers:{Authorization:`Bearer ${idToken}`, ...(options.body?{'Content-Type':'application/json'}:{})},...(options.body?{body:JSON.stringify({action:resource==='agenda'?'agenda':'assign',...options.body})}:{})});
   const payload = await reply.json().catch(()=>({ok:false,error:'Invalid API response'}));
   if(!reply.ok || !payload.ok)throw Error(payload.error || `Bridge request failed (${reply.status})`);
   return payload;
@@ -83,75 +91,143 @@ export async function reloadBridge(state) {
 }
 export function bridgePage(state) {
   const bridge=state.bridge,plan=state.plan;
-  const ideas=ideaRows(plan),categorized=ideas.filter(idea=>eligible(idea)&&idea.marketingCategory===bridge.category);
+  const all=ideaRows(plan).filter(row=>eligible(row)&&ideaIsApproved(plan,row.code));
   const chosen=selectedIdeas(state).filter(idea=>eligible(idea)&&idea.marketingCategory===bridge.category);
-  const badSelections=selectionCodes(bridge).length!==chosen.length;
-  const idea=getIdea(plan,bridge.ideaCode);
-  const codes=idea?taskCodes(plan,idea.code):[],assets=codes.map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-  const linked=assets.some(a=>a.marketingTaskId),reviewed=Boolean(idea&&ideaIsApproved(plan,idea.code));
-  const carsConfirmed=assets.length>0&&assets.every(a=>Boolean(a.creativeApprovedAt));
-  const firstCarSet=assets[0]?.approvedVehicles||[];
-  const activeCarSet=[...bridge.chosenStocks].sort(),savedCarSet=firstCarSet.map(stockId).sort();
-  const selectionCurrent=reviewed&&carsConfirmed&&bridge.mode===(assets[0]?.approvedCarMode||'single')&&JSON.stringify(activeCarSet)===JSON.stringify(savedCarSet);
+  const search=String(bridge.ideaSearch||'').trim().toLocaleLowerCase();
+  const visible=all.filter(row=>(!bridge.category||row.marketingCategory===bridge.category)
+    &&(!search||[row.title,row.marketingCategory,row.executor,row.marketingExecutorName].join(' ').toLocaleLowerCase().includes(search)));
+  const current=chosen.find(row=>row.code===bridge.ideaCode)||chosen[0]||null;
+  const codes=current?taskCodes(plan,current.code):[];
+  const assets=codes.map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
+  const confirmed=assets.length>0&&assets.every(a=>Boolean(a.creativeApprovedAt));
   const pending=assets.some(a=>a.integrationRequestKey&&!a.marketingTaskId);
-  const available=chosen.filter(item=>ideaIsApproved(plan,item.code)&&!item.requiresVerification&&!item.retiredFromIdeaBank&&!ideaRows(plan).find(v=>v.code===item.code)?.sourceStatus?.includes('موقوف'));
-  const selectionReady=chosen.length>0&&!badSelections&&available.length===chosen.length&&chosen.every(item=>{
-    const rows=taskCodes(plan,item.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-    return rows.length&&rows.every(row=>row.creativeApprovedAt&&!row.marketingTaskId)
-      && !rows.some(row=>row.integrationRequestKey&&!row.integrationDraft);
+  const savedMode=assets[0]?.approvedCarMode||'single';
+  const savedCars=(assets[0]?.approvedVehicles||[]).map(stockId).sort();
+  const selectedCars=[...bridge.chosenStocks].sort();
+  const selectionCurrent=confirmed&&savedMode===bridge.mode&&JSON.stringify(savedCars)===JSON.stringify(selectedCars);
+  const ready=chosen.length>0&&chosen.length===selectionCodes(bridge).length&&chosen.every(row=>{
+    const linked=historicalLinkedTask(plan,row);
+    const rows=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
+    return !linked&&rows.length>0&&rows.every(item=>item.creativeApprovedAt&&!item.marketingTaskId
+       &&(!item.integrationRequestKey||item.integrationDraft));
   });
-  const incomplete=chosen.filter(item=>taskCodes(plan,item.code).some(code=>!plan.assets.find(a=>a.code===code)?.creativeApprovedAt));
-  const carOptions=bridge.stock.filter(car=>!bridge.stockSearch||formatStock(car).toLowerCase().includes(bridge.stockSearch.toLowerCase())).slice(0,80).map(car=>{
-    const key=stockId(car);
-    return `<label class="bridge-car-option"><input type="checkbox" name="cars" value="${escape(key)}" ${bridge.chosenStocks.includes(key)?'checked':''}/><span class="bridge-car-copy"><strong>${escape(car.car_name||'-')} | ${escape(car.statement||'-')} | ${escape(car.model_year||'-')}</strong><small>الخارجي: ${escape(car.exterior_color||'-')} | الداخلي: ${escape(car.interior_color||'-')}</small></span></label>`;
-  }).join('');
+  const remaining=chosen.filter(row=>taskCodes(plan,row.code).some(code=>!plan.assets.find(a=>a.code===code)?.creativeApprovedAt));
   const pendingDraft=assets[0]?.integrationDraft||null,lockDraft=Boolean(pending&&pendingDraft);
-  const renderFormat=kind=>{
-    const formats=bridge.formats.filter(f=>f.mediaKinds?.includes(kind));
-    return `<fieldset class="bridge-formats"><legend>مقاسات ${kind==='video'?'الفيديو':'الصور'}</legend>${formats.map(f=>`<label class="p-check"><input type="checkbox" name="format_${kind}" value="${escape(f.id)}" ${(pendingDraft?.formatIdsByKind?.[kind]||[]).includes(f.id)?'checked':''} ${lockDraft?'disabled':''}/>${escape(f.platform_name)} - ${escape(f.name)} (${escape(f.width||'?')}x${escape(f.height||'?')})</label>`).join('')||'<p>لا توجد مقاسات لهذا النوع في التسويق</p>'}</fieldset>`;
+  const typePref=bridge.category.startsWith('تعريفي')?'تعريف':bridge.category.startsWith('بيعي')?'بيع':'';
+  const matchingTypes=bridge.taskTypes.filter(t=>String(t.name||'').includes(typePref));
+  const taskTypeDefault=pendingDraft?.typeId||bridge.taskTypeId||(matchingTypes.length===1?matchingTypes[0].id:'');
+  const proposedExecutor=bridge.assignee;
+  const table=visible.map((row,index)=>{
+    const rowAssets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
+    const previous=historicalLinkedTask(plan,row);
+    const linked=rowAssets.some(a=>a.marketingTaskId)||Boolean(previous);
+    const checked=selectionCodes(bridge).includes(row.code);
+    const lockedByCategory=Boolean(bridge.category&&row.marketingCategory!==bridge.category);
+    const isConfirmed=rowAssets.length&&rowAssets.every(a=>a.creativeApprovedAt);
+    const media=row.kind==='video'?'فيديو':'صور · '+Math.max(1,Number(row.imageCount)||row.imageSlides?.length||1);
+    const executor=row.marketingExecutorName||row.executor||'لم يُحدد';
+    const disabled=linked||lockedByCategory;
+    const stateText=linked?'تم التكليف سابقًا':isConfirmed?'السيارات مؤكدة':'بانتظار تحديد السيارات';
+    return `<tr class="${checked?'bridge-idea-selected':''}">
+     <td class="bridge-idea-check"><label aria-label="اختيار ${escape(row.title)}"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${checked?'checked':''} ${disabled?'disabled':''}/></label></td>
+     <td class="bridge-idea-name"><strong>${escape(row.title)}</strong><small>فكرة ${index+1}</small></td>
+     <td><span class="bridge-category-chip">${escape(row.marketingCategory)}</span></td>
+     <td>${escape(executor)}</td>
+     <td>${escape(media)}</td>
+     <td><span class="bridge-status-chip ${linked?'is-linked':isConfirmed?'is-done':''}">${escape(stateText)}</span></td>
+     <td><button type="button" class="btn p-small" data-action="bridge-edit-cars" data-id="${escape(row.code)}"
+       ${!checked||linked?'disabled':''}>${isConfirmed?'تعديل السيارات':'اختيار السيارات'}</button></td>
+    </tr>`;
+  }).join('');
+  const stockOptions=bridge.stock.filter(car=>!bridge.stockSearch||formatStock(car).toLowerCase().includes(bridge.stockSearch.toLowerCase()))
+    .slice(0,80).map(car=>{
+      const key=stockId(car);
+      return `<label class="bridge-car-option"><input type="checkbox" name="cars" value="${escape(key)}" ${bridge.chosenStocks.includes(key)?'checked':''}/>
+      <span class="bridge-car-copy"><strong>${escape(car.car_name||'-')} | ${escape(car.statement||'-')} | ${escape(car.model_year||'-')}</strong>
+      <small>الخارجي: ${escape(car.exterior_color||'-')} | الداخلي: ${escape(car.interior_color||'-')}</small></span></label>`;
+    }).join('');
+  const imageKinds=[...new Set(chosen.map(imageOrVideo))];
+  const formats=kind=>{
+    const kinds=bridge.formats.filter(f=>f.mediaKinds?.includes(kind));
+    const saved=pendingDraft?.formatIdsByKind?.[kind]||bridge.formatIdsByKind?.[kind]||[];
+    return `<fieldset class="bridge-formats"><legend>مقاسات ${kind==='video'?'الفيديو':'الصور'}</legend><div class="bridge-format-grid">${kinds.map(f=>
+      `<label class="bridge-format-option"><input type="checkbox" name="format_${kind}" value="${escape(f.id)}"
+      ${saved.includes(f.id)?'checked':''} ${lockDraft?'disabled':''}/><span>${escape(f.platform_name)} — ${escape(f.name)}
+      <small>${escape(f.width||'?')} × ${escape(f.height||'?')}</small></span></label>`).join('')||'<p>لا توجد مقاسات متاحة. اضغط تحديث المنفذين والمقاسات.</p>'}</div></fieldset>`;
   };
   let taskName='',nameError='';
-  try{if(chosen.length)taskName=groupedName(bridge.category,chosen)}catch(error){nameError=error.message}
-  const linkedTask=assets[0]?.marketingTaskId?bridge.remoteTasks[assets[0].marketingTaskId]:null;
-  return `<div class="page-header"><div><div class="page-eyebrow">التكليفات الإبداعية</div><h1 class="page-title">إنشاء تاسك من فكرة أو عدة أفكار</h1><p class="page-description">اختَر تصنيفًا واحدًا ثم أفكارًا معتمدة من التصنيف نفسه. كل فكرة تصبح مطلوبًا مستقلًا داخل تاسك واحد.</p></div><div class="p-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div></div>
-    ${bridge.error?`<div class="notice warning">${escape(bridge.error)}</div>`:''}
-    ${!plan?'<div class="notice">حمّل خطة المحتوى أولاً.</div>':`
-      <section class="card panel"><h2>01 — التصنيف واختيار الأفكار</h2>
-        <label>تصنيف التاسك<select id="bridge-category"><option value="">اختر التصنيف</option>${CAMPAIGN_CATEGORIES.map(cat=>opt(cat,cat,bridge.category)).join('')}</select></label>
-        ${bridge.category?`<div class="bridge-multi-list">${categorized.map(row=>{
-          const rowAssets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-          const historical=historicalLinkedTask(plan,row);
-          const locked=rowAssets.some(a=>a.marketingTaskId)||Boolean(historical),confirmed=rowAssets.every(a=>a.creativeApprovedAt);
-          return `<label class="bridge-multi-option"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${selectionCodes(bridge).includes(row.code)?'checked':''} ${!ideaIsApproved(plan,row.code)||locked?'disabled':''}/><span><strong>${escape(row.title)}</strong><small>${row.kind==='video'?'فيديو':(Number(row.imageCount)||1)+' صور'} · ${locked?'له تكليف سابق'+(historical?' '+(historical.marketingTaskNo||''):''):!ideaIsApproved(plan,row.code)?'بانتظار الاعتماد':confirmed?'السيارات مؤكدة':'يحتاج تأكيد السيارات'}</small></span></label>`;
-        }).join('')||'<p>لا توجد أفكار لهذا التصنيف.</p>'}</div>`:'<p class="p-help">اختر تصنيفًا لعرض الأفكار التابعة له.</p>'}
-        <div class="notice">${chosen.length?'عدد الأفكار المختارة: '+chosen.length:'اختر فكرة واحدة على الأقل'}${taskName?'<br/>اسم التاسك: <strong>'+escape(taskName)+'</strong>':''}${nameError?'<br/>'+escape(nameError):''}</div>
-      </section>
-      ${chosen.length?`<div class="p-two-columns bridge-v15-columns bridge-redesign">
-      <section class="card panel"><h2>02 — تأكيد السيارات لكل فكرة</h2><p class="p-help">يمكن تحديد السيارات لكل فكرة على حدة قبل إنشاء التاسك، ولا تتغير اختيارات الأفكار الأخرى.</p>
-        <label>الفكرة الجاري تأكيدها<select id="bridge-idea">${chosen.map(row=>opt(row.code,row.title,bridge.ideaCode)).join('')}</select></label>
-        ${idea?`<div class="bridge-idea-snapshot"><span>${escape(idea.title)}</span><span>${reviewed?'معتمدة':'بانتظار المراجعة'}</span></div>
-          ${linked?`<div class="notice">الفكرة مرتبطة مسبقًا بتاسك ${escape(assets[0]?.marketingTaskNo||'')}</div>`:''}
-          ${reviewed&&!linked?`<form id="bridge-approval" class="p-edit-form bridge-form">
-            <label>نوع اختيار السيارات<select id="bridge-mode" name="carMode" ${pending?'disabled':''}>${opt('none','لا تحتاج سيارة محددة',bridge.mode)}${opt('single','سيارة واحدة أو أكثر',bridge.mode)}${opt('compare','مقارنة بين سيارتين أو أكثر',bridge.mode)}</select></label>
-            ${bridge.mode!=='none'?`<label>بحث الاستوك<input id="bridge-stock-search" value="${escape(bridge.stockSearch)}" placeholder="اسم السيارة أو الموديل"/></label><button type="button" class="btn" data-action="bridge-stock-filter">بحث</button><div class="bridge-stock-summary">السيارات المحددة: <strong>${bridge.chosenStocks.length}</strong></div><div class="bridge-car-list" id="bridge-cars">${carOptions}</div>`:''}
-            <button type="submit" class="btn btn-primary" ${pending||bridge.busy?'disabled':''}>${selectionCurrent?'تحديث تأكيد السيارات':'تأكيد السيارات لهذه الفكرة'}</button></form>`:''}
-          ${linkedTask?`<div class="bridge-status">${escape(linkedTask.task?.status||'')}</div>`:''}`:''}
-        ${incomplete.length?`<div class="notice warning">تحتاج تأكيد السيارات: ${incomplete.map(x=>escape(x.title)).join('، ')}</div>`:''}
-      </section>
-      <section class="card panel"><h2>03 — المنفذ والمطلوبات وإنشاء التاسك</h2>
-        <div class="bridge-selected-items">${chosen.map(row=>`<div class="p-scene"><strong>${escape(row.title)}</strong><p>${row.kind==='video'?'فيديو بمشاهده وفويس أوفر منفصل':'صور: '+(row.imageSlides?.length||row.imageCount||1)+' — لكل صورة نص وتصميم مستقل'}</p></div>`).join('')}</div>
-        <form id="bridge-assign" class="p-edit-form bridge-form">
-          <label>نوع التاسك في التسويق<select name="taskTypeId" required><option value="">اختر النوع المعتمد</option>${bridge.taskTypes.map(t=>opt(t.id,t.name,pendingDraft?.typeId||bridge.taskTypeId)).join('')}</select></label>
-          <label>المنفذ<select name="assignee" required><option value="">اختر المنفذ</option>${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name+' - '+row.department_name,pendingDraft?pendingDraft.assigneeId+'|'+pendingDraft.departmentId:bridge.assignee)).join('')}</select></label>
-          <label>تاريخ التسليم<input name="dueOn" type="date" min="${nowInRiyadh()}" value="${pendingDraft?.dueOn||nowInRiyadh()}" required/></label>
-          ${chosen.some(row=>row.kind==='image')?renderFormat('image'):''}
-          ${chosen.some(row=>row.kind==='video')?renderFormat('video'):''}
-          <div class="notice ${selectionReady?'good':'warning'}">${selectionReady?'كل الأفكار جاهزة للتكليف':incomplete.length?'أكد السيارات لكل فكرة قبل إنشاء التاسك':'لا يمكن إنشاء تاسك لفكرة غير معتمدة أو مرتبطة مسبقًا'}.</div>
-          <button type="submit" class="btn btn-primary bridge-submit" ${!selectionReady||!!nameError||bridge.busy?'disabled':''}>${chosen.some(x=>taskCodes(plan,x.code).some(c=>plan.assets.find(a=>a.code===c)?.integrationDraft))?'استكمال التكليف المحفوظ':'إنشاء تاسك واحد ('+chosen.length+' فكرة)'}</button>
-        </form>
-      </section></div>`:''}
-    `}
-    <p class="bridge-footnote">يُنشأ التاسك في سيستم التسويق مرة واحدة فقط بعد ضغط إنشاء، مع حفظ الربط لكل فكرة دون تغيير التاسكات السابقة.</p>`;
+  try{if(chosen.length)taskName=groupedName(bridge.category,chosen);}catch(error){nameError=error.message;}
+  const pendingConfirms=remaining.length;
+  const choices=CAMPAIGN_CATEGORIES.map(cat=>{
+    const count=all.filter(row=>row.marketingCategory===cat).length;
+    const active=bridge.category===cat;
+    return `<button type="button" class="bridge-category-tab ${active?'active':''}" data-action="bridge-pick-category" data-category="${escape(cat)}" aria-pressed="${active?'true':'false'}">
+       ${escape(cat)}<span>${count}</span></button>`;
+  }).join('');
+  return `<div class="page-header"><div><div class="page-eyebrow">التكليفات الإبداعية</div>
+   <h1 class="page-title">إنشاء تاسك من الأفكار المعتمدة</h1>
+   <p class="page-description">حدد الأفكار من الجدول، ثم اختر سيارات كل فكرة، وأكمل تفاصيل التاسك.</p></div>
+   <div class="p-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div></div>
+   ${bridge.error?`<div class="notice warning" id="bridge-error" role="alert">${escape(bridge.error)}</div>`:''}
+   ${!plan?'<div class="notice warning">حمّل خطة المحتوى أولًا.</div>':`
+   <section class="card panel bridge-table-panel" id="bridge-approved-ideas">
+     <div class="bridge-table-heading"><div><h2>01 — الأفكار المعتمدة</h2><p class="p-help">كل الأفكار المعتمدة ظاهرة. التصفية اختيارية، ولا يمكن جمع تصنيفين في نفس التاسك.</p></div><span class="bridge-summary-count">${all.length} فكرة معتمدة</span></div>
+     <div class="bridge-category-tabs"><button type="button" class="bridge-category-tab ${!bridge.category?'active':''}" data-action="bridge-pick-category" data-category="" aria-pressed="${!bridge.category?'true':'false'}">كل التصنيفات <span>${all.length}</span></button>${choices}</div>
+     <div class="bridge-table-controls"><label>بحث باسم الفكرة أو المنفذ<input id="bridge-idea-search" type="search" value="${escape(bridge.ideaSearch||'')}" placeholder="ابحث عن فكرة أو منفذ"/></label>
+       <button type="button" class="btn" data-action="bridge-filter-ideas">بحث</button></div>
+     <div class="bridge-table-scroll"><table class="bridge-ideas-table"><thead><tr><th>تحديد</th><th>الفكرة المعتمدة</th><th>التصنيف</th><th>المنفذ المقترح</th><th>المحتوى</th><th>حالة السيارات</th><th>إجراء</th></tr></thead><tbody>${table||'<tr><td colspan="7" class="bridge-table-empty">لا توجد أفكار معتمدة مطابقة للبحث والتصنيف.</td></tr>'}</tbody></table></div>
+     ${chosen.length?`<div class="bridge-selected-summary"><strong>تم تحديد ${chosen.length} فكرة</strong>
+       <span>التصنيف: ${escape(bridge.category)}</span><span>المتبقي لتأكيد السيارات: ${pendingConfirms}</span></div>`:''}
+   </section>
+   ${chosen.length?`
+   <section class="card panel bridge-car-workspace" id="bridge-cars-area">
+     <div class="bridge-table-heading"><div><h2>02 — تأكيد السيارات لكل فكرة</h2>
+       <p class="p-help">افتح «اختيار السيارات» أمام أي فكرة من الجدول، أو اخترها من القائمة أدناه، ثم احفظ اختياراتها.</p></div>
+       <span class="bridge-summary-count">${chosen.length-pendingConfirms} / ${chosen.length} مؤكد</span></div>
+     <div class="bridge-chosen-strip">${chosen.map(row=>{
+       const done=taskCodes(plan,row.code).every(code=>plan.assets.find(a=>a.code===code)?.creativeApprovedAt);
+       return `<button type="button" data-action="bridge-edit-cars" data-id="${escape(row.code)}" class="bridge-chosen-chip ${current?.code===row.code?'active':''}">
+         ${escape(row.title)}<small>${done?'تم تأكيد السيارات':'يحتاج تأكيد'}</small></button>`;
+     }).join('')}</div>
+     ${current?`<div class="bridge-car-active"><h3>${escape(current.title)}</h3>
+       <p class="p-help">لكل فكرة سياراتها الخاصة. لن تتغير اختيارات الأفكار الأخرى.</p>
+       <form id="bridge-approval" class="p-edit-form bridge-form">
+         <label>نوع اختيار السيارات<select id="bridge-mode" name="carMode" ${pending?'disabled':''}>
+           ${opt('none','لا تحتاج سيارة محددة',bridge.mode)}${opt('single','سيارة واحدة أو أكثر',bridge.mode)}
+           ${opt('compare','مقارنة بين سيارتين أو أكثر',bridge.mode)}</select></label>
+         ${bridge.mode!=='none'?`<label>ابحث في السيارات المتاحة<input type="search" id="bridge-stock-search" value="${escape(bridge.stockSearch)}" placeholder="اسم السيارة أو الموديل"/></label>
+           <button type="button" class="btn" data-action="bridge-stock-filter">بحث في الاستوك</button>
+           <div class="bridge-stock-summary">السيارات المحددة لهذه الفكرة: <strong>${bridge.chosenStocks.length}</strong></div>
+           <div class="bridge-car-list" id="bridge-cars">${stockOptions||'<p class="p-help">لا توجد سيارات مطابقة للبحث.</p>'}</div>`:''}
+         <button type="submit" class="btn btn-primary bridge-confirm" ${pending||bridge.busy?'disabled':''}>
+           ${selectionCurrent?'حفظ تأكيد السيارات':'تأكيد سيارات هذه الفكرة والمتابعة'}</button>
+       </form></div>`:''}
+     ${remaining.length?`<div class="notice warning">الأفكار التي تحتاج تأكيد السيارات: ${remaining.map(row=>escape(row.title)).join('، ')}</div>`:
+       '<div class="notice good">تم تأكيد اختيارات كل الأفكار. يمكنك إكمال إنشاء التاسك.</div>'}
+   </section>
+   <section class="card panel bridge-assignment-panel" id="bridge-assignment-area"><h2>03 — تفاصيل التاسك وإنشاؤه</h2>
+     <p class="p-help">المنفذ واحد للتاسك بالكامل، وأسماء الأفكار تظل مستقلة داخل المطلوبات.</p>
+     ${nameError?`<div class="notice warning">${escape(nameError)}</div>`:''}
+     ${taskName?`<div class="bridge-task-title-preview"><small>الاسم النهائي للتاسك</small><strong>${escape(taskName)}</strong></div>`:''}
+     <form id="bridge-assign" class="p-edit-form bridge-form">
+       <div class="bridge-assign-fields">
+         <label>نوع التاسك في التسويق<select name="taskTypeId" required>
+           <option value="">اختر النوع</option>${bridge.taskTypes.map(t=>opt(t.id,t.name,taskTypeDefault)).join('')}</select></label>
+         <label>المنفذ المكلف<select name="assignee" required>
+           <option value="">اختر المنفذ</option>${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name+' - '+row.department_name,
+             pendingDraft?pendingDraft.assigneeId+'|'+pendingDraft.departmentId:proposedExecutor)).join('')}</select></label>
+         <label>تاريخ التسليم<input name="dueOn" type="date" min="${nowInRiyadh()}"
+           value="${pendingDraft?.dueOn||bridge.dueOn||nowInRiyadh()}" required/></label></div>
+       ${imageKinds.includes('image')?formats('image'):''}${imageKinds.includes('video')?formats('video'):''}
+       <div class="notice ${ready?'good':'warning'}">${ready?'كل الأفكار مؤكدة وجاهزة. اختر المنفذ والمقاسات لإنشاء التاسك.':
+         'لا يمكن إنشاء التاسك حتى يتم تأكيد سيارات كل فكرة والتأكد من عدم تكليفها سابقًا.'}</div>
+       <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!!nameError||bridge.busy?'disabled':''}>
+         ${chosen.some(row=>taskCodes(plan,row.code).some(code=>plan.assets.find(a=>a.code===code)?.integrationDraft))?
+           'استكمال إنشاء التاسك المحفوظ':'إنشاء تاسك واحد يحتوي '+chosen.length+' فكرة'}</button>
+     </form>
+   </section>`:''}
+   `}
+   <p class="bridge-footnote">يتم إنشاء تاسك واحد فقط في التسويق عند الضغط على زر الإنشاء. لن يتم تعديل التاسكات السابقة.</p>`;
 }
 export function currentApproval(state) {
   const idea=getIdea(state.plan,state.bridge.ideaCode);

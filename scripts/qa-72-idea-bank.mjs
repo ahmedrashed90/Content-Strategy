@@ -33,4 +33,23 @@ toggleBridgeIdea(state,b.code,true);
 assert.equal(state.bridge.selectedCodes.length,2);
 assert(bridgePage(state).includes('تعريفي - مواصفات السيارات ('+a.title+' + '+b.title+')'));
 assert(!bridgePage(state).includes('MZJA26V01'));
+
+// Approved ideas appear in a searchable categorized table, without additional
+// approval/modification of unrelated ideas. Car confirmation is per idea.
+const tableState={plan,bridge:newBridgeState()};
+const listing=bridgePage(tableState);
+assert(listing.includes('bridge-ideas-table'));
+assert(listing.includes('المنفذ المقترح'));
+assert(listing.includes('حالة السيارات'));
+assert(listing.includes('bridge-category-tab'));
+const approvedRows=(listing.match(/name="bridge-select-idea"/g)||[]).length;
+assert(approvedRows>=2);
+const selectedFirst=ideas.find(x=>x.code===a.code);
+const selectedSecond=ideas.find(x=>x.code===b.code);
+assert(selectedFirst&&selectedSecond);
+const selectedTable=bridgePage(state);
+assert(selectedTable.includes('bridge-car-workspace'));
+assert(selectedTable.includes('bridge-assignment-area'));
+assert(selectedTable.includes('bridge-cars-area'));
+
 console.log('PASS — 72 unique ideas, 5 categories, 41 videos, 31 image ideas, 4 paused, 58 image cards, clean brief and grouped task name');
