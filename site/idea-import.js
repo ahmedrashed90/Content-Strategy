@@ -1,6 +1,7 @@
 // Safe, additive JSON idea batches. The original publishing plan is immutable at root.
 export const IDEA_BATCH_SCHEMA = 'mzj-ideas-batch/v1';
 const PEOPLE = ['محمود', 'بلال', 'عبدالله'];
+const ALLOWED_CATEGORIES = ['تعريفي - بالبراند','تعريفي - بالويب سايت','تعريفي - مواصفات السيارات','بيعي - قسط','بيعي - كاش'];
 const PLATFORM_KEYS = ['facebook', 'instagram', 'tiktok', 'snapchat'];
 const text = (value, max=20000) => String(value ?? '').trim().slice(0,max);
 export const validISODate = value => {
@@ -45,6 +46,8 @@ export function prepareIdeaBatch(data, existingPlan, options={}) {
     const raw=source[index];
     if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error(`الفكرة رقم ${index+1} ليست عنصر JSON صالحًا.`);
     const title=text(raw.title,200), code=text(raw.code,44)||createAutoCode(batchId,index);
+    const marketingCategory=text(raw.marketingCategory,100);
+    if(marketingCategory && !ALLOWED_CATEGORIES.includes(marketingCategory))throw Error(`تصنيف الفكرة «${title}» غير صالح.`);
     if(!title || title.length<4)throw Error(`عنوان الفكرة رقم ${index+1} ناقص.`);
     if(!codeAllowed(code))throw Error(`كود الفكرة «${code}» غير صالح؛ استخدم الحروف والأرقام والشرطة فقط.`);
     const titleKey=comparable(title);
@@ -71,7 +74,7 @@ export function prepareIdeaBatch(data, existingPlan, options={}) {
     });
     const idea={
       code,kind,title,executor,dueDate,imageCount,week:0,deliveryDay:'',status:'لم يبدأ',
-      sourceIdeaCode:text(raw.sourceIdeaCode,50),sourceStatus:text(raw.sourceStatus,40),executionMethod:text(raw.executionMethod,200),
+      sourceIdeaCode:text(raw.sourceIdeaCode,50),sourceStatus:text(raw.sourceStatus,40),requiresVerification:Boolean(raw.requiresVerification)||text(raw.sourceStatus,40)==='موقوف',marketingCategory,executionMethod:text(raw.executionMethod,200),
       durationSeconds:kind==='video'&&Number.isFinite(Number(raw.durationSeconds))?Math.max(0,Number(raw.durationSeconds)):0,
       reviewStatus:'بانتظار المراجعة',reviewNotes:'',reviewedAt:null,reviewedByUid:'',reviewHistory:[],
       importedBatchId:text(batchId,60),category:text(raw.category,120),
@@ -81,7 +84,7 @@ export function prepareIdeaBatch(data, existingPlan, options={}) {
       visualDescription:text(raw.visualDescription,7000),
       captionsByPlatform:safeMap(raw.captionsByPlatform),hashtagsByPlatform:safeMap(raw.hashtagsByPlatform,1000),
       platforms,productionNotes:text(raw.productionNotes,5000),shootingAssets:text(raw.shootingAssets,5000),
-      qualityNotes:text(raw.qualityNotes,5000),comments:''
+      qualityNotes:text(raw.qualityNotes,5000),briefNotes:text(raw.briefNotes,3000),sourceLegacyCode:text(raw.sourceLegacyCode,50),sourceSet:text(raw.sourceSet,100),comments:''
     };
     items.push(idea);incomingCodes.add(code);incomingTitles.add(titleKey);
   }
