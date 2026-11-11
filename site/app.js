@@ -1,10 +1,11 @@
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
-import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, createPublishingPost } from './plan-firebase.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, loadPublishingProposals, createPublishingProposal, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
+import { proposalsPage, proposalFromForm } from './proposals.js';
 
 const app = document.getElementById('app');
 const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
@@ -43,6 +44,9 @@ const state = {
   scheduleIdeaCode: '',
   scheduleDate: '',
   ideaImportOpen: false,
+  ideaReplaceMode: false,
+  proposals: [],
+  proposalSaving: false,
   pendingIdeaBatch: null,
   ideaImportError: '',
   importExecutor: '',
@@ -201,7 +205,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','لوحة القيادة','grid')}${navButton('ideas','مراجعة الأفكار','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','مقترحات النشر','file')}${navButton('tasks','التسليمات والإنتاج','clock')}${navButton('bridge','إنشاء التكليفات','compare')}</nav>
     <div class="menu-label">البيانات والتحليل</div>
     <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
@@ -214,7 +218,7 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
+  const viewName = ({overview:'لوحة القيادة',plan:'تقويم النشر والتنشيط',proposals:'مقترحات النشر',tasks:'التسليمات والإنتاج',ideas:'مراجعة الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات'})[state.view] || 'لوحة القيادة';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
     <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
@@ -555,8 +559,8 @@ function render() {
     return;
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
-  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state) };
+  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>proposalsPage(state) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
 }
 
@@ -627,6 +631,7 @@ async function boot() {
           if(state.user?.uid!==user.uid)return;
           state.plan=loaded;
           state.planStatus=loaded?'saved':'missing';
+          if(loaded){try{state.proposals=await loadPublishingProposals();}catch(err){state.proposals=[];console.warn('Publishing proposals unavailable:',err?.code||err.message);}}
           state.planError='';
         }catch(err){
           state.plan=null;
@@ -862,6 +867,40 @@ async function saveIdeaBatch(){
     toast('فشل حفظ دفعة الأفكار الجديدة.');
   }finally{state.planSaving=false;render();}
 }
+// Explicit replacement never deletes Marketing tasks, old posts or history.
+// A complete plan snapshot downloads before the Firestore write.
+async function saveReplacementBatch(){
+  if(!state.plan||!state.pendingIdeaBatch||state.planSaving||isLocalPreview)return;
+  const confirmation=app.querySelector('#idea-replace-verify')?.value?.trim();
+  if(confirmation!=='استبدال'){state.ideaImportError='اكتب كلمة استبدال للتأكيد.';render();return;}
+  const entries=state.pendingIdeaBatch.items;
+  if(!entries.length){toast('لا توجد أفكار جديدة صالحة للاستيراد.');return;}
+  if(!window.confirm('سيتم إخفاء بنك الأفكار الحالي من العرض النشط، وإضافة الأفكار الجديدة. سيبقى سجل النشر وروابط التاسكات محفوظًا. هل تؤكد؟'))return;
+  // All current assets, post schedules and historical task links are included.
+  downloadJson(state.plan,'MZJ-Idea-Bank-FULL-BACKUP-'+nowInRiyadh()+'.json');
+  state.planSaving=true;state.ideaImportError='';render();
+  try{
+    const loaded=await replacePublishingIdeas(entries,state.pendingIdeaBatch.batchId);
+    state.plan=loaded;state.pendingIdeaBatch=null;state.ideaReplaceMode=false;state.ideaImportOpen=false;
+    state.ideaKind='all';state.ideaReviewFilter='بانتظار المراجعة';state.ideaSearch='';
+    toast('تم استبدال بنك الأفكار النشط مع الاحتفاظ بالتاريخ والمنشورات والتكليفات القديمة.');
+  }catch(error){
+    console.warn('Idea bank replacement failed:',error?.code||error?.message);
+    state.ideaImportError=error?.message==='pending-marketing-assignment'
+      ? 'هناك تكليف تسويق معلق لم يحسم رقمه؛ استكمله قبل الاستبدال لتجنب فقد الربط.'
+      : 'تعذر استبدال الأفكار. لم تتغير السجلات في حالة فشل المعاملة؛ تحقق من القواعد والأكواد.';
+    toast('فشل استبدال بنك الأفكار.');
+  }finally{state.planSaving=false;render();}
+}
+async function savePublishingProposal(form){
+  if(state.proposalSaving||isLocalPreview)return;
+  let proposal;
+  try{proposal=proposalFromForm(form,state.plan);}catch(err){toast(err.message);return;}
+  state.proposalSaving=true;
+  try{state.proposals=await createPublishingProposal(proposal);toast('تم حفظ مقترح النشر كمسودة داخل الاستراتيجية.');render();}
+  catch(err){console.warn('Proposal save failed:',err?.code||err.message);toast('تعذر حفظ المقترح؛ تحقق من قواعد Firestore.');}
+  finally{state.proposalSaving=false;render();}
+}
 async function saveSchedule(form){
   if(!state.plan||state.planSaving||isLocalPreview)return;
   const value=name=>form.elements.namedItem(name)?.value||'';
@@ -929,6 +968,7 @@ app.addEventListener('submit', event => {
   if(event.target.id==='post-editor'){
     event.preventDefault();savePostEditor(event.target);return;
   }
+  if(event.target.id==='proposal-create'){event.preventDefault();void savePublishingProposal(event.target);return;}
   if(event.target.id==='schedule-editor'){
     event.preventDefault();void saveSchedule(event.target);return;
   }
@@ -948,7 +988,7 @@ app.addEventListener('change', async event => {
     if(file.size>1_800_000){state.ideaImportError='الحد الأقصى لملف الأفكار 1.8 ميجابايت.';render();return;}
     try{
       const raw=JSON.parse(await file.text());
-      state.pendingIdeaBatch=prepareIdeaBatch(raw,state.plan);
+      state.pendingIdeaBatch=prepareIdeaBatch(raw,state.plan,{replace:state.ideaReplaceMode});
       state.ideaImportError='';
       toast(`تمت معاينة ${state.pendingIdeaBatch.items.length} فكرة جديدة، وتخطي ${state.pendingIdeaBatch.duplicates.length} مكررة.`);
     }catch(err){state.pendingIdeaBatch=null;state.ideaImportError=err?.message||'ملف JSON غير صالح. استخدم النموذج المعتمد.';}
@@ -1065,6 +1105,8 @@ app.addEventListener('click', async event => {
   }
   if(action==='open-idea-import'){state.view='ideas';state.ideaImportOpen=true;state.pendingIdeaBatch=null;state.ideaImportError='';render();window.scrollTo({top:0,behavior:'instant'});return;}
   if(action==='toggle-idea-import'){state.ideaImportOpen=!state.ideaImportOpen;state.ideaImportError='';render();return;}
+  if(action==='idea-import-mode'){state.ideaReplaceMode=control.dataset.mode==='replace';state.pendingIdeaBatch=null;state.ideaImportError='';render();return;}
+  if(action==='replace-idea-batch'){await saveReplacementBatch();return;}
   if(action==='cancel-idea-batch'){state.pendingIdeaBatch=null;state.ideaImportError='';render();return;}
   if(action==='confirm-idea-batch'){await saveIdeaBatch();return;}
   if(action==='download-idea-template'){downloadJson(ideaBatchTemplate(),'MZJ-New-Ideas-IMPORT-TEMPLATE.json');return;}
