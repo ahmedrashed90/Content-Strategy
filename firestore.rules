@@ -64,6 +64,75 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Independent, append-only executions of master creative ideas.
+      // A strategy idea can be reused in many tasks; past taskRuns remain auditable.
+      match /taskRuns/{runId} {
+        allow get, list: if isOwner();
+        allow create: if isOwner()
+          && runId.matches('^[0-9a-fA-F-]{36}
+        allow get, list: if isOwner();
+        allow create: if isOwner()
+          && request.resource.data.id == postId
+          && request.resource.data.status == 'مخطط'
+          && request.resource.data.platforms is list;
+        allow update: if isOwner()
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.status in ['مخطط','قيد التجهيز','قيد المراجعة','جاهز للنشر','منشور','مؤجل']
+          && request.resource.data.platforms is list
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'publicationDate','time','ideaCode','ideaTitle','platforms',
+            'captionsByPlatform','hashtagsByPlatform','status','publishedUrl',
+            'notes','actualPublicationDate','story','updatedAt'
+          ])
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+    }
+
+    // Owner-only strategy publishing proposals. No Marketing agenda is created here.
+    match /contentPlans/mzj-2026-launch-cycle-01/publishingProposals/{proposalId} {
+      allow get, list: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.id == proposalId
+        && request.resource.data.status == 'مسودة'
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner()
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.status in ['مسودة','بانتظار مراجعة','بانتظار المنتج','جاهز للتنسيق']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','ideaCode','marketingProductId','publicationStartDate','publicationEndDate','platforms','objective','caption','notes','status','updatedAt'
+        ]) && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // No fallback access to any other document.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+)
+          && request.resource.data.keys().hasOnly(['draft','status','createdAt'])
+          && request.resource.data.status == 'pending'
+          && request.resource.data.draft is map
+          && request.resource.data.draft.ideaCodes is list
+          && request.resource.data.draft.ideaCodes.size() > 0
+          && request.resource.data.draft.ideaCodes.size() <= 30
+          && request.resource.data.createdAt == request.time;
+        allow update: if isOwner()
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'linked'
+          && request.resource.data.draft == resource.data.draft
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status','taskId','taskNo','linkedItems','linkedAt'
+          ])
+          && request.resource.data.taskId is string
+          && request.resource.data.linkedItems is list
+          && request.resource.data.linkedAt == request.time;
+        allow delete: if false;
+      }
+
       match /posts/{postId} {
         allow get, list: if isOwner();
         allow create: if isOwner()
