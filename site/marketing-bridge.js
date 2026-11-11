@@ -26,14 +26,22 @@ const groupedName = (category,ideas) => {
  if(name.length>250)throw Error('عنوان التاسك أطول من 250 حرفًا؛ اختر أفكارًا أقل أو أسماء أقصر، بدون قص العناوين.');
  return name;
 };
-export function newBridgeState() { return { stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',category:'',selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',formatIds:[],taskTypeId:'',assignee:'',remoteTasks:{},busy:false }; }
+export function newBridgeState() {
+ return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
+  category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
+  formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignee:'',dueOn:nowInRiyadh(),
+  remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:''};
+}
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category))throw Error('تصنيف غير معتمد');
- Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:''});
+ Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',error:''});
 }
 export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
- if(!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو خارج التصنيف المحدد');
+ if(!eligible(idea)||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو غير متاحة');
+ if(checked&&bridge.category&&idea.marketingCategory!==bridge.category)
+   throw Error('لا يمكن جمع فكرتين من تصنيفين مختلفين في تاسك واحد');
+ if(checked&&!bridge.category)bridge.category=idea.marketingCategory;
  const previous=historicalLinkedTask(state.plan,idea);
  if(previous)throw Error('سبق إنشاء تكليف لهذه الفكرة في نسخة سابقة: '+(previous.marketingTaskNo||previous.marketingTaskId)+'. راجع التكليف القديم قبل إعادة التكليف.');
  if(checked && selectionCodes(bridge).length>=30)throw Error('الحد الأقصى 30 فكرة في التاسك الواحد');
