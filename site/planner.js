@@ -308,7 +308,10 @@ export function assetDetailPage(state){
   const returnLabel=state.briefReturnView==='archive'?'الأرشيف':state.briefReturnView==='tasks'?'التسليمات والإنتاج':state.briefReturnView==='post'?'تفاصيل النشر':'بنك الأفكار';
   const back=`<button class="btn brief-back-button" data-action="brief-back" type="button" aria-label="رجوع إلى ${e(returnLabel)}">↩ رجوع إلى ${e(returnLabel)}</button>`;
   const actions=`${back}<button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف</button>`;
-  const decisionButtons=status==='مرفوض'
+  const isSourceBlocked=Boolean(idea.requiresVerification||idea.sourceStatus==='موقوف');
+  const decisionButtons=isSourceBlocked
+    ?'<div class="notice warning">الفكرة موقوفة لحين اعتماد المعلومات أو الشروط الناقصة في بريفها الأصلي. لا يمكن إنشاء تكليف لها حاليًا.</div>'
+    :status==='مرفوض'
     ?`<button class="btn btn-primary" name="reviewDecision" value="بانتظار المراجعة" type="submit">استرجاع الفكرة للمراجعة</button>`
     :status==='معتمد'
     ?`<button class="btn" name="reviewDecision" value="بانتظار المراجعة" type="submit">إلغاء الاعتماد وإعادة للمراجعة</button>`
