@@ -1,4 +1,4 @@
-import { newManualIdeaDraft, readManualIdeaForm, prepareManualIdea, emptyScene, emptySlide } from './manual-idea.js';
+import { newManualIdeaDraft, readManualIdeaForm, prepareManualIdea, emptyScene, emptySlide, manualIdeaModal } from './manual-idea.js';
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
@@ -625,7 +625,7 @@ function render() {
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
   if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals','inspirations'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
   const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state), inspirations: ()=>inspirationsPage(state) };
-  app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
+  app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>${manualIdeaModal(state.manualIdeaDraft,state.planSaving,state.manualIdeaError)}`;
 }
 
 async function boot() {
@@ -914,6 +914,23 @@ async function savePostEditor(form){
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ تعديلات النشر والتكليف';}}
 }
 
+// Preserve the single full-screen composer scroll area when its fields are re-rendered.
+function renderManualIdeaAt(sectionSelector='') {
+  const before=app.querySelector('#manual-idea-form');
+  const offset=before?.scrollTop||0;
+  render();
+  const scroller=app.querySelector('#manual-idea-form');
+  if(!scroller)return;
+  if(sectionSelector){
+    const target=scroller.querySelector(sectionSelector);
+    if(target){
+      scroller.scrollTop=Math.max(0,scroller.scrollTop+target.getBoundingClientRect().top-scroller.getBoundingClientRect().top-16);
+      return;
+    }
+  }
+  scroller.scrollTop=offset;
+}
+
 // Manual ideas use the same Firestore write path and review workflow as JSON ideas.
 async function saveManualIdea(form) {
   if(!state.plan||state.planSaving||!state.user||isLocalPreview)return;
@@ -1162,7 +1179,7 @@ app.addEventListener('change', async event => {
   if(event.target.closest?.('#manual-idea-form')&&event.target.name==='kind'){
     state.manualIdeaDraft=readManualIdeaForm(event.target.form,state.manualIdeaDraft);
     state.manualIdeaDraft.kind=event.target.value;
-    state.manualIdeaError='';render();return;
+    state.manualIdeaError='';renderManualIdeaAt();return;
   }
   if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
@@ -1374,6 +1391,15 @@ app.addEventListener('click', async event => {
     if(!state.plan){toast('حمّل خطة المحتوى أولًا.');return;}
     state.manualIdeaDraft=newManualIdeaDraft();state.manualIdeaError='';render();return;
   }
+  if(action==='manual-jump'){
+    const scroller=app.querySelector('#manual-idea-form');
+    const target=app.querySelector('#'+control.dataset.target);
+    if(scroller&&target&&scroller.contains(target)){
+      const distance=target.getBoundingClientRect().top-scroller.getBoundingClientRect().top;
+      scroller.scrollTo({top:Math.max(0,scroller.scrollTop+distance-16),behavior:'smooth'});
+    }
+    return;
+  }
   if(action==='manual-close'){
     if(!state.planSaving){state.manualIdeaDraft=null;state.manualIdeaError='';render();}
     return;
@@ -1390,7 +1416,7 @@ app.addEventListener('click', async event => {
       const index=Number(control.dataset.index);
       if(rows.length>1&&index>=0&&index<rows.length)rows.splice(index,1);
     }
-    render();return;
+    renderManualIdeaAt(action.startsWith('manual-add-')?'[data-manual-group="'+(isScene?'scene':'image')+'"]:last-child':'');return;
   }
   if(action==='open-idea-import'){state.view='ideas';state.ideaImportOpen=true;state.pendingIdeaBatch=null;state.ideaImportError='';render();window.scrollTo({top:0,behavior:'instant'});return;}
   if(action==='toggle-idea-import'){state.ideaImportOpen=!state.ideaImportOpen;state.ideaImportError='';render();return;}

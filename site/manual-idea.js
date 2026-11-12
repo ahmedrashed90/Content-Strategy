@@ -46,29 +46,44 @@ export function manualIdeaModal(draft,busy=false,error='') {
   return `<div class="manual-idea-overlay" role="presentation"><section class="manual-idea-dialog" role="dialog" aria-modal="true" aria-labelledby="manual-idea-title" dir="rtl">
       <header class="manual-idea-dialog-header"><div><small>بنك أفكار MZJ</small><h2 id="manual-idea-title">إضافة فكرة جديدة</h2></div>
       <button type="button" class="btn" data-action="manual-close" ${busy?'disabled':''}>إغلاق</button></header>
+      <nav class="manual-idea-nav" aria-label="التنقل بين أقسام الفكرة">
+        <button type="button" data-action="manual-jump" data-target="manual-idea-basic">01 — بيانات الفكرة</button>
+        <button type="button" data-action="manual-jump" data-target="manual-idea-details">02 — ${draft.kind==='video'?'مشاهد الفيديو':'صور التصميم'}</button>
+        <button type="button" data-action="manual-jump" data-target="manual-idea-publishing">03 — النشر والكابشن</button>
+      </nav>
       <form id="manual-idea-form" class="manual-idea-body">
-        ${error?`<div class="notice warning" role="alert">${escape(error)}</div>`:''}
-        <div class="manual-idea-grid"><label class="manual-idea-field"><span>نوع المحتوى</span><select name="kind" required>
-          <option value="video" ${draft.kind==='video'?'selected':''}>فيديو</option><option value="image" ${draft.kind==='image'?'selected':''}>صورة</option></select></label>
-          <label class="manual-idea-field"><span>تصنيف الفكرة</span><select name="marketingCategory" required><option value="">اختر التصنيف</option>
-          ${categories.map(cat=>`<option value="${escape(cat)}" ${cat===draft.marketingCategory?'selected':''}>${escape(cat)}</option>`).join('')}</select></label></div>
-        ${input('title','اسم الفكرة',draft.title,{required:true,multiline:false,maxLength:200})}
-        ${input('message','الرسالة',draft.message,{required:true})}
-        ${input('audienceAndGoal','الجمهور والهدف',draft.audienceAndGoal)}
-        ${draft.kind==='video'?`${input('hook','الهوك',draft.hook,{required:true})}${input('script','الفويس أوفر كاملًا',draft.script,{required:true,rows:5})}`:
-          input('visualDescription','التصور البصري العام',draft.visualDescription)}
-        ${groupedRows(draft)}
-        ${draft.kind==='image'?input('productionNotes','تنبيهات التنفيذ العامة',draft.productionNotes):''}
-        <fieldset class="manual-idea-platform-selection"><legend>المنصات المستهدفة</legend><div class="manual-idea-target-platforms">
-          ${platforms.map(([key,label])=>`<label><input type="checkbox" name="manual-platform" value="${key}" ${draft.platforms.includes(key)?'checked':''}/>${label}</label>`).join('')}
-        </div></fieldset>
-        <div class="manual-idea-section-head"><h3>الكابشن والهاشتاج</h3></div>
-        <div class="manual-idea-grid">${input('caption','الكابشن العام',draft.caption)}${input('hashtags','الهاشتاج العام',draft.hashtags)}</div>
-        <details class="manual-platform-captions"><summary>تخصيص الكابشن والهاشتاج حسب المنصة (اختياري)</summary>
-          <div class="manual-idea-platform-grid">${platforms.map(([key,label])=>`<div class="manual-idea-platform"><strong>${label}</strong>${input(`caption-${key}`,'الكابشن',draft.captionsByPlatform[key])}${input(`hashtag-${key}`,'الهاشتاج',draft.hashtagsByPlatform[key])}</div>`).join('')}</div></details>
-        <div class="manual-idea-footer"><p>تُحفظ الفكرة للمراجعة أولًا، ثم تظهر في إنشاء التكليفات بعد اعتمادها.</p>
-          <button type="submit" class="btn btn-primary" ${busy?'disabled':''}>${busy?'جارٍ حفظ الفكرة…':'حفظ الفكرة الجديدة'}</button></div>
-      </form></section></div>`;
+        <div class="manual-idea-content">
+          ${error?`<div class="notice warning" role="alert">${escape(error)}</div>`:''}
+          <section class="manual-idea-block" id="manual-idea-basic" aria-label="بيانات الفكرة الأساسية">
+            <h3>بيانات الفكرة الأساسية</h3>
+            <div class="manual-idea-grid"><label class="manual-idea-field"><span>نوع المحتوى</span><select name="kind" required>
+              <option value="video" ${draft.kind==='video'?'selected':''}>فيديو</option><option value="image" ${draft.kind==='image'?'selected':''}>صورة</option></select></label>
+              <label class="manual-idea-field"><span>تصنيف الفكرة</span><select name="marketingCategory" required><option value="">اختر التصنيف</option>
+              ${categories.map(cat=>`<option value="${escape(cat)}" ${cat===draft.marketingCategory?'selected':''}>${escape(cat)}</option>`).join('')}</select></label></div>
+            ${input('title','اسم الفكرة',draft.title,{required:true,multiline:false,maxLength:200})}
+            <div class="manual-idea-grid">${input('message','الرسالة',draft.message,{required:true})}
+              ${input('audienceAndGoal','الجمهور والهدف',draft.audienceAndGoal)}</div>
+            ${draft.kind==='video'?`<div class="manual-idea-grid">${input('hook','الهوك',draft.hook,{required:true})}${input('script','الفويس أوفر كاملًا',draft.script,{required:true,rows:5})}</div>`:
+              input('visualDescription','التصور البصري العام',draft.visualDescription)}
+          </section>
+          <section class="manual-idea-block" id="manual-idea-details" aria-label="تفاصيل التنفيذ">
+            ${groupedRows(draft)}
+            ${draft.kind==='image'?input('productionNotes','تنبيهات التنفيذ العامة',draft.productionNotes):''}
+          </section>
+          <section class="manual-idea-block" id="manual-idea-publishing" aria-label="النشر والكابشن">
+            <h3>النشر والكابشن</h3>
+            <fieldset class="manual-idea-platform-selection"><legend>المنصات المستهدفة</legend><div class="manual-idea-target-platforms">
+              ${platforms.map(([key,label])=>`<label><input type="checkbox" name="manual-platform" value="${key}" ${draft.platforms.includes(key)?'checked':''}/>${label}</label>`).join('')}
+            </div></fieldset>
+            <div class="manual-idea-grid">${input('caption','الكابشن العام',draft.caption)}${input('hashtags','الهاشتاج العام',draft.hashtags)}</div>
+            <details class="manual-platform-captions"><summary>تخصيص الكابشن والهاشتاج حسب المنصة (اختياري)</summary>
+              <div class="manual-idea-platform-grid">${platforms.map(([key,label])=>`<div class="manual-idea-platform"><strong>${label}</strong>${input(`caption-${key}`,'الكابشن',draft.captionsByPlatform[key])}${input(`hashtag-${key}`,'الهاشتاج',draft.hashtagsByPlatform[key])}</div>`).join('')}</div></details>
+          </section>
+        </div>
+      </form>
+      <footer class="manual-idea-footer"><p>تُحفظ الفكرة للمراجعة أولًا، ثم تظهر في إنشاء التكليفات بعد اعتمادها.</p>
+        <button type="submit" form="manual-idea-form" class="btn btn-primary" ${busy?'disabled':''}>${busy?'جارٍ حفظ الفكرة…':'حفظ الفكرة الجديدة'}</button></footer>
+    </section></div>`;
 }
 
 export function readManualIdeaForm(form,previous) {
