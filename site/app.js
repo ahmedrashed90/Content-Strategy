@@ -77,6 +77,7 @@ const state = {
   importExecutor: '',
   taskPerson: 'الكل',
   taskWeek: 0,
+  ideaSourceTab: 'all',
   ideaKind: 'all',
   ideaCategoryFilter: 'all',
   ideaReviewFilter: 'all',
@@ -1348,6 +1349,7 @@ app.addEventListener('click', async event => {
   if(action==='apply-plan-filter'){state.planFilter=app.querySelector('#plan-filter')?.value||'';render();return;}
   if(action==='clear-plan-filter'){state.planFilter='';state.calendarExecutor='all';state.calendarPlatform='all';state.calendarMedia='all';state.calendarStatus='all';render();return;}
   if(action==='apply-idea-search'){state.ideaSearch=app.querySelector('#idea-search')?.value||'';render();return;}
+  if(action==='ideas-source-tab'){state.ideaSourceTab=control.dataset.source||'all';state.ideaReviewFilter='all';render();return;}
   if(action==='ideas-filter-review'){state.ideaReviewFilter=control.dataset.status||'all';render();return;}
   if(action==='copy-brief'){await copyValue(toBriefText(state.plan,control.dataset.id));return;}
   if(action==='download-brief'){

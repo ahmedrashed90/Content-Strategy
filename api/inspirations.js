@@ -99,29 +99,64 @@ export default async function handler(req, res) {
     }
 
     // ── POST /api/inspirations?action=push-ideas ─────────────────
-    // Claude pushes generated ideas back (updates inspiration status + stores idea refs)
+    // Claude pushes full ideas into assets collection + updates inspiration
     if (method === 'POST' && action === 'push-ideas') {
       let body = req.body;
       if (typeof body === 'string') body = JSON.parse(body);
 
       const inspirationId = String(body?.inspirationId || '').trim();
-      const generatedCodes = Array.isArray(body?.generatedCodes) ? body.generatedCodes : [];
+      const ideas = Array.isArray(body?.ideas) ? body.ideas.slice(0, 20) : [];
       const notes = String(body?.notes || '').trim().slice(0, 500);
 
       if (!inspirationId) return responseJson(res, 400, { ok: false, error: 'inspirationId required' });
+      if (!ideas.length) return responseJson(res, 400, { ok: false, error: 'ideas array required' });
 
       const docRef = inspirationsRef.doc(inspirationId);
       const snap = await docRef.get();
       if (!snap.exists) return responseJson(res, 404, { ok: false, error: 'Inspiration not found' });
 
+      // Save each idea as a full asset with source:'claude' + reviewStatus:'بانتظار المراجعة'
+      const assetsRef = db.collection('contentPlans').doc(PLAN_ID).collection('assets');
+      const savedCodes = [];
+      for (const idea of ideas) {
+        const code = String(idea.code || '').trim();
+        if (!code) continue;
+        // Check if code already exists
+        const existing = await assetsRef.doc(code).get();
+        if (existing.exists) continue;
+
+        await assetsRef.doc(code).set({
+          code,
+          title: String(idea.title || '').trim().slice(0, 200),
+          kind: idea.contentType === 'video' ? 'video' : 'image',
+          imageCount: idea.imageCount || (idea.contentType === 'video' ? 0 : 1),
+          marketingCategory: String(idea.category || '').trim(),
+          message: String(idea.description || '').trim().slice(0, 2000),
+          hook: String(idea.hook || '').trim().slice(0, 500),
+          audienceAndGoal: String(idea.audienceAndGoal || '').trim().slice(0, 1000),
+          brief: String(idea.brief || '').trim().slice(0, 3000),
+          platform: String(idea.platform || '').trim(),
+          executor: '',
+          dueDate: '',
+          status: 'لم يبدأ',
+          reviewStatus: 'بانتظار المراجعة',
+          source: 'claude',
+          inspirationId,
+          retiredFromIdeaBank: false,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        savedCodes.push(code);
+      }
+
+      // Update inspiration status
       await docRef.update({
         status: 'تم التوليد',
-        generatedIdeas: FieldValue.arrayUnion(...generatedCodes.map(String).slice(0, 30)),
+        generatedIdeas: FieldValue.arrayUnion(...savedCodes),
         notes: notes || snap.data().notes || '',
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      return responseJson(res, 200, { ok: true, updated: inspirationId });
+      return responseJson(res, 200, { ok: true, updated: inspirationId, savedIdeas: savedCodes.length, codes: savedCodes });
     }
 
     // ── POST /api/inspirations?action=create ─────────────────────

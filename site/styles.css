@@ -775,6 +775,14 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 .bridge-redesign .bridge-formats{max-height:250px;overflow:auto;border:1px solid var(--line-warm);border-radius:12px;padding:12px;background:#f7efe5}
 .bridge-redesign .bridge-submit{width:100%;min-height:46px;margin-top:8px}
 .bridge-footnote{margin:15px 0;color:#785b4e;font-size:12px;line-height:1.8}
+.ideas-source-tabs{display:flex;gap:0;border-radius:12px;overflow:hidden;border:1.5px solid var(--brown,#4A211C);margin:14px 0 10px}
+.ideas-source-tab{border:none;background:var(--cream,#F3E8DC);color:var(--brown,#4A211C);padding:10px 20px;font:700 13px Tajawal,sans-serif;cursor:pointer;display:flex;gap:6px;align-items:center;transition:background .2s,color .2s}
+.ideas-source-tab+.ideas-source-tab{border-right:1px solid var(--brown,#4A211C)}
+.ideas-source-tab small{font-size:11px;font-weight:700;opacity:.6}
+.ideas-source-tab.is-active{background:var(--brown,#4A211C);color:var(--cream,#F3E8DC)}
+.ideas-source-tab.is-active small{opacity:.85}
+.idea-source-badge{display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font:700 11px Tajawal,sans-serif;padding:3px 10px;border-radius:999px;letter-spacing:.3px}
+.claude-idea-card{border-right:3px solid #8b5cf6}
 .ideas-review-strip,.idea-import-modes{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0 18px}
 .ideas-review-pill{border:1px solid #d9c0ae;background:var(--cream);color:var(--brown);border-radius:999px;padding:10px 15px;font:700 13px Tajawal,sans-serif;cursor:pointer;display:flex;gap:8px;align-items:center}
 .ideas-review-pill small{font-size:12px;font-weight:700;opacity:.68}
