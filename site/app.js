@@ -1,3 +1,4 @@
+import { newManualIdeaDraft, readManualIdeaForm, prepareManualIdea, emptyScene, emptySlide } from './manual-idea.js';
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
@@ -74,6 +75,8 @@ const state = {
   agenda: newAgendaState(),
   pendingIdeaBatch: null,
   ideaImportError: '',
+  manualIdeaDraft: null,
+  manualIdeaError: '',
   importExecutor: '',
   taskPerson: 'الكل',
   taskWeek: 0,
@@ -911,6 +914,26 @@ async function savePostEditor(form){
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ تعديلات النشر والتكليف';}}
 }
 
+// Manual ideas use the same Firestore write path and review workflow as JSON ideas.
+async function saveManualIdea(form) {
+  if(!state.plan||state.planSaving||!state.user||isLocalPreview)return;
+  const draft=readManualIdeaForm(form,state.manualIdeaDraft);
+  state.manualIdeaDraft=draft;
+  let idea;
+  try { idea=prepareManualIdea(draft,state.plan,'MANUAL'+Date.now().toString(36).toUpperCase()); }
+  catch(error){state.manualIdeaError=error?.message||'راجع بيانات الفكرة.';render();return;}
+  state.planSaving=true;state.manualIdeaError='';render();
+  try {
+    state.plan=await importPublishingIdeas([idea]);
+    state.manualIdeaDraft=null;state.ideaSourceTab='manual';state.ideaKind='all';
+    state.ideaReviewFilter='بانتظار المراجعة';state.ideaSearch='';
+    toast('تم حفظ الفكرة الجديدة في بنك الأفكار وإرسالها للمراجعة.');
+  }catch(error){
+    state.manualIdeaError=error?.message==='idea-already-exists'?'كود الفكرة موجود بالفعل. حاول الحفظ مرة أخرى.':
+      'تعذر حفظ الفكرة في Firestore؛ لم تتغير الأفكار الأخرى. تحقق من الاتصال وصلاحيات المستخدم.';
+  }finally {state.planSaving=false;render();}
+}
+
 // Reusable idea import: validate, preview, skip duplicates, then add only new assets.
 async function saveIdeaBatch(){
   if(!state.pendingIdeaBatch||state.planSaving||!state.user||isLocalPreview)return;
@@ -1028,6 +1051,7 @@ app.addEventListener('submit', event => {
   if(event.target.id==='idea-review-form'){
     event.preventDefault();void saveIdeaReview(event.target,event.submitter?.value||'');return;
   }
+  if(event.target.id==='manual-idea-form'){event.preventDefault();void saveManualIdea(event.target);return;}
   if(event.target.id==='bridge-approval'){
     event.preventDefault();void submitBridgeApproval(event.target);return;
   }
@@ -1121,14 +1145,24 @@ app.addEventListener('change', async event => {
   if(event.target.closest?.('#bridge-assign')){
     const form=event.target.closest('#bridge-assign');
     state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
-    state.bridge.assignments=state.bridge.assignments.map((entry,index)=>({
-      assignee:form.elements.namedItem('assignee_'+index)?.value||entry.assignee||'',
-      dueOn:form.elements.namedItem('dueOn_'+index)?.value||entry.dueOn||nowInRiyadh()
-    }));
+    const assignmentGroups=[...form.querySelectorAll('[data-idea-code]')];
+    for(const section of assignmentGroups){
+      const code=section.dataset.ideaCode;
+      const rows=[...section.querySelectorAll('.bridge-assignee-row')];
+      state.bridge.assignmentsByIdea[code]=rows.map((row,index)=>({
+        assignee:form.elements.namedItem('assignee_'+code+'_'+index)?.value||'',
+        dueOn:form.elements.namedItem('dueOn_'+code+'_'+index)?.value||nowInRiyadh()
+      }));
+    }
     state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
       kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
     if(event.target.matches?.('select[name^="assignee_"]'))render();
     return;
+  }
+  if(event.target.closest?.('#manual-idea-form')&&event.target.name==='kind'){
+    state.manualIdeaDraft=readManualIdeaForm(event.target.form,state.manualIdeaDraft);
+    state.manualIdeaDraft.kind=event.target.value;
+    state.manualIdeaError='';render();return;
   }
   if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
@@ -1284,12 +1318,17 @@ app.addEventListener('click', async event => {
     render();return;
   }
   if(action==='bridge-add-assignee'){
-    if(state.bridge.assignments.length<10){state.bridge.assignments.push({assignee:'',dueOn:nowInRiyadh()});render();}
+    const code=control.dataset.idea||state.bridge.selectedCodes[0];
+    if(!code||!state.bridge.selectedCodes.includes(code))return;
+    const rows=state.bridge.assignmentsByIdea[code]||[{assignee:'',dueOn:nowInRiyadh()}];
+    if(rows.length<10){state.bridge.assignmentsByIdea[code]=[...rows,{assignee:'',dueOn:nowInRiyadh()}];render();}
     return;
   }
   if(action==='bridge-remove-assignee'){
+    const code=control.dataset.idea||state.bridge.selectedCodes[0];
+    const rows=state.bridge.assignmentsByIdea[code]||[];
     const index=Number(control.dataset.index);
-    if(index>0&&index<state.bridge.assignments.length){state.bridge.assignments.splice(index,1);render();}
+    if(index>0&&index<rows.length){rows.splice(index,1);render();}
     return;
   }
   if(action==='bridge-pick-category'){
@@ -1330,6 +1369,28 @@ app.addEventListener('click', async event => {
     state.scheduleDate=control.dataset.date||state.calendarSelectedDate||nowInRiyadh();
     state.scheduleIdeaCode=action==='schedule-idea'?(control.dataset.id||''):'';
     state.view='schedule';render();window.scrollTo({top:0,behavior:'instant'});return;
+  }
+  if(action==='manual-open'){
+    if(!state.plan){toast('حمّل خطة المحتوى أولًا.');return;}
+    state.manualIdeaDraft=newManualIdeaDraft();state.manualIdeaError='';render();return;
+  }
+  if(action==='manual-close'){
+    if(!state.planSaving){state.manualIdeaDraft=null;state.manualIdeaError='';render();}
+    return;
+  }
+  if(action?.startsWith('manual-add-')||action?.startsWith('manual-remove-')){
+    const form=app.querySelector('#manual-idea-form');if(!form||!state.manualIdeaDraft||state.planSaving)return;
+    state.manualIdeaDraft=readManualIdeaForm(form,state.manualIdeaDraft);
+    const isScene=action.endsWith('scene');
+    const key=isScene?'scenes':'imageSlides';
+    const rows=state.manualIdeaDraft[key];
+    if(action.startsWith('manual-add-')){
+      if(rows.length<(isScene?30:24))rows.push(isScene?emptyScene():emptySlide());
+    } else {
+      const index=Number(control.dataset.index);
+      if(rows.length>1&&index>=0&&index<rows.length)rows.splice(index,1);
+    }
+    render();return;
   }
   if(action==='open-idea-import'){state.view='ideas';state.ideaImportOpen=true;state.pendingIdeaBatch=null;state.ideaImportError='';render();window.scrollTo({top:0,behavior:'instant'});return;}
   if(action==='toggle-idea-import'){state.ideaImportOpen=!state.ideaImportOpen;state.ideaImportError='';render();return;}

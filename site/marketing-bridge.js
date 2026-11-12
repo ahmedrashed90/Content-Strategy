@@ -35,6 +35,25 @@ const eligible = idea => idea && !idea.retiredFromIdeaBank && !idea.requiresVeri
 const selectionCodes = bridge => [...new Set(bridge.selectedCodes||[])];
 const ideaRows = plan => plan ? [...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))] : [];
 const selectedIdeas = state => selectionCodes(state.bridge).map(code=>getIdea(state.plan,code)).filter(Boolean);
+const defaultAssignment = () => ({assignee:'',dueOn:nowInRiyadh()});
+/** Compare old shared-assignee drafts and new per-idea drafts by their data, not
+ * JSON object insertion order. This preserves safe retries across schema versions. */
+export function sameAssignmentDraft(saved,draft) {
+  if(saved?.pending!==true || saved.typeId!==draft.typeId || saved.name!==draft.name ||
+     JSON.stringify(saved.ideaCodes)!==JSON.stringify(draft.ideaCodes) ||
+     JSON.stringify(saved.formatIdsByKind)!==JSON.stringify(draft.formatIdsByKind))return false;
+  return draft.ideaCodes.every(code=>{
+    const historical=saved.assignmentsByIdea?.[code] ?? saved.assignments;
+    return Array.isArray(historical) && JSON.stringify(historical)===JSON.stringify(draft.assignmentsByIdea[code]);
+  });
+}
+// Each approved idea owns its own executor/date rows, even in one grouped Marketing task.
+export const assignmentsForIdea = (bridge,ideaCode,pendingDraft=null) =>
+  pendingDraft?.assignmentsByIdea?.[ideaCode] ||
+  (pendingDraft?.assignments ? pendingDraft.assignments : null) ||
+  bridge.assignmentsByIdea?.[ideaCode] ||
+  (bridge.selectedCodes?.length===1 ? bridge.assignments : null) || [defaultAssignment()];
+
 const groupedName = (category,ideas) => {
  const name=category+' '+ideas.map(idea=>idea.title).join(' + ');
  if(name.length>250)throw Error('عنوان التاسك أطول من 250 حرفًا؛ اختر أفكارًا أقل أو أسماء أقصر، بدون قص العناوين.');
@@ -43,12 +62,12 @@ const groupedName = (category,ideas) => {
 export function newBridgeState() {
  return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
   category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
-  formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignments:[{assignee:'',dueOn:nowInRiyadh()}],
+  formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},
   remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true};
 }
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category))throw Error('تصنيف غير معتمد');
- Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',error:''});
+ Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',assignmentsByIdea:{},error:''});
 }
 export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
@@ -62,6 +81,8 @@ export function toggleBridgeIdea(state,code,checked) {
    const ready=stored.ideaCodes.map(c=>getIdea(state.plan,c));
    if(ready.some(row=>!eligible(row)||row.marketingCategory!==bridge.category))throw Error('تعذر استعادة مجموعة التكليف المحفوظة');
    bridge.selectedCodes=[...stored.ideaCodes];
+   bridge.assignmentsByIdea=Object.fromEntries(bridge.selectedCodes.map(ideaCode=>[ideaCode,
+     (stored.assignmentsByIdea?.[ideaCode] || stored.assignments || [defaultAssignment()]).map(row=>({...row}))]));
  }else bridge.selectedCodes=checked?[...selectionCodes(bridge).filter(x=>x!==code),code]:selectionCodes(bridge).filter(x=>x!==code);
  if(!bridge.selectedCodes.includes(bridge.ideaCode)) selectBridgeIdea(state,bridge.selectedCodes[0]||'',false);
 }
@@ -74,7 +95,8 @@ export function selectBridgeIdea(state, code, add=true) {
    const stored=first?.integrationDraft?.ideaCodes;
    if(first?.integrationDraft?.pending===true && Array.isArray(stored) && stored.length && first.integrationRequestKey) {
      state.bridge.selectedCodes=stored.filter(c=>getIdea(state.plan,c)?.marketingCategory===idea.marketingCategory);
-     state.bridge.assignments=first.integrationDraft.assignments || [{assignee:[first.integrationDraft.assigneeId,first.integrationDraft.departmentId].join('|'),dueOn:first.integrationDraft.dueOn}];
+     state.bridge.assignmentsByIdea=Object.fromEntries(state.bridge.selectedCodes.map(ideaCode=>[ideaCode,
+       (first.integrationDraft.assignmentsByIdea?.[ideaCode] || first.integrationDraft.assignments || [defaultAssignment()]).map(row=>({...row}))]));
    }
    else if(!state.bridge.selectedCodes.includes(code))state.bridge.selectedCodes.push(code);
  }
@@ -129,7 +151,7 @@ export function bridgePage(state) {
   const typePref=bridge.category.startsWith('تعريفي')?'تعريف':bridge.category.startsWith('بيعي')?'بيع':'';
   const matchingTypes=bridge.taskTypes.filter(t=>String(t.name||'').includes(typePref));
   const taskTypeDefault=pendingDraft?.typeId||bridge.taskTypeId||(matchingTypes.length===1?matchingTypes[0].id:'');
-  const assignments=pendingDraft?.assignments || bridge.assignments || [{assignee:'',dueOn:nowInRiyadh()}];
+
   const table=visible.map((row,index)=>{
     const rowAssets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
     const linked=rowAssets.some(a=>a.marketingTaskId || (a.previousMarketingTasks||[]).length);
@@ -209,21 +231,25 @@ export function bridgePage(state) {
          <label>نوع التاسك في التسويق<select name="taskTypeId" required>
            <option value="">اختر النوع</option>${bridge.taskTypes.map(t=>opt(t.id,t.name,taskTypeDefault)).join('')}</select></label>
        </div>
-       <div class="bridge-assignees"><h3>المنفذون ومواعيد التسليم</h3>
-         ${assignments.map((entry,index)=>{
-           const user=bridge.executors.find(row=>row.user_id+'|'+row.department_id===entry.assignee);
-           const photography=Boolean(user && /تصوير|photograph|shoot/i.test(user.department_name));
-           return `<div class="bridge-assignee-row" key="${index}">
-             <label>المنفذ ${index+1}<select name="assignee_${index}" required ${lockDraft?'disabled':''}>
-               <option value="">اختر المنفذ</option>${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name,entry.assignee)).join('')}</select></label>
-             <label>تاريخ تسليم ${photography?'التصوير':'المنفذ'}<input name="dueOn_${index}" type="date" min="${nowInRiyadh()}"
-               value="${escape(entry.dueOn||nowInRiyadh())}" required ${lockDraft?'disabled':''}/></label>
-             <span class="bridge-assignee-role">${photography?'تسليم رابط Google Drive':'رفع الملفات النهائية'}</span>
-             ${index>0&&!lockDraft?`<button type="button" class="btn" data-action="bridge-remove-assignee" data-index="${index}">إزالة</button>`:''}
-           </div>`;
-         }).join('')}
-         <button type="button" class="btn" data-action="bridge-add-assignee" ${lockDraft||assignments.length>=10?'disabled':''}>+ إضافة منفذ آخر</button>
-       </div>
+       <div class="bridge-ideas-assignees"><h3>المنفذون ومواعيد التسليم لكل فكرة</h3>
+         ${chosen.map((idea,ideaIndex)=>{
+           const rows=assignmentsForIdea(bridge,idea.code,pendingDraft);
+           return `<section class="bridge-idea-assignees" data-idea-code="${escape(idea.code)}">
+             <div class="bridge-idea-assignees-head"><span>الفكرة ${ideaIndex+1} من ${chosen.length}</span><strong>${escape(idea.title)}</strong><small>${escape(idea.kind==='video'?'فيديو':'صورة')}</small></div>
+             <div class="bridge-assignees">${rows.map((entry,index)=>{
+               const person=bridge.executors.find(row=>row.user_id+'|'+row.department_id===entry.assignee);
+               const photography=Boolean(person && /تصوير|photograph|shoot/i.test(person.department_name));
+               return `<div class="bridge-assignee-row" data-idea="${escape(idea.code)}" data-index="${index}">
+                 <label>المنفذ ${index+1}<select name="assignee_${escape(idea.code)}_${index}" required ${lockDraft?'disabled':''}>
+                   <option value="">اختر المنفذ</option>${bridge.executors.map(row=>opt(row.user_id+'|'+row.department_id,row.full_name,entry.assignee)).join('')}</select></label>
+                 <label>تاريخ تسليم ${photography?'التصوير':'المنفذ'}<input name="dueOn_${escape(idea.code)}_${index}" type="date" min="${nowInRiyadh()}"
+                   value="${escape(entry.dueOn||nowInRiyadh())}" required ${lockDraft?'disabled':''}/></label>
+                 <span class="bridge-assignee-role">${photography?'تسليم رابط Google Drive':'رفع الملفات النهائية'}</span>
+                 ${index>0&&!lockDraft?`<button type="button" class="btn" data-action="bridge-remove-assignee" data-idea="${escape(idea.code)}" data-index="${index}">إزالة</button>`:''}
+               </div>`;
+             }).join('')}
+             <button type="button" class="btn bridge-add-executor" data-action="bridge-add-assignee" data-idea="${escape(idea.code)}" ${lockDraft||rows.length>=10?'disabled':''}>+ إضافة منفذ لهذه الفكرة</button></div></section>`;
+         }).join('')}</div>
        ${imageKinds.includes('image')?formats('image'):''}${imageKinds.includes('video')?formats('video'):''}
        <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!!nameError||bridge.busy?'disabled':''}>
          ${chosen.some(row=>taskCodes(plan,row.code).some(code=>plan.assets.find(a=>a.code===code)?.integrationDraft))?
@@ -260,21 +286,27 @@ export async function assignBridgeIdea(state,form) {
    throw Error('يجب تأكيد سيارات كل فكرة قبل التكليف');
  const typeId=String(form.elements.namedItem('taskTypeId')?.value||'');
  if(!bridge.taskTypes.some(t=>t.id===typeId))throw Error('اختر نوع التاسك المعتمد');
- const rows=bridge.assignments.map((entry,index)=>({
-   assignee:String(form.elements.namedItem('assignee_'+index)?.value||entry.assignee||''),
-   dueOn:String(form.elements.namedItem('dueOn_'+index)?.value||entry.dueOn||''),
- }));
- const assignments=rows.map(entry=>{
-   const [userId,departmentId]=entry.assignee.split('|');
-   const person=bridge.executors.find(row=>row.user_id===userId&&row.department_id===departmentId);
-   if(!person)throw Error('اختر منفذًا مؤهلًا من سيستم التسويق لكل مطلوب');
-   if(!validISODate(entry.dueOn)||entry.dueOn<nowInRiyadh())throw Error('حدد تاريخ تسليم صحيحًا لكل منفذ');
-   return {assignee:entry.assignee,assigneeId:userId,departmentId,dueOn:entry.dueOn,
-     name:person.full_name,deliveryMode:/تصوير|photograph|shoot/i.test(person.department_name)?'drive_link':'files'};
- });
- if(!assignments.length||assignments.length>10||new Set(assignments.map(row=>row.assigneeId)).size!==assignments.length)
-   throw Error('اختر منفذين مختلفين، بحد أقصى 10 منفذين لكل تاسك');
- if(ideas.length*assignments.length>100)throw Error('التاسك الواحد يدعم 100 مطلوب كحد أقصى. قلل عدد الأفكار أو المنفذين.');
+ const assignmentsByIdea={};
+ for(const {idea} of groups){
+   const configured=assignmentsForIdea(bridge,idea.code);
+   const rows=configured.map((entry,index)=>({
+     assignee:String(form.elements.namedItem('assignee_'+idea.code+'_'+index)?.value||entry.assignee||''),
+     dueOn:String(form.elements.namedItem('dueOn_'+idea.code+'_'+index)?.value||entry.dueOn||'')
+   }));
+   const assignments=rows.map(entry=>{
+     const [userId,departmentId]=entry.assignee.split('|');
+     const person=bridge.executors.find(row=>row.user_id===userId&&row.department_id===departmentId);
+     if(!person)throw Error('اختر منفذًا مؤهلًا للفكرة: '+idea.title);
+     if(!validISODate(entry.dueOn)||entry.dueOn<nowInRiyadh())throw Error('حدد تاريخ تسليم صحيحًا لكل منفذ في الفكرة: '+idea.title);
+     return {assignee:entry.assignee,assigneeId:userId,departmentId,dueOn:entry.dueOn,
+       name:person.full_name,deliveryMode:/تصوير|photograph|shoot/i.test(person.department_name)?'drive_link':'files'};
+   });
+   if(!assignments.length||assignments.length>10||new Set(assignments.map(row=>row.assigneeId)).size!==assignments.length)
+     throw Error('اختر منفذين مختلفين داخل كل فكرة، بحد أقصى 10 منفذين: '+idea.title);
+   assignmentsByIdea[idea.code]=assignments;
+ }
+ const itemCount=Object.values(assignmentsByIdea).reduce((sum,assignments)=>sum+assignments.length,0);
+ if(itemCount>100)throw Error('التاسك الواحد يدعم 100 مطلوب كحد أقصى. قلل عدد الأفكار أو المنفذين.');
  const formatsByKind=Object.fromEntries(['image','video'].map(kind=>[kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
  for(const kind of new Set(ideas.map(imageOrVideo))){
    const formatIds=formatsByKind[kind];
@@ -283,13 +315,13 @@ export async function assignBridgeIdea(state,form) {
  }
  const assets=groups.flatMap(group=>group.assets);
  const pending=assets.filter(a=>a.integrationDraft?.pending===true&&a.integrationRequestKey);
- const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignments,formatIdsByKind:formatsByKind,
+ const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignmentsByIdea,formatIdsByKind:formatsByKind,
    name:pending.length ? (pending[0].integrationDraft?.name||name) : name};
  let requestKey;
  if(pending.length){
    const keys=[...new Set(pending.map(a=>a.integrationRequestKey))];
    const saved=pending[0].integrationDraft;
-   if(keys.length!==1||pending.length!==assets.length||JSON.stringify(saved)!==JSON.stringify(draft))
+   if(keys.length!==1||pending.length!==assets.length||!sameAssignmentDraft(saved,draft))
      throw Error('يوجد تكليف محفوظ غير مكتمل. استكمل نفس المجموعة والمنفذين والمواعيد أولًا.');
    requestKey=keys[0];
  }else{
@@ -297,7 +329,7 @@ export async function assignBridgeIdea(state,form) {
    await updateManyAssets(assets.map(a=>a.code),{integrationRequestKey:requestKey,integrationDraft:draft});
    for(const asset of assets)Object.assign(asset,{integrationRequestKey:requestKey,integrationDraft:draft});
  }
- const items=await Promise.all(groups.flatMap(({idea,assets})=>assignments.map(async assignment=>{
+ const items=await Promise.all(groups.flatMap(({idea,assets})=>assignmentsByIdea[idea.code].map(async assignment=>{
    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(requestKey+':'+idea.code+':'+assignment.assignee));
    const bytes=new Uint8Array(digest).slice(0,16);bytes[6]=(bytes[6]&15)|0x50;bytes[8]=(bytes[8]&63)|0x80;
    const h=[...bytes].map(v=>v.toString(16).padStart(2,'0')).join('');
@@ -316,8 +348,9 @@ export async function assignBridgeIdea(state,form) {
  const links=groups.flatMap(({idea,assets})=>{
    const primary=items.find(item=>item.ideaCode===idea.code&&item.deliveryMode==='files') || items.find(item=>item.ideaCode===idea.code);
    const itemId=result.items?.find(row=>row.client_key===primary?.clientKey)?.id;
-   const names=assignments.map(row=>row.name).join('، ');
-   const dueDate=assignments.find(row=>row.deliveryMode==='files')?.dueOn||assignments[0].dueOn;
+   const ideaAssignees=assignmentsByIdea[idea.code];
+   const names=ideaAssignees.map(row=>row.name).join('، ');
+   const dueDate=ideaAssignees.find(row=>row.deliveryMode==='files')?.dueOn||ideaAssignees[0].dueOn;
    return assets.map(asset=>({code:asset.code,taskId:result.id,taskNo:result.taskNo,itemId:itemId||'',executorName:names,newDueDate:dueDate,
      previousMarketingTasks:asset.previousMarketingTasks||[],previousTask:asset.marketingTaskId?{
        taskId:asset.marketingTaskId,taskNo:asset.marketingTaskNo||'',itemId:asset.marketingItemId||'',
