@@ -1,0 +1,58 @@
+/* إديتوريال كونتراست - UI tokens and unique accents; shared styles live in ../theme.css. */
+:root {
+  color-scheme: light;
+  --font-family: 'Tajawal', 'Noto Sans Arabic', Tahoma, sans-serif;
+  --sidebar-width: 268px;
+  --sidebar-bg: #2A2422;
+  --brown: #3A2E2A;
+  --brown-deep: #241F1E;
+  --brown-light: #675650;
+  --accent: #543530;
+  --accent-hover: #3E2926;
+  --cream: #EFE8E0;
+  --cream-soft: #F6F4F1;
+  --paper: #FFFEFC;
+  --card: #FFFEFC;
+  --muted: #76716B;
+  --line: #D4CFC9;
+  --line-soft: #D4CFC9;
+  --rose: #8E736A;
+  --positive: #247852;
+  --negative: #AE4650;
+  --surface-warm: #F8F5F1;
+  --surface-tinted: #F8F6F3;
+  --surface-active: #EFE8E0;
+  --surface-hover: #F8F5F1;
+  --line-strong: #D4CFC9;
+  --line-warm: #D4CFC9;
+  --accent-border: #7C5B52;
+  --text-soft: #675650;
+  --card-shadow-color: rgba(49,37,37,.055);
+  --shadow: 0 4px 12px rgba(35,28,26,.025);
+  --radius: 7px;
+  --radius-control: 5px;
+  --motion-fast: 155ms;
+  --motion-normal: 260ms;
+  --motion-long: 430ms;
+  --motion-ease: cubic-bezier(.22,1,.36,1);
+  --motion-press-scale: .985;
+  --motion-lift: -3px;
+  --theme-sidebar-fg: #F4EDE6;
+  --theme-sidebar-muted: #BFB2A7;
+  --theme-sidebar-active: #FFFFFF;
+  --theme-sidebar-active-fg: #302522;
+  --theme-nav-icon-bg: transparent;
+  --theme-active-icon-bg: #F3EDE7;
+  --theme-icon-bg: #F0EAE4;
+  --theme-focus: #7C5B52;
+  --theme-button-bg: linear-gradient(120deg,#573630,#432B27);
+  --theme-card-strip: rgba(84,53,48,.16);
+  --theme-control-bg: #FFFEFC;
+  --theme-tonal-bg: #F8F6F3;
+  --theme-topbar: rgba(255,255,255,.99);
+  --theme-nav-radius: 5px;
+  --theme-icon-radius: 4px;
+  --theme-icon-stroke: 2.0;
+  --theme-label-weight: 900;
+}
+html[data-mzj-theme] body .card,html[data-mzj-theme] body .platform-tile,html[data-mzj-theme] body .btn,html[data-mzj-theme] body .nav-btn.active {box-shadow:none;} html[data-mzj-theme] body .workspace-kpi,html[data-mzj-theme] body .platform-tile {border-width:1px;} html[data-mzj-theme] body .sidebar .nav-btn {letter-spacing:-.1px;} html[data-mzj-theme] body .sidebar .nav-btn.active {border-right:3px solid var(--accent);}

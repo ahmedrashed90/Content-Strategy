@@ -8,6 +8,31 @@ import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBr
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
+// Remember the last opened screen locally; production data and API routes are untouched.
+const NAV_STORAGE_KEY = 'mzj.contentStrategy.lastScreen.v1';
+const RESTORABLE_VIEWS = new Set(['overview','ideas','bridge','inspirations','archive','plan','proposals','tasks','baseline','platforms','comparison','settings','schedule','post','asset']);
+const restoredScreen = (() => {
+  try {
+    const record = JSON.parse(localStorage.getItem(NAV_STORAGE_KEY) || '{}');
+    if (!RESTORABLE_VIEWS.has(record.view)) return {};
+    if (record.view === 'asset' && !record.selectedAssetCode) return { view:'ideas' };
+    if (record.view === 'post' && !record.selectedPostId) return { view:'plan' };
+    return record;
+  } catch { return {}; }
+})();
+function rememberScreen(screen) {
+  if (!RESTORABLE_VIEWS.has(screen.view)) return;
+  try {
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({
+      view: screen.view,
+      selectedAssetCode: screen.selectedAssetCode || null,
+      selectedPostId: screen.selectedPostId || null,
+      briefReturnView: screen.briefReturnView || 'ideas',
+      platform: screen.platform || 'facebook',
+    }));
+  } catch { /* Browsers with blocked storage still work normally. */ }
+}
+
 const app = document.getElementById('app');
 const isLocalPreview = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
   && new URLSearchParams(window.location.search).get('preview') === '1'
@@ -23,8 +48,8 @@ const state = {
   authError: '',
   signingIn: false,
   storing: false,
-  view: 'overview',
-  platform: 'facebook',
+  view: restoredScreen.view || 'overview',
+  platform: restoredScreen.platform || 'facebook',
   modal: null,
   mobileNav: false,
   legacyExists: false,
@@ -57,11 +82,11 @@ const state = {
   ideaReviewFilter: 'all',
   ideaSearch: '',
   archiveSearch: '',
-  briefReturnView: 'ideas',
+  briefReturnView: restoredScreen.briefReturnView || 'ideas',
   briefReturnScrollY: 0,
   briefBaseline: '',
-  selectedPostId: null,
-  selectedAssetCode: null,
+  selectedPostId: restoredScreen.selectedPostId || null,
+  selectedAssetCode: restoredScreen.selectedAssetCode || null,
   bridge: newBridgeState(),
   inspirations: newInspirationState()
 };
@@ -518,16 +543,50 @@ function comparisonPage() {
 `;
 }
 
+function themeChooser() {
+  const manager = window.MZJTheme;
+  if (!manager) return '';
+  const applied = manager.applied();
+  const preview = manager.previewed();
+  const options = manager.catalog.map(theme => {
+    const active = theme.id === preview;
+    const saved = theme.id === applied;
+    const [side, bg, card, primary] = theme.palette;
+    const style = `--pick-side:${esc(side)};--pick-bg:${esc(bg)};--pick-card:${esc(card)};--pick-primary:${esc(primary)};--pick-radius:${theme.radius || 16}px`;
+    return `<button type="button" class="theme-pick ${active?'is-previewed':''} ${saved?'is-applied':''}"
+      data-action="theme-preview" data-theme="${theme.id}" aria-pressed="${active?'true':'false'}" style="${style}">
+      <span class="theme-pick-header"><strong>${theme.id} · ${esc(theme.name)}</strong>
+        ${saved?`<span class="theme-pick-label">مُطبّق</span>`:''}
+      </span>
+      <span class="theme-pick-canvas" aria-hidden="true"><span class="theme-pick-sidebar"><i></i><i></i><i></i></span>
+        <span class="theme-pick-main"><i class="theme-pick-heading"></i><span class="theme-pick-tiles"><i></i><i></i></span><span class="theme-pick-controls"><i></i><i></i></span></span></span>
+      <span class="theme-pick-caption">${esc(theme.subtitle)}</span>
+      <span class="theme-pick-palette">${theme.palette.map(color=>`<i style="background:${esc(color)}"></i>`).join('')}</span>
+    </button>`;
+  }).join('');
+  const current = manager.catalog.find(t=>t.id===applied);
+  const selected = manager.catalog.find(t=>t.id===preview);
+  const hasChanged=Boolean(preview && preview !== applied);
+  return `<section class="card panel theme-settings-panel" aria-labelledby="theme-title">
+    <div class="theme-settings-heading"><h2 id="theme-title">تصميم الواجهة</h2>
+      <span class="theme-current">${current?esc(current.name):'التصميم الحالي'}</span></div>
+    <div class="theme-picker-grid">${options}</div>
+    <div class="theme-picker-actions"><button type="button" class="btn btn-primary" data-action="theme-apply" data-theme="${esc(preview)}" ${!hasChanged?'disabled':''}>${icon('check','ic-sm')} تطبيق التصميم${selected?' · '+esc(selected.name):''}</button>
+      ${hasChanged?`<button class="btn" type="button" data-action="theme-cancel">إلغاء المعاينة</button>`:''}
+      ${applied?`<button class="btn" type="button" data-action="theme-original">استعادة التصميم الأصلي</button>`:''}</div>
+  </section>`;
+}
+
 function settingsPage() {
-  return `<div class="page-header"><div><div class="page-eyebrow">${icon('settings','ic-sm')} الإعدادات والأمان</div><h1 class="page-title">نظام مستقل. حساب واحد.</h1><p class="page-description">معلومات الربط والصلاحيات وحالة حفظ المرجع الأساسي.</p></div><button class="btn" data-action="logout" ${state.baselineStatus==='preview'?'disabled':''}>${icon('logout','ic-sm')} تسجيل الخروج</button></div>
+  return `${themeChooser()}
   <div class="settings-grid">
-    <section class="card panel"><div class="panel-head"><div><h2 class="panel-title">مشروع Firebase</h2><p class="panel-desc">المشروع الجديد فقط — لا علاقة له بنظام التسويق الحالي</p></div><span class="rounded-icon">${icon('database')}</span></div>
+    <section class="card panel"><div class="panel-head"><h2 class="panel-title">مشروع Firebase</h2><span class="rounded-icon">${icon('database')}</span></div>
       <div class="setting-row"><span class="k">Project ID</span><strong class="v mono" dir="ltr">${esc(FIREBASE_CONFIG.projectId)}</strong></div>
       <div class="setting-row"><span class="k">Authentication</span><strong class="v">Email / Password</strong></div>
       <div class="setting-row"><span class="k">مستخدم النظام</span><strong class="v" dir="ltr">${esc(state.user?.email || '—')}</strong></div>
       <div class="setting-row"><span class="k">حالة المرجع</span><span>${statusTag()}</span></div>
     </section>
-    <section class="card panel"><div class="panel-head"><div><h2 class="panel-title">حماية Firestore</h2><p class="panel-desc">السماح لصاحب UID الوحيد فقط</p></div><span class="rounded-icon">${icon('shield')}</span></div>
+    <section class="card panel"><div class="panel-head"><h2 class="panel-title">حماية Firestore</h2><span class="rounded-icon">${icon('shield')}</span></div>
       <div class="setting-row"><span class="k">مالك النظام</span><strong class="v">حساب واحد</strong></div>
       <div class="setting-row"><span class="k">صلاحية القراءة</span><strong class="v">مرجع v1 وv2 وخطة النشر للمالك فقط</strong></div>
       <div class="setting-row"><span class="k">إنشاء المرجع</span><strong class="v">مرة واحدة</strong></div>
@@ -535,11 +594,7 @@ function settingsPage() {
     </section>
   </div>
   ${state.baselineStatus === 'not-saved' ? `<div class="notice warning">${icon('alert','ic-sm')} المرجع غير موجود في Firestore بعد. انتقل إلى النظرة العامة لاستيراد ملف البيانات.</div>` : ''}
-  <div class="section-heading"><div><h2>معرّف صاحب الحساب</h2><p>يجب أن يطابق UID المحدد في كود المشروع وقواعد Firestore المنشورة</p></div></div>
-  <div class="card panel"><div class="uid-box" style="margin-top:0">${esc(state.user?.uid || '')}</div><button class="btn" data-action="copy-uid">${icon('copy','ic-sm')} نسخ UID</button></div>
-  <div class="section-heading"><div><h2>ما الذي تم تنفيذه الآن؟</h2></div></div>
-  <div class="card panel"><ul class="methodology"><li>${icon('check','ic-sm')}<span>تسجيل دخول بحساب واحد، وعدم إتاحة إنشاء مستخدمين من السيستم.</span></li><li>${icon('check','ic-sm')}<span>مرجع كامل للمنصات الأربع بعد تثبيت بيانات Snapchat في الإصدار v2.</span></li><li>${icon('check','ic-sm')}<span>إمكانية إنشاء المرجع v2 مرة واحدة مع بقاء v1 محفوظًا بلا تعديل.</span></li><li>${icon('clock','ic-sm')}<span>خطة نشر وإنتاج 28 يومًا، واستيراد JSON، وتكليفات مندوبي الإنتاج، ومراجعة وحفظ تغييرات داخل Firestore؛ الربط الآلي بـCRM غير موجود.</span></li></ul></div>
-`;
+  <section class="card panel settings-owner-panel"><h2 class="panel-title">معرّف صاحب الحساب</h2><div class="uid-box">${esc(state.user?.uid || '')}</div><button class="btn" data-action="copy-uid">${icon('copy','ic-sm')} نسخ UID</button></section>`;
 }
 
 function modalView() {
@@ -553,6 +608,8 @@ function modalView() {
 }
 
 function render() {
+  if (state.view !== 'settings' && window.MZJTheme && window.MZJTheme.previewed() !== window.MZJTheme.applied()) window.MZJTheme.cancel();
+  if (state.user) rememberScreen(state);
   document.title = `MZJ | ${state.user ? 'استراتيجية المحتوى' : 'تسجيل الدخول'}`;
   if (!state.user) {
     app.innerHTML = authView(); return;
@@ -1164,6 +1221,22 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
   if (!control) return;
   const action = control.dataset.action;
+  if (action === 'theme-preview') {
+    if (state.view === 'settings' && window.MZJTheme?.preview(control.dataset.theme || '')) render();
+    return;
+  }
+  if (action === 'theme-apply') {
+    if (state.view === 'settings' && window.MZJTheme?.apply(control.dataset.theme || '')) {
+      render(); toast('تم تطبيق التصميم.');
+    }
+    return;
+  }
+  if (action === 'theme-cancel') {
+    window.MZJTheme?.cancel(); render(); return;
+  }
+  if (action === 'theme-original') {
+    window.MZJTheme?.restoreDefault(); render(); toast('تمت استعادة التصميم الأصلي.'); return;
+  }
   if(action==='ins-open-form'){state.inspirations.formOpen=!state.inspirations.formOpen;render();return;}
   if(action==='ins-cancel-form'){state.inspirations.formOpen=false;state.inspirations.formText='';state.inspirations.formTags='';render();return;}
   if(action==='ins-refresh'){void refreshInspirations(state.inspirations).then(render);return;}

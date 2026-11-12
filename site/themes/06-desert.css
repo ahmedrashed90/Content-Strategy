@@ -1,0 +1,58 @@
+/* ديزرت مينيمال - UI tokens and unique accents; shared styles live in ../theme.css. */
+:root {
+  color-scheme: light;
+  --font-family: 'Tajawal', 'Noto Sans Arabic', Tahoma, sans-serif;
+  --sidebar-width: 268px;
+  --sidebar-bg: #F0E8DB;
+  --brown: #573B30;
+  --brown-deep: #3E322C;
+  --brown-light: #796355;
+  --accent: #754C3D;
+  --accent-hover: #5F3B2F;
+  --cream: #EEE4D6;
+  --cream-soft: #F8F5EF;
+  --paper: #FFFEFB;
+  --card: #FFFDF8;
+  --muted: #86796B;
+  --line: #DFD3C5;
+  --line-soft: #DFD3C5;
+  --rose: #A1826B;
+  --positive: #247852;
+  --negative: #AE4650;
+  --surface-warm: #F7EFE5;
+  --surface-tinted: #F4EDE5;
+  --surface-active: #EEE4D6;
+  --surface-hover: #F7EFE5;
+  --line-strong: #DFD3C5;
+  --line-warm: #DFD3C5;
+  --accent-border: #AE8C74;
+  --text-soft: #796355;
+  --card-shadow-color: rgba(49,37,37,.055);
+  --shadow: 0 8px 23px rgba(74,50,32,.045);
+  --radius: 15px;
+  --radius-control: 10px;
+  --motion-fast: 155ms;
+  --motion-normal: 260ms;
+  --motion-long: 430ms;
+  --motion-ease: cubic-bezier(.22,1,.36,1);
+  --motion-press-scale: .985;
+  --motion-lift: -3px;
+  --theme-sidebar-fg: #655348;
+  --theme-sidebar-muted: #938374;
+  --theme-sidebar-active: #6B4134;
+  --theme-sidebar-active-fg: #FFFCF7;
+  --theme-nav-icon-bg: rgba(117,76,61,.09);
+  --theme-active-icon-bg: rgba(255,255,255,.15);
+  --theme-icon-bg: #F1E6DB;
+  --theme-focus: #AE8C74;
+  --theme-button-bg: linear-gradient(120deg,#785141,#684032);
+  --theme-card-strip: rgba(117,76,61,.22);
+  --theme-control-bg: #FFFEFB;
+  --theme-tonal-bg: #F4EDE5;
+  --theme-topbar: rgba(255,253,249,.97);
+  --theme-nav-radius: 11px;
+  --theme-icon-radius: 10px;
+  --theme-icon-stroke: 1.6;
+  --theme-label-weight: 700;
+}
+html[data-mzj-theme] body .sidebar {box-shadow:-3px 0 20px rgba(45,45,45,.04);} html[data-mzj-theme] body .sidebar .owner-card {background:rgba(255,255,255,.55);} html[data-mzj-theme] body .sidebar .brand {border-color:rgba(104,91,87,.16);}

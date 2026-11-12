@@ -143,7 +143,6 @@ export function bridgePage(state) {
     return `<article class="bridge-idea-option ${checked?'bridge-idea-selected':''}">
       <div class="bridge-idea-option-main"><label class="bridge-idea-checkbox" aria-label="اختيار ${escape(row.title)}"><input type="checkbox" name="bridge-select-idea" value="${escape(row.code)}" ${checked?'checked':''} ${disabled?'disabled':''}/><strong>${escape(row.title)}</strong></label><span class="bridge-status-chip ${linked?'is-linked':isConfirmed?'is-done':''}">حالة السيارات: ${escape(stateText)}</span></div>
       <div class="bridge-idea-option-details"><span class="bridge-category-chip">${escape(row.marketingCategory)}</span><span>${escape(media)}</span><span>المنفذ المقترح: ${escape(executor)}</span></div>
-      <button type="button" class="btn p-small" data-action="bridge-edit-cars" data-id="${escape(row.code)}" ${!checked?'disabled':''}>${isConfirmed?'تعديل السيارات':'اختيار السيارات'}</button>
     </article>`;
   }).join('');
   const stockOptions=renderStockOptions(bridge);

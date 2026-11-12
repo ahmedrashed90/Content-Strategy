@@ -1,0 +1,58 @@
+/* فروست جلاس - UI tokens and unique accents; shared styles live in ../theme.css. */
+:root {
+  color-scheme: light;
+  --font-family: 'Tajawal', 'Noto Sans Arabic', Tahoma, sans-serif;
+  --sidebar-width: 268px;
+  --sidebar-bg: #403041;
+  --brown: #573D50;
+  --brown-deep: #403140;
+  --brown-light: #785F76;
+  --accent: #865572;
+  --accent-hover: #70435C;
+  --cream: #F0E6EF;
+  --cream-soft: #F7F3F7;
+  --paper: #FFFEFF;
+  --card: rgba(255,255,255,.88);
+  --muted: #8D778A;
+  --line: #E4D9E5;
+  --line-soft: #E4D9E5;
+  --rose: #9B758B;
+  --positive: #247852;
+  --negative: #AE4650;
+  --surface-warm: #F8F1F7;
+  --surface-tinted: #F8EDF6;
+  --surface-active: #F0E6EF;
+  --surface-hover: #F8F1F7;
+  --line-strong: #E4D9E5;
+  --line-warm: #E4D9E5;
+  --accent-border: #AC83A0;
+  --text-soft: #785F76;
+  --card-shadow-color: rgba(49,37,37,.055);
+  --shadow: 0 18px 45px rgba(64,48,65,.085);
+  --radius: 23px;
+  --radius-control: 15px;
+  --motion-fast: 155ms;
+  --motion-normal: 260ms;
+  --motion-long: 430ms;
+  --motion-ease: cubic-bezier(.22,1,.36,1);
+  --motion-press-scale: .985;
+  --motion-lift: -3px;
+  --theme-sidebar-fg: #F8EEF7;
+  --theme-sidebar-muted: #D8BDD3;
+  --theme-sidebar-active: rgba(255,255,255,.94);
+  --theme-sidebar-active-fg: #51384C;
+  --theme-nav-icon-bg: rgba(255,255,255,.12);
+  --theme-active-icon-bg: #E7D5E2;
+  --theme-icon-bg: #F1E4EE;
+  --theme-focus: #AC83A0;
+  --theme-button-bg: linear-gradient(135deg,#9C6A8D,#754663);
+  --theme-card-strip: rgba(134,85,114,.18);
+  --theme-control-bg: #FFFEFF;
+  --theme-tonal-bg: #F8EDF6;
+  --theme-topbar: rgba(255,255,255,.78);
+  --theme-nav-radius: 15px;
+  --theme-icon-radius: 13px;
+  --theme-icon-stroke: 1.7;
+  --theme-label-weight: 700;
+}
+html[data-mzj-theme] body .card,html[data-mzj-theme] body .platform-tile,html[data-mzj-theme] body .mini-card,html[data-mzj-theme] body .ins-kpi {backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.88);} html[data-mzj-theme] body .sidebar {background:linear-gradient(155deg,#513850,#332836);} html[data-mzj-theme] body .topbar {box-shadow:0 8px 24px rgba(64,49,67,.04);} html[data-mzj-theme] body .rounded-icon {box-shadow:0 5px 10px rgba(91,55,89,.07);}

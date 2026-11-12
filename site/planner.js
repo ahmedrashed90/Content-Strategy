@@ -309,9 +309,7 @@ export function assetDetailPage(state){
   const pendingRequest=ideaAssets(plan,idea.code).some(asset=>asset.integrationRequestKey&&!asset.marketingTaskId);
   const prior=Array.isArray(main?.previousMarketingTasks)?main.previousMarketingTasks:[];
   const reviewHistory=Array.isArray(main?.reviewHistory)?main.reviewHistory:[];
-  const returnLabel=state.briefReturnView==='archive'?'الأرشيف':state.briefReturnView==='tasks'?'التسليمات والإنتاج':state.briefReturnView==='post'?'تفاصيل النشر':'بنك الأفكار';
-  const back=`<button class="btn brief-back-button" data-action="brief-back" type="button" aria-label="رجوع إلى ${e(returnLabel)}">↩ رجوع إلى ${e(returnLabel)}</button>`;
-  const actions=`${back}<button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف</button>`;
+  const actions=`<button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف</button>`;
   const isSourceBlocked=Boolean(idea.requiresVerification||idea.sourceStatus==='موقوف');
   const decisionButtons=isSourceBlocked
     ?'<div class="notice warning">الفكرة موقوفة لحين اعتماد المعلومات أو الشروط الناقصة في بريفها الأصلي. لا يمكن إنشاء تكليف لها حاليًا.</div>'
@@ -320,19 +318,20 @@ export function assetDetailPage(state){
     :status==='معتمد'
     ?`<button class="btn" name="reviewDecision" value="بانتظار المراجعة" type="submit">إلغاء الاعتماد وإعادة للمراجعة</button>`
     :`<button class="btn btn-primary" name="reviewDecision" value="معتمد" type="submit">اعتماد الفكرة</button><button class="btn btn-danger" name="reviewDecision" value="مرفوض" type="submit">رفض ونقل للأرشيف</button>`;
-  const reviewPanel=`<section class="card panel idea-approval-panel"><div class="review-panel-heading"><div><div class="page-eyebrow">مراجعة البريف</div><h2>قرار الفكرة</h2></div>${reviewTag(status)}</div>
-    ${main?.reviewedAt?`<div class="review-stamp">آخر قرار: ${e(new Date(main.reviewedAt).toLocaleString('ar-EG',{dateStyle:'medium',timeStyle:'short'}))}</div>`:''}
-    ${pendingRequest?'<p class="review-pending-text">يوجد طلب تكليف لم تكتمل نتيجته. يلزم التحقق منه قبل تغيير حالة الفكرة.</p>':
-      `<form id="idea-review-form" class="p-edit-form"><input type="hidden" name="ideaCode" value="${e(idea.code)}"/><div class="review-decision-actions">${decisionButtons}</div></form>`}
-    ${status==='معتمد'?`<div class="review-next-step"><div><strong>جاهزة لمرحلة التكليف</strong><small>حدد السيارات والمنفذ وتاريخ التسليم</small></div><button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}">${linked?'متابعة التكليف الحالي':'تجهيز تكليف جديد'}</button></div>`:''}
-    <div class="brief-review-bottom">${back}</div>
-    ${reviewHistory.length?`<div class="review-history"><h3>سجل المراجعات</h3>${[...reviewHistory].reverse().slice(0,10).map(record=>`<div class="review-history-item"><span>${reviewTag(record.status)}</span><small>${record.at?e(new Date(record.at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})):''}</small></div>`).join('')}</div>`:''}
+  const reviewPanel=`<section class="card panel brief-decision-toolbar" aria-label="قرار الفكرة">
+    <div class="brief-decision-title"><h2>قرار الفكرة</h2>${reviewTag(status)}</div>
+    ${pendingRequest?'<span class="review-pending-text">يوجد طلب تكليف لم تكتمل نتيجته. يلزم التحقق منه قبل تغيير حالة الفكرة.</span>':
+      `<form id="idea-review-form" class="brief-decision-form"><input type="hidden" name="ideaCode" value="${e(idea.code)}"/><div class="review-decision-actions">${decisionButtons}</div></form>`}
+    ${status==='معتمد'?`<button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}" type="button">تجهيز تكليف جديد</button>`:''}
   </section>`;
+  const historyPanel=reviewHistory.length?`<details class="card panel brief-review-history"><summary>سجل المراجعات</summary><div class="review-history">${[...reviewHistory].reverse().slice(0,10).map(record=>`<div class="review-history-item"><span>${reviewTag(record.status)}</span><small>${record.at?e(new Date(record.at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})):''}</small></div>`).join('')}</div></details>`:'';
   const priorPanel=prior.length?`<section class="card panel prior-task-panel"><h2>التكليفات السابقة</h2><div class="prior-task-list">${[...prior].reverse().map(old=>`<div class="prior-task-row"><span><strong>${e(old.taskNo||old.taskId||'—')}</strong><small>مرتبط سابقًا ولا يتغير عند إعادة مراجعة الفكرة</small></span><span>${old.dueDate?dl(old.dueDate):'—'}</span></div>`).join('')}</div></section>`:'';
   const executionPanel=linked?`<section class="card panel production-side-panel"><div class="page-eyebrow">التكليف الحالي</div><h2>سيستم التسويق</h2><div class="production-summary-list"><div><span>رقم التاسك</span><strong>${e(main?.marketingTaskNo||main?.marketingTaskId||'')}</strong></div><div><span>المنفذ</span><strong>${e(main?.marketingExecutorName||main?.executor||'غير محدد')}</strong></div><div><span>التسليم</span><strong>${e(main?.dueDate?dl(main.dueDate):'غير محدد')}</strong></div></div><button class="btn" data-action="bridge-open-asset" data-id="${e(idea.code)}">متابعة التكليف</button></section>`:'';
+  const side=[executionPanel,priorPanel].filter(Boolean).join('');
   return pageHeader('مراجعة البريف',idea.title,'',actions)
-    +`<div class="review-workflow-steps"><span class="${status==='معتمد'?'done':'active'}">01 · مراجعة الفكرة</span><span class="${status==='معتمد'?'active':''}">02 · اختيار السيارات والتسليم</span><span class="${linked?'done':''}">03 · إنشاء التاسك</span></div>`
-    +`<div class="p-two-columns idea-detail-v15"><div>${briefCard(plan,idea.code)}</div><div class="p-detail-side">${reviewPanel}${executionPanel}${priorPanel}</div></div>`;
+    +reviewPanel
+    +`<div class="${side?'p-two-columns idea-detail-v15':'idea-detail-full'}"><div>${briefCard(plan,idea.code)}</div>${side?`<div class="p-detail-side">${side}</div>`:''}</div>`
+    +historyPanel;
 }
 export function toBriefText(plan,code){
   const a=getIdea(plan,code);

@@ -1,0 +1,58 @@
+/* جرافيت إكزكيوتيف - UI tokens and unique accents; shared styles live in ../theme.css. */
+:root {
+  color-scheme: light;
+  --font-family: 'Tajawal', 'Noto Sans Arabic', Tahoma, sans-serif;
+  --sidebar-width: 268px;
+  --sidebar-bg: #272C36;
+  --brown: #3D3638;
+  --brown-deep: #2B2C32;
+  --brown-light: #626772;
+  --accent: #894B4A;
+  --accent-hover: #713A3E;
+  --cream: #ECEEF1;
+  --cream-soft: #F5F6F8;
+  --paper: #FFFFFF;
+  --card: #FFFFFF;
+  --muted: #747A87;
+  --line: #DDE0E7;
+  --line-soft: #DDE0E7;
+  --rose: #8C6570;
+  --positive: #247852;
+  --negative: #AE4650;
+  --surface-warm: #F8F8FA;
+  --surface-tinted: #F6F1F3;
+  --surface-active: #ECEEF1;
+  --surface-hover: #F8F8FA;
+  --line-strong: #DDE0E7;
+  --line-warm: #DDE0E7;
+  --accent-border: #A27579;
+  --text-soft: #626772;
+  --card-shadow-color: rgba(49,37,37,.055);
+  --shadow: 0 12px 28px rgba(38,44,54,.08);
+  --radius: 12px;
+  --radius-control: 8px;
+  --motion-fast: 155ms;
+  --motion-normal: 260ms;
+  --motion-long: 430ms;
+  --motion-ease: cubic-bezier(.22,1,.36,1);
+  --motion-press-scale: .985;
+  --motion-lift: -3px;
+  --theme-sidebar-fg: #EFF1F6;
+  --theme-sidebar-muted: #B5BCC9;
+  --theme-sidebar-active: #F4F4F6;
+  --theme-sidebar-active-fg: #3E3D42;
+  --theme-nav-icon-bg: rgba(255,255,255,.09);
+  --theme-active-icon-bg: #E7E3E8;
+  --theme-icon-bg: #F0E9EC;
+  --theme-focus: #A27579;
+  --theme-button-bg: linear-gradient(130deg,#915450,#6D3A3B);
+  --theme-card-strip: rgba(137,75,74,.17);
+  --theme-control-bg: #FFFFFF;
+  --theme-tonal-bg: #F6F1F3;
+  --theme-topbar: rgba(255,255,255,.97);
+  --theme-nav-radius: 8px;
+  --theme-icon-radius: 6px;
+  --theme-icon-stroke: 1.8;
+  --theme-label-weight: 800;
+}
+html[data-mzj-theme] body .card,html[data-mzj-theme] body .platform-tile {box-shadow:inset 0 1px 0 rgba(255,255,255,.8),var(--shadow);} html[data-mzj-theme] body .nav-btn.active {border-left:3px solid var(--accent);} html[data-mzj-theme] body .rounded-icon {box-shadow:inset 0 0 0 1px #ffffff;}
