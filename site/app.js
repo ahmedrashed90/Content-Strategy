@@ -1043,8 +1043,39 @@ async function submitBridgeApproval(form) {
     if(target)document.getElementById(target)?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
+function rememberBridgeAssignmentForm(form) {
+  if(!form)return;
+  state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
+  for(const section of form.querySelectorAll('[data-idea-code]')){
+    const code=section.dataset.ideaCode;
+    const rows=[...section.querySelectorAll('.bridge-assignee-row')];
+    state.bridge.assignmentsByIdea[code]=rows.map((row,index)=>({
+      assignee:form.elements.namedItem('assignee_'+code+'_'+index)?.value||'',
+      dueOn:form.elements.namedItem('dueOn_'+code+'_'+index)?.value||nowInRiyadh()
+    }));
+  }
+  state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
+    kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+}
+
 async function submitBridgeAssignment(form) {
   if(state.bridge.busy||isLocalPreview)return;
+  // All idea panels belong to this one form, including panels hidden behind tabs.
+  // Native required validation cannot focus a hidden panel, so open the first
+  // incomplete idea before attempting the existing central assignment validator.
+  const missing=[...form.querySelectorAll('.bridge-assignee-row')].find(row=>{
+    const person=row.querySelector('select[name^="assignee_"]');
+    const date=row.querySelector('input[name^="dueOn_"]');
+    return !person?.value || !date?.value;
+  });
+  if(missing){
+    rememberBridgeAssignmentForm(form);
+    state.bridge.activeAssignmentIdeaCode=missing.dataset.idea||state.bridge.selectedCodes[0]||'';
+    state.bridge.error='حدد المنفذ وتاريخ التسليم لكل فكرة قبل إنشاء التاسك.';
+    render();
+    document.getElementById('bridge-assignment-area')?.scrollIntoView({block:'start'});
+    return;
+  }
   state.bridge.busy=true;state.bridge.error='';
   try {
     const result=await assignBridgeIdea(state,form);
@@ -1160,19 +1191,7 @@ app.addEventListener('change', async event => {
   if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
   if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
   if(event.target.closest?.('#bridge-assign')){
-    const form=event.target.closest('#bridge-assign');
-    state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
-    const assignmentGroups=[...form.querySelectorAll('[data-idea-code]')];
-    for(const section of assignmentGroups){
-      const code=section.dataset.ideaCode;
-      const rows=[...section.querySelectorAll('.bridge-assignee-row')];
-      state.bridge.assignmentsByIdea[code]=rows.map((row,index)=>({
-        assignee:form.elements.namedItem('assignee_'+code+'_'+index)?.value||'',
-        dueOn:form.elements.namedItem('dueOn_'+code+'_'+index)?.value||nowInRiyadh()
-      }));
-    }
-    state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
-      kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+    rememberBridgeAssignmentForm(event.target.closest('#bridge-assign'));
     if(event.target.matches?.('select[name^="assignee_"]'))render();
     return;
   }
@@ -1334,7 +1353,25 @@ app.addEventListener('click', async event => {
     catch(error){state.agenda.error=error?.message||'تعذر إنشاء أجندة في التسويق';}
     render();return;
   }
+  if(action==='bridge-pick-assignment-idea'){
+    const code=control.dataset.idea;
+    if(!code||!state.bridge.selectedCodes.includes(code))return;
+    // Switch panels in place: unsubmitted executor/date input values remain in the form.
+    state.bridge.activeAssignmentIdeaCode=code;
+    const workspace=control.closest('.bridge-ideas-assignees');
+    workspace?.querySelectorAll('.bridge-assignment-tab').forEach(tab=>{
+      const selected=tab.dataset.idea===code;
+      tab.classList.toggle('active',selected);
+      tab.setAttribute('aria-selected',String(selected));
+      tab.tabIndex=selected?0:-1;
+    });
+    workspace?.querySelectorAll('.bridge-idea-assignees').forEach(panel=>{
+      panel.hidden=panel.dataset.ideaCode!==code;
+    });
+    return;
+  }
   if(action==='bridge-add-assignee'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
     const code=control.dataset.idea||state.bridge.selectedCodes[0];
     if(!code||!state.bridge.selectedCodes.includes(code))return;
     const rows=state.bridge.assignmentsByIdea[code]||[{assignee:'',dueOn:nowInRiyadh()}];
@@ -1342,6 +1379,7 @@ app.addEventListener('click', async event => {
     return;
   }
   if(action==='bridge-remove-assignee'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
     const code=control.dataset.idea||state.bridge.selectedCodes[0];
     const rows=state.bridge.assignmentsByIdea[code]||[];
     const index=Number(control.dataset.index);

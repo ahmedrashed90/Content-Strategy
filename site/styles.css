@@ -1221,6 +1221,17 @@ body:has(.manual-idea-overlay){overflow:hidden}
 .manual-idea-footer p{font-size:12px;line-height:1.8;margin:0;color:var(--muted,#70564a)}.manual-idea-footer button{min-width:190px}
 /* Independent executor and due-date assignments for every selected idea. */
 .bridge-ideas-assignees{display:grid;gap:14px;margin:14px 0 20px}.bridge-ideas-assignees>h3{font-size:15px;margin:0;color:var(--brown)}
+/* Idea-specific assignments: horizontal navigation, one visible editor, all rows kept in DOM for one task submission. */
+.bridge-assignment-tabs{display:flex;gap:9px;overflow-x:auto;scrollbar-width:thin;padding:4px 2px 12px;scroll-snap-type:x proximity;align-items:stretch;max-width:100%}
+.bridge-assignment-tab{flex:0 0 clamp(145px,42%,220px);min-width:0;display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:right;scroll-snap-align:start;padding:11px 13px;border:1px solid var(--line-strong,#e1cbbc);background:var(--paper,#fffaf5);border-radius:11px;font-family:inherit;cursor:pointer;color:var(--brown);line-height:1.55}
+.bridge-assignment-tab>span{font-size:11px;color:var(--muted);font-weight:850}
+.bridge-assignment-tab>strong{font-size:12px;overflow-wrap:anywhere;font-weight:850}
+.bridge-assignment-tab>small{font-size:10px;color:var(--muted)}
+.bridge-assignment-tab:hover{background:var(--surface-tinted,#fff7ef);border-color:var(--brown)}
+.bridge-assignment-tab.active{background:var(--brown);border-color:var(--brown);color:var(--cream)}
+.bridge-assignment-tab.active>span,.bridge-assignment-tab.active>small{color:var(--cream)}
+.bridge-assignment-tab:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.bridge-idea-assignees[hidden]{display:none!important}
 .bridge-idea-assignees{border:1px solid var(--line-strong,#e1cbbc);background:var(--surface-tinted,#fff7ef);padding:15px;border-radius:14px;display:grid;gap:13px;min-width:0}
 .bridge-idea-assignees-head{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:0 0 12px;border-bottom:1px solid var(--line-strong,#e1cbbc)}
 .bridge-idea-assignees-head span{font-size:12px;font-weight:900;background:var(--cream);padding:8px 10px;border-radius:8px}.bridge-idea-assignees-head strong{font-size:13px;line-height:1.65;overflow-wrap:anywhere;flex:1;min-width:110px}.bridge-idea-assignees-head small{font-size:11px;color:var(--muted)}

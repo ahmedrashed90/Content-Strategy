@@ -62,12 +62,12 @@ const groupedName = (category,ideas) => {
 export function newBridgeState() {
  return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
   category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
-  formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},
+  formatIdsByKind:{image:[],video:[]},taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},activeAssignmentIdeaCode:'',
   remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true};
 }
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category))throw Error('تصنيف غير معتمد');
- Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',assignmentsByIdea:{},error:''});
+ Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',assignmentsByIdea:{},activeAssignmentIdeaCode:'',error:''});
 }
 export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
@@ -226,15 +226,30 @@ export function bridgePage(state) {
      ${chosen.length?`<div class="bridge-step-body">
      ${nameError?`<div class="notice warning">${escape(nameError)}</div>`:''}
      ${taskName?`<div class="bridge-task-title-preview"><small>الاسم النهائي للتاسك</small><strong>${escape(taskName)}</strong></div>`:''}
-     <form id="bridge-assign" class="p-edit-form bridge-form">
+     <form id="bridge-assign" class="p-edit-form bridge-form" novalidate>
        <div class="bridge-assign-fields">
          <label>نوع التاسك في التسويق<select name="taskTypeId" required>
            <option value="">اختر النوع</option>${bridge.taskTypes.map(t=>opt(t.id,t.name,taskTypeDefault)).join('')}</select></label>
        </div>
        <div class="bridge-ideas-assignees"><h3>المنفذون ومواعيد التسليم لكل فكرة</h3>
+         ${(()=>{
+           const activeCode=chosen.some(idea=>idea.code===bridge.activeAssignmentIdeaCode)
+             ? bridge.activeAssignmentIdeaCode : chosen[0]?.code;
+           return `<div class="bridge-assignment-tabs" role="tablist" aria-label="اختر الفكرة لتحديد المنفذين ومواعيد التسليم">
+             ${chosen.map((idea,index)=>`<button type="button" class="bridge-assignment-tab ${idea.code===activeCode?'active':''}"
+               role="tab" id="bridge-assign-tab-${escape(idea.code)}" aria-controls="bridge-assign-panel-${escape(idea.code)}"
+               aria-selected="${idea.code===activeCode?'true':'false'}" tabindex="${idea.code===activeCode?'0':'-1'}"
+               data-action="bridge-pick-assignment-idea" data-idea="${escape(idea.code)}">
+               <span>الفكرة ${index+1}</span><strong>${escape(idea.title)}</strong>
+               <small>${escape(idea.kind==='video'?'فيديو':'صورة')}</small></button>`).join('')}</div>`;
+         })()}
          ${chosen.map((idea,ideaIndex)=>{
+           const activeCode=chosen.some(row=>row.code===bridge.activeAssignmentIdeaCode)
+             ? bridge.activeAssignmentIdeaCode : chosen[0]?.code;
            const rows=assignmentsForIdea(bridge,idea.code,pendingDraft);
-           return `<section class="bridge-idea-assignees" data-idea-code="${escape(idea.code)}">
+           return `<section class="bridge-idea-assignees" data-idea-code="${escape(idea.code)}"
+             id="bridge-assign-panel-${escape(idea.code)}" role="tabpanel" aria-labelledby="bridge-assign-tab-${escape(idea.code)}"
+             ${idea.code!==activeCode?'hidden':''}>
              <div class="bridge-idea-assignees-head"><span>الفكرة ${ideaIndex+1} من ${chosen.length}</span><strong>${escape(idea.title)}</strong><small>${escape(idea.kind==='video'?'فيديو':'صورة')}</small></div>
              <div class="bridge-assignees">${rows.map((entry,index)=>{
                const person=bridge.executors.find(row=>row.user_id+'|'+row.department_id===entry.assignee);

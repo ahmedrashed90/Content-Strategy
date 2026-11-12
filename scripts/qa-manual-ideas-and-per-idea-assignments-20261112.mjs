@@ -77,6 +77,17 @@ bridge.assignmentsByIdea={
  'MAN-I02':[{assignee:'editor|editdept',dueOn:'2027-06-15'}]};
 const html=context.__qa.bridgePage(state);
 assert.equal((html.match(/class="bridge-idea-assignees"/g)||[]).length,2);
+assert(html.includes('role="tablist"'), 'Ideas must be navigable horizontally in step 03');
+assert.equal((html.match(/data-action="bridge-pick-assignment-idea"/g)||[]).length,2);
+assert.equal((html.match(/role="tabpanel"/g)||[]).length,2);
+assert(/id="bridge-assign-panel-MAN-I02"[^>]*hidden/.test(html), 'Only the current idea assignment pane must remain visible');
+assert(html.includes('id="bridge-assign-panel-MAN-V01" role="tabpanel" aria-labelledby="bridge-assign-tab-MAN-V01"'), 'The first idea is active by default');
+assert(html.includes('novalidate'), 'Hidden required fields must use the central multi-idea validator, not native validation');
+assert(modalApp.includes("if(action==='bridge-pick-assignment-idea')"), 'Tab navigation must preserve unsubmitted dates without replacing the form');
+const bridgeCss=fs.readFileSync(new URL('../site/styles.css',import.meta.url),'utf8');
+assert(bridgeCss.includes('.bridge-assignment-tabs{display:flex'));
+assert(bridgeCss.includes('.bridge-idea-assignees[hidden]{display:none!important}'));
+
 assert(html.includes('name="assignee_MAN-V01_0"'));
 assert(html.includes('name="assignee_MAN-I02_0"'));
 assert(html.includes('name="dueOn_MAN-I02_0"'));
