@@ -1244,6 +1244,13 @@ body:has(.manual-idea-overlay){overflow:hidden}
 .manual-idea-target-platforms label{display:flex;align-items:center;gap:7px;background:var(--surface-tinted,#fcf8f3);padding:10px 12px;border:1px solid var(--line-strong,#d7c3b6);border-radius:9px;font-size:12px;cursor:pointer}
 .manual-idea-target-platforms input{accent-color:var(--brown,#4a211c);width:16px;height:16px}
 
+/* Task creation: one centered, compact toolbar for all existing category filters
+   and the existing refresh action. This is presentation-only; data actions stay intact. */
+.bridge-studio-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;column-gap:10px;row-gap:7px;margin:0 0 11px;direction:rtl;min-width:0}
+.bridge-studio-toolbar .bridge-top-categories{display:flex!important;flex:0 1 auto;align-items:center;justify-content:center;flex-wrap:wrap!important;overflow:visible!important;gap:7px!important;margin:0!important;padding:0!important;max-width:100%;min-width:0}
+.bridge-studio-toolbar .bridge-top-categories .bridge-category-tab{min-height:39px!important;min-width:0!important;padding:7px 7px!important;font-size:11px!important;gap:6px!important;white-space:nowrap!important}
+.bridge-studio-toolbar .bridge-toolbar-actions{display:flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:0;margin:0!important}
+.bridge-studio-toolbar .bridge-toolbar-actions .btn{min-height:39px;padding:7px 12px;font-size:11px;white-space:nowrap}
 /* Unified wide task creation workspace: category bar + narrow approved-idea rail. */
 .bridge-studio{display:grid;gap:15px;direction:rtl;min-width:0}
 .bridge-top-categories{display:flex!important;flex-wrap:nowrap!important;gap:9px!important;overflow-x:auto!important;padding:8px 2px 14px!important;margin:0!important;scrollbar-width:thin}
@@ -1299,3 +1306,28 @@ body:has(.manual-idea-overlay){overflow:hidden}
 @media(max-width:1350px){.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"type assignees" "cars cars" "formats formats" "footer footer"}}
 @media(max-width:850px){.bridge-studio-layout{grid-template-columns:minmax(0,1fr)}.bridge-studio-sidebar{position:static;max-height:280px;min-height:0}.bridge-studio-sidebar .bridge-approved-list{max-height:160px}.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"type assignees" "cars cars" "formats formats" "footer footer"}}
 @media(max-width:620px){.bridge-editor-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"type" "assignees" "cars" "formats" "footer"}.bridge-editor-footer{flex-direction:column;align-items:stretch}.bridge-studio-header h2{font-size:18px}}
+
+/* Desktop task workspace: fill the open viewport instead of a very tall page.
+   Long lists (stock, sizes and approved ideas) retain their own accessible scroll. */
+@media (min-width:1351px) and (min-height:720px){
+  .content:has(.bridge-studio-toolbar){padding-top:12px;padding-bottom:10px}
+  .bridge-studio-layout{height:calc(100dvh - 146px);min-height:0;align-items:stretch}
+  .bridge-studio-sidebar,.bridge-studio-workspace{height:100%;max-height:none;min-height:0;overflow:hidden;position:static}
+  .bridge-studio-sidebar{padding:12px;gap:8px}
+  .bridge-studio-workspace{display:flex;flex-direction:column;gap:10px;padding:12px}
+  .bridge-studio-header{flex:0 0 auto;gap:8px;padding-bottom:8px}
+  .bridge-studio-header h2{font-size:18px;margin:2px 0}
+  .bridge-editor-grid{flex:1;min-height:0;grid-template-rows:minmax(0,1.12fr) minmax(0,1fr) auto;gap:9px}
+  .bridge-config-pane{min-height:0;overflow:hidden;gap:7px;padding:10px}
+  .bridge-config-assignees .bridge-assignees{flex:1;min-height:0;max-height:none;overflow-y:auto;scrollbar-width:thin}
+  .bridge-config-formats .bridge-format-grid{flex:1;min-height:0;max-height:none;overflow-y:auto;scrollbar-width:thin}
+  .bridge-config-cars .bridge-car-list{flex:1;min-height:0;max-height:none;overflow-y:auto;scrollbar-width:thin}
+  .bridge-config-cars .bridge-confirm{flex:0 0 auto}
+  .bridge-editor-footer{padding-top:8px}
+}
+@media (max-width:700px){
+  .bridge-studio-toolbar{gap:7px;margin-bottom:10px}
+  .bridge-studio-toolbar .bridge-top-categories{justify-content:center;flex:1 1 100%;gap:5px!important}
+  .bridge-studio-toolbar .bridge-toolbar-actions{flex:1 1 100%}
+  .bridge-studio-toolbar .bridge-toolbar-actions .btn{white-space:normal}
+}

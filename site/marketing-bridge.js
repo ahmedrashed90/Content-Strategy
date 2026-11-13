@@ -181,11 +181,13 @@ export function bridgePage(state) {
       <label class="bridge-idea-select-label" title="إضافة هذه الفكرة إلى التكليف"><input type="checkbox" name="bridge-select-idea" value="${escape(idea.code)}" ${checked?'checked':''} ${bridge.category&&idea.marketingCategory!==bridge.category?'disabled':''}/></label>
     </article>`;
   }).join('');
-  return `<div class="ui-page-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div>
+  return `<div class="bridge-studio-toolbar" role="group" aria-label="فلاتر التصنيفات وتحديث البيانات">
+      ${plan?`<nav class="bridge-category-tabs bridge-top-categories" aria-label="التصنيفات">${categories}</nav>`:''}
+      <div class="ui-page-actions bridge-toolbar-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div>
+    </div>
     ${bridge.error?`<div id="bridge-error" role="alert" class="notice warning">${escape(bridge.error)}</div>`:''}
     ${!plan?'<div class="notice warning">حمّل خطة المحتوى أولًا.</div>':`
     <div class="bridge-studio">
-      <nav class="bridge-category-tabs bridge-top-categories" aria-label="التصنيفات">${categories}</nav>
       <div class="bridge-studio-layout">
         <aside class="bridge-studio-sidebar" id="bridge-approved-ideas">
           <div class="bridge-table-heading"><h2>الأفكار المعتمدة</h2><span class="bridge-summary-count">${visible.length} فكرة</span></div>
