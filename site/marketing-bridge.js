@@ -108,6 +108,7 @@ export function selectBridgeIdea(state, code, add=true) {
    state.bridge.carModesByIdea[state.bridge.ideaCode]=state.bridge.mode;
    state.bridge.carSelectionsByIdea[state.bridge.ideaCode]=[...state.bridge.chosenStocks];
  }
+ if(state.bridge.ideaCode!==code)state.bridge.stockSearch='';
  state.bridge.ideaCode=code||'';
  state.bridge.activeAssignmentIdeaCode=code||'';
  state.bridge.mode=state.bridge.carModesByIdea[code]||first?.approvedCarMode||'single';
