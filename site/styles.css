@@ -1243,3 +1243,56 @@ body:has(.manual-idea-overlay){overflow:hidden}
 .manual-idea-platform-selection legend{font-size:12px;font-weight:850;padding:0 8px}.manual-idea-target-platforms{display:flex;gap:12px;flex-wrap:wrap}
 .manual-idea-target-platforms label{display:flex;align-items:center;gap:7px;background:var(--surface-tinted,#fcf8f3);padding:10px 12px;border:1px solid var(--line-strong,#d7c3b6);border-radius:9px;font-size:12px;cursor:pointer}
 .manual-idea-target-platforms input{accent-color:var(--brown,#4a211c);width:16px;height:16px}
+
+/* Unified wide task creation workspace: category bar + narrow approved-idea rail. */
+.bridge-studio{display:grid;gap:15px;direction:rtl;min-width:0}
+.bridge-top-categories{display:flex!important;flex-wrap:nowrap!important;gap:9px!important;overflow-x:auto!important;padding:8px 2px 14px!important;margin:0!important;scrollbar-width:thin}
+.bridge-top-categories .bridge-category-tab{display:flex!important;flex-direction:row!important;min-height:47px!important;white-space:nowrap!important;min-width:max-content!important;padding:10px 15px!important;gap:8px;align-items:center!important;font-size:13px!important}
+.bridge-studio-layout{display:grid;grid-template-columns:minmax(225px,20%) minmax(0,1fr);gap:14px;align-items:start;min-width:0;direction:rtl}
+.bridge-studio-sidebar,.bridge-studio-workspace{border:1px solid var(--line);border-radius:16px;background:var(--paper);padding:16px;min-width:0;box-shadow:0 5px 20px var(--card-shadow-color)}
+.bridge-studio-sidebar{max-height:calc(100dvh - 226px);min-height:420px;display:flex;flex-direction:column;gap:10px;position:sticky;top:10px}
+.bridge-studio-sidebar .bridge-table-heading{display:flex;justify-content:space-between;align-items:center;gap:7px}
+.bridge-studio-sidebar h2{font-size:16px;margin:0}
+.bridge-studio-sidebar .bridge-table-controls{display:flex;gap:6px;align-items:end;flex-wrap:wrap}
+.bridge-studio-sidebar .bridge-table-controls label{font-size:11px;min-width:130px;flex:1}
+.bridge-studio-sidebar .bridge-table-controls input{width:100%;min-height:39px}
+.bridge-studio-sidebar .bridge-approved-list{flex:1;overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:7px;padding-inline-end:3px}
+.bridge-studio-sidebar .bridge-idea-option{display:flex;flex-direction:row;align-items:center;gap:7px;padding:9px 10px;flex-shrink:0}
+.bridge-idea-open{display:grid;gap:5px;flex:1;min-width:0;text-align:right;color:var(--brown);background:transparent;border:0;cursor:pointer;padding:0;font:inherit}
+.bridge-idea-open strong{font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.bridge-idea-open small{font-size:10px;color:var(--muted)}
+.bridge-idea-code{font-family:monospace;font-size:11px;direction:ltr;text-align:right;color:var(--accent);font-weight:800}
+.bridge-idea-select-label{margin:0;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.bridge-idea-select-label input{width:18px;height:18px;accent-color:var(--brown)}
+.bridge-selected-summary{display:flex;align-items:center;gap:5px;font-size:11px;background:var(--surface-warm);border-radius:8px;padding:9px}
+.bridge-studio-workspace{display:grid;gap:15px}
+.bridge-studio-header{display:flex;align-items:start;justify-content:space-between;gap:15px;border-bottom:1px solid var(--line);padding-bottom:14px}
+.bridge-studio-header h2{font-size:22px;line-height:1.4;margin:4px 0}
+.bridge-studio-header p{color:var(--muted);font-size:12px;margin:0}
+.bridge-studio-header small{font-size:11px}
+.bridge-studio-empty{min-height:360px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:10px;color:var(--muted)}
+.bridge-editor-grid{display:grid;direction:rtl;grid-template-columns:minmax(145px,.72fr) minmax(195px,1fr) minmax(220px,1.13fr) minmax(200px,.92fr);gap:12px;align-items:stretch;min-width:0}
+.bridge-assignment-form{display:contents}
+.bridge-config-pane{border:1px solid var(--line);border-radius:12px;padding:13px;background:var(--surface-tinted);display:flex;flex-direction:column;gap:11px;min-width:0}
+.bridge-config-pane h3{font-size:14px;line-height:1.6;margin:0;color:var(--brown)}
+.bridge-config-pane label{display:grid;gap:6px;font-size:11px;font-weight:800;color:var(--brown)}
+.bridge-config-pane input,.bridge-config-pane select{width:100%;min-width:0;min-height:42px;border:1px solid var(--line-strong);border-radius:9px;background:var(--paper);color:var(--brown);padding:8px;font:inherit;font-size:12px}
+.bridge-config-type{grid-column:1}
+.bridge-config-assignees{grid-column:2}
+.bridge-config-cars{grid-column:3}
+.bridge-config-formats{grid-column:4}
+.bridge-config-assignees .bridge-assignees{padding:0;margin:0;display:grid;gap:10px;border:0;background:transparent}
+.bridge-config-assignees .bridge-assignee-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:9px}
+.bridge-config-assignees .bridge-assignee-row small{font-size:10px;color:var(--muted)}
+.bridge-config-assignees .bridge-add-executor{font-size:11px;white-space:normal;padding:10px}
+.bridge-config-cars .bridge-car-list{max-height:320px;overflow:auto;min-height:130px}
+.bridge-config-cars .bridge-stock-summary{font-size:11px}
+.bridge-config-cars .bridge-confirm{margin-top:auto;font-size:12px;white-space:normal}
+.bridge-config-formats .bridge-format-grid{display:grid;grid-template-columns:1fr;gap:8px;max-height:370px;overflow:auto}
+.bridge-config-formats .bridge-format-option{display:flex!important;flex-direction:row!important;gap:8px!important;align-items:center!important;font-size:11px!important;padding:8px!important}
+.bridge-config-formats .bridge-format-option input{width:16px;min-width:16px;height:16px;min-height:16px}
+.bridge-editor-footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:12px;font-size:11px}
+.bridge-editor-footer .bridge-submit{min-height:45px;font-size:12px}
+@media(max-width:1350px){.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bridge-config-type{grid-column:1}.bridge-config-assignees{grid-column:2}.bridge-config-cars{grid-column:1}.bridge-config-formats{grid-column:2}}
+@media(max-width:850px){.bridge-studio-layout{grid-template-columns:minmax(0,1fr)}.bridge-studio-sidebar{position:static;max-height:280px;min-height:0}.bridge-studio-sidebar .bridge-approved-list{max-height:160px}.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.bridge-editor-grid{grid-template-columns:1fr}.bridge-config-type,.bridge-config-assignees,.bridge-config-cars,.bridge-config-formats{grid-column:1}.bridge-editor-footer{flex-direction:column;align-items:stretch}.bridge-studio-header h2{font-size:18px}}

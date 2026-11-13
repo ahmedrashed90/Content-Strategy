@@ -47,19 +47,19 @@ bridge.assignments=[{assignee:'photographer|photo-dept',dueOn:'2027-05-01'},
  {assignee:'editor|edit-dept',dueOn:'2027-05-03'}];
 bridge.taskTypes=[{id:'task-type',name:'تعريف'}];
 bridge.formats=[{id:'format-1',mediaKinds:['video'],platform_name:'Instagram',name:'Reels'}];
-bridge.formatIdsByKind.video=['format-1'];
+bridge.formatIdsByKind.video=['format-1'];bridge.formatIdsByIdea.V01=['format-1'];
 bridge.executors=[{user_id:'photographer',department_id:'photo-dept',full_name:'أحمد ناجي',department_name:'قسم التصوير'},
  {user_id:'editor',department_id:'edit-dept',full_name:'محمد فؤاد',department_name:'قسم المونتاج'}];
 const state={plan,bridge};
 const html=bridgePage(state);
-assert(html.includes('متاح لإعادة الاستخدام'),'Previously used approved idea should remain selectable');
+assert(html.includes('تم التكليف سابقًا'),'Previously used approved idea should remain selectable');
 assert(!/value="V01"[^>]*disabled/.test(html),'Previously used idea checkbox must not be disabled');
 assert(html.includes('أحمد ناجي</option>')&&!html.includes('أحمد ناجي — قسم التصوير'),'Assignee options show only names');
 assert(html.includes('name="dueOn_V01_0"')&&html.includes('name="dueOn_V01_1"'),'Each assignee has independent date input');
 const form={elements:{namedItem:name=>({taskTypeId:{value:'task-type'},
  assignee_V01_0:{value:'photographer|photo-dept'},dueOn_V01_0:{value:'2027-05-01'},
  assignee_V01_1:{value:'editor|edit-dept'},dueOn_V01_1:{value:'2027-05-03'}}[name])},
- querySelectorAll:selector=>selector==='input[name="format_video"]:checked'?[{value:'format-1'}]:[]};
+ querySelectorAll:selector=>selector==='input[name="format_V01"]:checked'?[{value:'format-1'}]:[]};
 await assert.rejects(()=>assignBridgeIdea(state,form),/simulated temporary Firestore failure/);
 assert.equal(created.size,1,'One Marketing task despite Firestore link failure');
 assert.equal(idea.dueDate,'2026-11-05','Old due date is preserved until task successfully linked');

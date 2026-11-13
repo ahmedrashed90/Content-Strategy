@@ -1022,6 +1022,7 @@ async function saveSchedule(form){
 
 async function submitBridgeApproval(form) {
   if (state.bridge.busy || isLocalPreview) return;
+  rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
   const currentCode=state.bridge.ideaCode;
   const selected=[...state.bridge.chosenStocks];
   state.bridge.busy=true;state.bridge.error='';
@@ -1031,7 +1032,7 @@ async function submitBridgeApproval(form) {
       taskCodes(state.plan,code).some(id=>!state.plan.assets.find(asset=>asset.code===id)?.creativeApprovedAt));
     if(outstanding) selectBridgeIdea(state,outstanding,false);
     toast(outstanding?'تم تأكيد السيارات. انتقل لتأكيد الفكرة التالية.':'اكتمل تأكيد السيارات. انتقل لإنشاء التاسك.');
-    state.bridge.focusAfterSave=outstanding?'bridge-cars-area':'bridge-assignment-area';
+    state.bridge.focusAfterSave=outstanding?'bridge-approved-ideas':'bridge-assign';
   } catch(error) {
     state.bridge.error=error?.message||'تعذر تأكيد السيارات. لم يتم إنشاء تاسك.';
   } finally {
@@ -1054,8 +1055,12 @@ function rememberBridgeAssignmentForm(form) {
       dueOn:form.elements.namedItem('dueOn_'+code+'_'+index)?.value||nowInRiyadh()
     }));
   }
-  state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
-    kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+  // Each idea owns its output sizes. Keep the active selections in memory when
+  // switching between approved ideas; older formatIdsByKind remains readable.
+  const code=state.bridge.ideaCode;
+  if(code){
+    state.bridge.formatIdsByIdea[code]=[...form.querySelectorAll('input[name="format_'+code+'"]:checked')].map(input=>input.value);
+  }
 }
 
 async function submitBridgeAssignment(form) {
@@ -1063,18 +1068,15 @@ async function submitBridgeAssignment(form) {
   // All idea panels belong to this one form, including panels hidden behind tabs.
   // Native required validation cannot focus a hidden panel, so open the first
   // incomplete idea before attempting the existing central assignment validator.
-  const missing=[...form.querySelectorAll('.bridge-assignee-row')].find(row=>{
-    const person=row.querySelector('select[name^="assignee_"]');
-    const date=row.querySelector('input[name^="dueOn_"]');
-    return !person?.value || !date?.value;
+  rememberBridgeAssignmentForm(form);
+  const missingCode=state.bridge.selectedCodes.find(code=>{
+    const rows=state.bridge.assignmentsByIdea[code]||[];
+    return !rows.length||rows.some(row=>!row.assignee||!row.dueOn);
   });
-  if(missing){
-    rememberBridgeAssignmentForm(form);
-    state.bridge.activeAssignmentIdeaCode=missing.dataset.idea||state.bridge.selectedCodes[0]||'';
+  if(missingCode){
+    selectBridgeIdea(state,missingCode,false);
     state.bridge.error='حدد المنفذ وتاريخ التسليم لكل فكرة قبل إنشاء التاسك.';
-    render();
-    document.getElementById('bridge-assignment-area')?.scrollIntoView({block:'start'});
-    return;
+    render();return;
   }
   state.bridge.busy=true;state.bridge.error='';
   try {
@@ -1200,9 +1202,9 @@ app.addEventListener('change', async event => {
     state.manualIdeaDraft.kind=event.target.value;
     state.manualIdeaError='';renderManualIdeaAt();return;
   }
-  if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
+  if(event.target.matches?.('input[name="bridge-select-idea"]')){rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));try{toggleBridgeIdea(state,event.target.value,event.target.checked);if(event.target.checked)selectBridgeIdea(state,event.target.value,false);render();}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
-  if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
+  if(event.target.id==='bridge-mode'){rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
   if(event.target.matches?.('input[name="cars"]')){
     const value=event.target.value;
     if(event.target.checked){if(!state.bridge.chosenStocks.includes(value))state.bridge.chosenStocks.push(value);}
@@ -1353,21 +1355,15 @@ app.addEventListener('click', async event => {
     catch(error){state.agenda.error=error?.message||'تعذر إنشاء أجندة في التسويق';}
     render();return;
   }
-  if(action==='bridge-pick-assignment-idea'){
-    const code=control.dataset.idea;
-    if(!code||!state.bridge.selectedCodes.includes(code))return;
-    // Switch panels in place: unsubmitted executor/date input values remain in the form.
-    state.bridge.activeAssignmentIdeaCode=code;
-    const workspace=control.closest('.bridge-ideas-assignees');
-    workspace?.querySelectorAll('.bridge-assignment-tab').forEach(tab=>{
-      const selected=tab.dataset.idea===code;
-      tab.classList.toggle('active',selected);
-      tab.setAttribute('aria-selected',String(selected));
-      tab.tabIndex=selected?0:-1;
-    });
-    workspace?.querySelectorAll('.bridge-idea-assignees').forEach(panel=>{
-      panel.hidden=panel.dataset.ideaCode!==code;
-    });
+  if(action==='bridge-focus-idea'){
+    const code=control.dataset.idea||'';
+    if(!code)return;
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    try{
+      if(!state.bridge.selectedCodes.includes(code))toggleBridgeIdea(state,code,true);
+      selectBridgeIdea(state,code,false);
+      state.bridge.error='';render();
+    }catch(error){state.bridge.error=error?.message||'تعذر اختيار الفكرة';render();}
     return;
   }
   if(action==='bridge-add-assignee'){
@@ -1387,6 +1383,7 @@ app.addEventListener('click', async event => {
     return;
   }
   if(action==='bridge-pick-category'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
     try{selectBridgeCategory(state,control.dataset.category||'');render();}
     catch(error){state.bridge.error=error?.message||'تعذر اختيار التصنيف';render();}
     return;

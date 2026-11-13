@@ -72,37 +72,59 @@ bridge.taskTypes=[{id:'task-type',name:'تعريف'}];bridge.formats=[{id:'v',me
  {id:'i',mediaKinds:['image'],name:'صورة',platform_name:'إنستجرام'}];
 bridge.executors=[{user_id:'photo',department_id:'photodept',department_name:'قسم التصوير',full_name:'أحمد ناجي'},
  {user_id:'editor',department_id:'editdept',department_name:'قسم المونتاج',full_name:'محمود فؤاد'}];
+bridge.formatIdsByIdea={'MAN-V01':['v'],'MAN-I02':['i']};
 bridge.assignmentsByIdea={
  'MAN-V01':[{assignee:'photo|photodept',dueOn:'2027-05-01'},{assignee:'editor|editdept',dueOn:'2027-05-03'}],
  'MAN-I02':[{assignee:'editor|editdept',dueOn:'2027-06-15'}]};
 const html=context.__qa.bridgePage(state);
-assert.equal((html.match(/class="bridge-idea-assignees"/g)||[]).length,2);
-assert(html.includes('role="tablist"'), 'Ideas must be navigable horizontally in step 03');
-assert.equal((html.match(/data-action="bridge-pick-assignment-idea"/g)||[]).length,2);
-assert.equal((html.match(/role="tabpanel"/g)||[]).length,2);
-assert(/id="bridge-assign-panel-MAN-I02"[^>]*hidden/.test(html), 'Only the current idea assignment pane must remain visible');
-assert(html.includes('id="bridge-assign-panel-MAN-V01" role="tabpanel" aria-labelledby="bridge-assign-tab-MAN-V01"'), 'The first idea is active by default');
-assert(html.includes('novalidate'), 'Hidden required fields must use the central multi-idea validator, not native validation');
-assert(modalApp.includes("if(action==='bridge-pick-assignment-idea')"), 'Tab navigation must preserve unsubmitted dates without replacing the form');
+assert(html.includes('class="bridge-top-categories"') || html.includes('bridge-top-categories'), 'Categories are a full-width top bar');
+assert(html.includes('class="bridge-studio-sidebar"'), 'Approved ideas have their own narrow right-side rail');
+assert(html.includes('class="bridge-editor-grid"'), 'Assignment, assignees, cars and formats share one wide workspace');
+assert(html.includes('MAN-V01') && html.includes('MAN-I02'), 'Both stable idea codes appear in the idea selector');
+assert(html.includes('name="assignee_MAN-V01_0"'), 'Active video idea has an assignee');
+assert(!html.includes('name="assignee_MAN-I02_0"'), 'Inactive idea assignees must not clutter the workspace');
+assert(html.includes('name="format_MAN-V01"'), 'Output sizes are linked to this particular idea');
+assert(modalApp.includes("if(action==='bridge-focus-idea')"), 'Switching ideas preserves form values in the same task');
 const bridgeCss=fs.readFileSync(new URL('../site/styles.css',import.meta.url),'utf8');
-assert(bridgeCss.includes('.bridge-assignment-tabs{display:flex'));
-assert(bridgeCss.includes('.bridge-idea-assignees[hidden]{display:none!important}'));
-
-assert(html.includes('name="assignee_MAN-V01_0"'));
-assert(html.includes('name="assignee_MAN-I02_0"'));
-assert(html.includes('name="dueOn_MAN-I02_0"'));
+assert(bridgeCss.includes('.bridge-editor-grid{display:grid;direction:rtl'));
+assert(bridgeCss.includes('.bridge-studio-layout{display:grid'));
 const entries={taskTypeId:'task-type',assignee_MAN_V01_0:''};
 const form={elements:{namedItem:key=>({value:{
   taskTypeId:'task-type',
   'assignee_MAN-V01_0':'photo|photodept','dueOn_MAN-V01_0':'2027-05-01',
   'assignee_MAN-V01_1':'editor|editdept','dueOn_MAN-V01_1':'2027-05-03',
   'assignee_MAN-I02_0':'editor|editdept','dueOn_MAN-I02_0':'2027-06-15'}[key]||''})},
- querySelectorAll:key=>key==='input[name="format_video"]:checked'?[{value:'v'}]:key==='input[name="format_image"]:checked'?[{value:'i'}]:[]};
+ querySelectorAll:key=>key==='input[name="format_MAN-V01"]:checked'?[{value:'v'}]:[]};
 await context.__qa.assignBridgeIdea(state,form);
 assert.equal(requests.length,1);assert.equal(requests[0].items.length,3);
 assert.equal(requests[0].items.filter(item=>item.ideaCode==='MAN-V01').length,2);
 assert.equal(requests[0].items.filter(item=>item.ideaCode==='MAN-I02').length,1);
 assert.equal(requests[0].items.find(item=>item.ideaCode==='MAN-I02').dueOn,'2027-06-15');
+assert.deepEqual(Array.from(requests[0].items.find(item=>item.ideaCode==='MAN-I02').formatIds),['i']);
+assert.deepEqual(Array.from(requests[0].items.find(item=>item.ideaCode==='MAN-V01').formatIds),['v']);
 assert.equal(requests[0].items.find(item=>item.assigneeId==='photo').deliveryMode,'drive_link');
 assert.equal(linked.length,2);assert(linked.some(row=>row.code==='MAN-I02'&&row.newDueDate==='2027-06-15'));
+// Two video ideas intentionally use different platform formats; switching ideas must
+// never apply the first video's format selections to the second video.
+const video2={...idea1,code:'MAN-V03',title:'فيديو ثانٍ بمقاس مختلف'};
+const state2={plan:{assets:[idea1,video2],carousels:[],posts:[]},bridge:context.__qa.newBridgeState()};
+const bridge2=state2.bridge;
+bridge2.category='تعريفي - مواصفات السيارات';bridge2.selectedCodes=['MAN-V01','MAN-V03'];bridge2.ideaCode='MAN-V03';
+bridge2.taskTypes=[{id:'task-type',name:'تعريف'}];
+bridge2.executors=[{user_id:'editor',department_id:'editdept',department_name:'قسم المونتاج',full_name:'محمود فؤاد'}];
+bridge2.formats=[{id:'video-reel',mediaKinds:['video'],name:'ريل',platform_name:'إنستجرام'},
+ {id:'video-wide',mediaKinds:['video'],name:'عريض',platform_name:'يوتيوب'}];
+bridge2.formatIdsByIdea={'MAN-V01':['video-reel'],'MAN-V03':['video-wide']};
+bridge2.assignmentsByIdea={
+ 'MAN-V01':[{assignee:'editor|editdept',dueOn:'2027-06-15'}],
+ 'MAN-V03':[{assignee:'editor|editdept',dueOn:'2027-07-15'}]};
+const twoVideoForm={elements:{namedItem:key=>({value:{
+  taskTypeId:'task-type','assignee_MAN-V01_0':'editor|editdept','dueOn_MAN-V01_0':'2027-06-15',
+  'assignee_MAN-V03_0':'editor|editdept','dueOn_MAN-V03_0':'2027-07-15'}[key]||''})},
+  querySelectorAll:key=>key==='input[name="format_MAN-V03"]:checked'?[{value:'video-wide'}]:[]};
+await context.__qa.assignBridgeIdea(state2,twoVideoForm);
+assert.equal(requests.length,2);
+assert.deepEqual(Array.from(requests[1].items.find(item=>item.ideaCode==='MAN-V01').formatIds),['video-reel']);
+assert.deepEqual(Array.from(requests[1].items.find(item=>item.ideaCode==='MAN-V03').formatIds),['video-wide']);
+console.log('PASS: two videos retain different platform-specific sizes and independent executors/due dates.');
 console.log('PASS: manual video/image ideas, scene/slide content, safe duplicates, per-idea executors and dates, correct 3-item task and links.');
