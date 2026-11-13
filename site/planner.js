@@ -318,7 +318,7 @@ export function assetDetailPage(state){
   const actions=`<button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف</button>`;
   const isSourceBlocked=Boolean(idea.requiresVerification||idea.sourceStatus==='موقوف');
   const decisionButtons=isSourceBlocked
-    ?'<div class="notice warning">الفكرة موقوفة لحين اعتماد المعلومات أو الشروط الناقصة في بريفها الأصلي. لا يمكن إنشاء تكليف لها حاليًا.</div>'
+    ?`<div class="notice warning">الفكرة موقوفة لحين التحقق من المعلومات أو الشروط الناقصة في بريفها الأصلي.</div><button class="btn btn-primary" name="reviewDecision" value="اعتماد الشروط" type="submit">اعتماد المعلومات والشروط وفك إيقاف الفكرة</button>`
     :status==='مرفوض'
     ?`<button class="btn btn-primary" name="reviewDecision" value="بانتظار المراجعة" type="submit">استرجاع الفكرة للمراجعة</button>`
     :status==='معتمد'
@@ -328,7 +328,7 @@ export function assetDetailPage(state){
     <div class="brief-decision-title"><h2>قرار الفكرة</h2>${reviewTag(status)}</div>
     ${pendingRequest?'<span class="review-pending-text">يوجد طلب تكليف لم تكتمل نتيجته. يلزم التحقق منه قبل تغيير حالة الفكرة.</span>':
       `<form id="idea-review-form" class="brief-decision-form"><input type="hidden" name="ideaCode" value="${e(idea.code)}"/><div class="review-decision-actions">${decisionButtons}</div></form>`}
-    ${status==='معتمد'?`<button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}" type="button">تجهيز تكليف جديد</button>`:''}
+    ${status==='معتمد'&&!isSourceBlocked?`<button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}" type="button">تجهيز تكليف جديد</button>`:''}
   </section>`;
   const historyPanel=reviewHistory.length?`<details class="card panel brief-review-history"><summary>سجل المراجعات</summary><div class="review-history">${[...reviewHistory].reverse().slice(0,10).map(record=>`<div class="review-history-item"><span>${reviewTag(record.status)}</span><small>${record.at?e(new Date(record.at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})):''}</small></div>`).join('')}</div></details>`:'';
   const priorPanel=prior.length?`<section class="card panel prior-task-panel"><h2>التكليفات السابقة</h2><div class="prior-task-list">${[...prior].reverse().map(old=>`<div class="prior-task-row"><span><strong>${e(old.taskNo||old.taskId||'—')}</strong><small>مرتبط سابقًا ولا يتغير عند إعادة مراجعة الفكرة</small></span><span>${old.dueDate?dl(old.dueDate):'—'}</span></div>`).join('')}</div></section>`:'';

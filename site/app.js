@@ -834,7 +834,37 @@ async function saveAssetEditor(form){
   }catch(err){toast('فشل حفظ معلومات التخطيط. راجع صلاحيات Firebase والاتصال.');console.warn(err);}
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ التخطيط داخل الاستراتيجية';}}
 }
+async function confirmSourceRequirements(form){
+  if(!state.plan||state.planSaving||isLocalPreview||!state.user)return;
+  const code=form.elements.namedItem('ideaCode')?.value||'';
+  const assets=ideaAssets(state.plan,code);
+  if(!assets.length||!assets.some(asset=>asset.requiresVerification||asset.sourceStatus==='موقوف')){
+    toast('الفكرة لا تحتاج إلى اعتماد شروط إضافية.');return;
+  }
+  if(assets.some(asset=>asset.integrationRequestKey&&!asset.marketingTaskId)){
+    toast('فيه طلب تكليف غير محسوم. تحقق من نتيجته أولًا.');return;
+  }
+  if(!window.confirm('هل راجعت المعلومات والشروط الناقصة في بريف الفكرة وتأكدت من استيفائها؟ سيتم تسجيل الاعتماد باسمك، دون تغيير التكليفات السابقة.'))return;
+  const at=new Date().toISOString();
+  const rows=assets.map(asset=>({code:asset.code,changes:{
+    requiresVerification:false,
+    sourceStatus:asset.sourceStatus==='موقوف'?'تم التحقق':(asset.sourceStatus||''),
+    sourceVerifiedAt:at,
+    sourceVerifiedByUid:state.user.uid
+  }}));
+  state.planSaving=true;
+  try{
+    await updateReviewAssetRows(rows);
+    const updates=new Map(rows.map(row=>[row.code,row.changes]));
+    state.plan.assets=state.plan.assets.map(asset=>updates.has(asset.code)?{...asset,...updates.get(asset.code)}:asset);
+    toast('تم اعتماد المعلومات والشروط. يمكنك الآن اعتماد الفكرة أو تجهيز تكليف جديد لو كانت معتمدة.');
+    state.briefBaseline='';
+  }catch(error){console.warn('Verification save failed:',error?.code||error?.message);toast('تعذر حفظ اعتماد المعلومات. راجع قواعد Firestore.');}
+  finally{state.planSaving=false;render();if(state.view==='asset')state.briefBaseline=readBriefDraft();}
+}
+
 async function saveIdeaReview(form,decision){
+  if(decision==='اعتماد الشروط'){await confirmSourceRequirements(form);return;}
   if(!state.plan||state.planSaving||isLocalPreview)return;
   const code=form.elements.namedItem('ideaCode')?.value||'';
   const assets=ideaAssets(state.plan,code);

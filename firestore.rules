@@ -58,8 +58,14 @@ service cloud.firestore {
             'executor','status','dueDate','comments','updatedAt',
             'approvedVehicles','approvedCarMode','creativeApprovedAt','integrationRequestKey','integrationDraft',
             'reviewStatus','reviewNotes','reviewedAt','reviewedByUid','reviewHistory',
-            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks','retiredFromIdeaBank','retiredAt','retiredReason'
+            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks','retiredFromIdeaBank','retiredAt','retiredReason',
+            'requiresVerification','sourceStatus','sourceVerifiedAt','sourceVerifiedByUid'
           ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['requiresVerification','sourceStatus','sourceVerifiedAt','sourceVerifiedByUid'])
+              || (request.resource.data.requiresVerification == false
+                  && request.resource.data.sourceStatus != 'موقوف'
+                  && request.resource.data.sourceVerifiedByUid == request.auth.uid
+                  && request.resource.data.sourceVerifiedAt is string))
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;
       }
