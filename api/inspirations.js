@@ -1,5 +1,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { prepareIdeaBatch, IDEA_BATCH_SCHEMA } from '../site/idea-import.js';
 
 // ─── Config ──────────────────────────────────────────────────────
 function env(name) { return String(process.env[name] || '').trim(); }
@@ -105,7 +106,7 @@ export default async function handler(req, res) {
       if (typeof body === 'string') body = JSON.parse(body);
 
       const inspirationId = String(body?.inspirationId || '').trim();
-      const ideas = Array.isArray(body?.ideas) ? body.ideas.slice(0, 20) : [];
+      const ideas = Array.isArray(body?.ideas) ? body.ideas : [];
       const notes = String(body?.notes || '').trim().slice(0, 500);
 
       if (!inspirationId) return responseJson(res, 400, { ok: false, error: 'inspirationId required' });
@@ -115,40 +116,42 @@ export default async function handler(req, res) {
       const snap = await docRef.get();
       if (!snap.exists) return responseJson(res, 404, { ok: false, error: 'Inspiration not found' });
 
-      // Save each idea as a full asset with source:'claude' + reviewStatus:'بانتظار المراجعة'
+      // Validate + normalize with the same importer the planner uses (site/idea-import.js),
+      // so every field the brief page shows is stored with the exact names it expects.
+      // Ideas whose code or title already exists are skipped as duplicates.
       const assetsRef = db.collection('contentPlans').doc(PLAN_ID).collection('assets');
-      const savedCodes = [];
-      for (const idea of ideas) {
-        const code = String(idea.code || '').trim();
-        if (!code) continue;
-        // Check if code already exists
-        const existing = await assetsRef.doc(code).get();
-        if (existing.exists) continue;
+      const existingSnap = await assetsRef.get();
+      const existingPlan = { assets: existingSnap.docs.map(doc => doc.data()), carousels: [] };
 
-        await assetsRef.doc(code).set({
-          code,
-          title: String(idea.title || '').trim().slice(0, 200),
-          kind: idea.contentType === 'video' ? 'video' : 'image',
-          imageCount: idea.imageCount || (idea.contentType === 'video' ? 0 : 1),
-          marketingCategory: String(idea.category || '').trim(),
-          message: String(idea.description || '').trim().slice(0, 2000),
-          hook: String(idea.hook || '').trim().slice(0, 500),
-          audienceAndGoal: String(idea.audienceAndGoal || '').trim().slice(0, 1000),
-          brief: String(idea.brief || '').trim().slice(0, 3000),
-          platform: String(idea.platform || '').trim(),
-          executor: '',
-          dueDate: '',
+      let prepared;
+      try {
+        prepared = prepareIdeaBatch(
+          { schema: IDEA_BATCH_SCHEMA, batchId: inspirationId, ideas: body.ideas },
+          existingPlan
+        );
+      } catch (err) {
+        return responseJson(res, 400, { ok: false, error: err.message });
+      }
+
+      const batch = db.batch();
+      const savedCodes = [];
+      for (const item of prepared.items) {
+        const doc = {
+          ...item,
+          source: 'claude',
           status: 'لم يبدأ',
           reviewStatus: 'بانتظار المراجعة',
-          source: 'claude',
+          executor: '',
           inspirationId,
           retiredFromIdeaBank: false,
           createdAt: FieldValue.serverTimestamp(),
-        });
-        savedCodes.push(code);
+        };
+        batch.create(assetsRef.doc(item.code), doc);
+        savedCodes.push(item.code);
       }
+      if (savedCodes.length) await batch.commit();
 
-      // Update inspiration status
+      // Inspiration status becomes «تم التوليد» once the batch has been processed
       await docRef.update({
         status: 'تم التوليد',
         generatedIdeas: FieldValue.arrayUnion(...savedCodes),
@@ -156,7 +159,13 @@ export default async function handler(req, res) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      return responseJson(res, 200, { ok: true, updated: inspirationId, savedIdeas: savedCodes.length, codes: savedCodes });
+      return responseJson(res, 200, {
+        ok: true,
+        updated: inspirationId,
+        savedIdeas: savedCodes.length,
+        codes: savedCodes,
+        skippedDuplicates: prepared.duplicates,
+      });
     }
 
     // ── POST /api/inspirations?action=create ─────────────────────
