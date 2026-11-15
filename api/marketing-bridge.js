@@ -3,7 +3,7 @@ import { createVerify } from 'node:crypto';
 // This function runs on the strategy project's server, not in the browser.
 // It verifies the Firebase owner and forwards one of four allowlisted calls.
 const CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
-const READ_RESOURCES = new Set(['stock','executors','catalog','assignments','agenda-products']);
+const READ_RESOURCES = new Set(['stock','executors','catalog','assignments','agenda-products','plan-drafts']);
 let cachedCerts = null;
 let cachedUntil = 0;
 

@@ -93,10 +93,19 @@ const form={elements:{namedItem:key=>({value:{
   taskTypeId:'task-type',
   'assignee_MAN-V01_0':'photo|photodept','dueOn_MAN-V01_0':'2027-05-01',
   'assignee_MAN-V01_1':'editor|editdept','dueOn_MAN-V01_1':'2027-05-03',
-  'assignee_MAN-I02_0':'editor|editdept','dueOn_MAN-I02_0':'2027-06-15'}[key]||''})},
+  'assignee_MAN-I02_0':'editor|editdept','dueOn_MAN-I02_0':'2027-06-15',
+  'placementKind_MAN-V01':'agenda','placementDraft_MAN-V01':'__new__','placementName_MAN-V01':'أجندة  ديسمبر','placementDate_MAN-V01':'2027-05-10'}[key]||''})},
  querySelectorAll:key=>key==='input[name="format_MAN-V01"]:checked'?[{value:'v'}]:[]};
+// Strategy flow: per-idea destination — a NEW agenda name and an existing campaign draft.
+bridge.planDrafts=[{id:'d0000000-0000-4000-8000-000000000001',kind:'campaign',name:'حملة رمضان',planNo:'CMP-000007',ideaCount:2}];
+bridge.placementsByIdea={'MAN-I02':{kind:'campaign',draftId:'d0000000-0000-4000-8000-000000000001',name:'',date:'2027-06-20'}};
+const placementHtml=context.__qa.bridgePage(state);
+assert(placementHtml.includes('name="placementKind_MAN-V01"'),'Task type block offers agenda/campaign per idea');
 await context.__qa.assignBridgeIdea(state,form);
-assert.equal(requests.length,1);assert.equal(requests[0].items.length,3);
+assert.equal(requests.length,1);
+assert.deepEqual(JSON.parse(JSON.stringify(requests[0].placements)),[
+  {ideaCode:'MAN-V01',kind:'agenda',date:'2027-05-10',category:'تعريفي - مواصفات السيارات',name:'أجندة ديسمبر'},
+  {ideaCode:'MAN-I02',kind:'campaign',date:'2027-06-20',category:'تعريفي - مواصفات السيارات',draftId:'d0000000-0000-4000-8000-000000000001'}]);assert.equal(requests[0].items.length,3);
 assert.equal(requests[0].items.filter(item=>item.ideaCode==='MAN-V01').length,2);
 assert.equal(requests[0].items.filter(item=>item.ideaCode==='MAN-I02').length,1);
 assert.equal(requests[0].items.find(item=>item.ideaCode==='MAN-I02').dueOn,'2027-06-15');
@@ -120,9 +129,14 @@ bridge2.assignmentsByIdea={
  'MAN-V03':[{assignee:'editor|editdept',dueOn:'2027-07-15'}]};
 const twoVideoForm={elements:{namedItem:key=>({value:{
   taskTypeId:'task-type','assignee_MAN-V01_0':'editor|editdept','dueOn_MAN-V01_0':'2027-06-15',
-  'assignee_MAN-V03_0':'editor|editdept','dueOn_MAN-V03_0':'2027-07-15'}[key]||''})},
+  'assignee_MAN-V03_0':'editor|editdept','dueOn_MAN-V03_0':'2027-07-15','placementKind_MAN-V03':'none'}[key]||''})},
   querySelectorAll:key=>key==='input[name="format_MAN-V03"]:checked'?[{value:'video-wide'}]:[]};
+bridge2.placementsByIdea={};
+await assert.rejects(()=>context.__qa.assignBridgeIdea(state2,twoVideoForm),/نوع التاسك في التسويق/,'Every idea needs an explicit agenda/campaign/task-only choice');
+assert.equal(requests.length,1,'Missing destination never sends a request');
+bridge2.placementsByIdea={'MAN-V01':{kind:'none'}};
 await context.__qa.assignBridgeIdea(state2,twoVideoForm);
+assert.equal(requests.at(-1).placements,undefined);
 assert.equal(requests.length,2);
 assert.deepEqual(Array.from(requests[1].items.find(item=>item.ideaCode==='MAN-V01').formatIds),['video-reel']);
 assert.deepEqual(Array.from(requests[1].items.find(item=>item.ideaCode==='MAN-V03').formatIds),['video-wide']);

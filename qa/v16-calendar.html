@@ -1257,6 +1257,13 @@ body:has(.manual-idea-overlay){overflow:hidden}
 .manual-idea-target-platforms label{display:flex;align-items:center;gap:7px;background:var(--surface-tinted,#fcf8f3);padding:10px 12px;border:1px solid var(--line-strong,#d7c3b6);border-radius:9px;font-size:12px;cursor:pointer}
 .manual-idea-target-platforms input{accent-color:var(--brown,#4a211c);width:16px;height:16px}
 
+/* Task creation: one centered, compact toolbar for all existing category filters
+   and the existing refresh action. This is presentation-only; data actions stay intact. */
+.bridge-studio-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;column-gap:10px;row-gap:7px;margin:0 0 11px;direction:rtl;min-width:0}
+.bridge-studio-toolbar .bridge-top-categories{display:flex!important;flex:0 1 auto;align-items:center;justify-content:center;flex-wrap:wrap!important;overflow:visible!important;gap:7px!important;margin:0!important;padding:0!important;max-width:100%;min-width:0}
+.bridge-studio-toolbar .bridge-top-categories .bridge-category-tab{min-height:39px!important;min-width:0!important;padding:7px 7px!important;font-size:11px!important;gap:6px!important;white-space:nowrap!important}
+.bridge-studio-toolbar .bridge-toolbar-actions{display:flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:0;margin:0!important}
+.bridge-studio-toolbar .bridge-toolbar-actions .btn{min-height:39px;padding:7px 12px;font-size:11px;white-space:nowrap}
 /* Unified wide task creation workspace: category bar + narrow approved-idea rail. */
 .bridge-studio{display:grid;gap:15px;direction:rtl;min-width:0}
 .bridge-top-categories{display:flex!important;flex-wrap:nowrap!important;gap:9px!important;overflow-x:auto!important;padding:8px 2px 14px!important;margin:0!important;scrollbar-width:thin}
@@ -1284,31 +1291,59 @@ body:has(.manual-idea-overlay){overflow:hidden}
 .bridge-studio-header p{color:var(--muted);font-size:12px;margin:0}
 .bridge-studio-header small{font-size:11px}
 .bridge-studio-empty{min-height:360px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:10px;color:var(--muted)}
-.bridge-editor-grid{display:grid;direction:rtl;grid-template-columns:minmax(145px,.72fr) minmax(195px,1fr) minmax(220px,1.13fr) minmax(200px,.92fr);gap:12px;align-items:stretch;min-width:0}
+.bridge-editor-grid{display:grid;direction:rtl;grid-template-columns:minmax(155px,.66fr) minmax(210px,1fr) minmax(290px,1.45fr);grid-template-areas:"type assignees cars" "formats formats cars" "footer footer footer";gap:12px;align-items:stretch;min-width:0}
 .bridge-assignment-form{display:contents}
 .bridge-config-pane{border:1px solid var(--line);border-radius:12px;padding:13px;background:var(--surface-tinted);display:flex;flex-direction:column;gap:11px;min-width:0}
 .bridge-config-pane h3{font-size:14px;line-height:1.6;margin:0;color:var(--brown)}
 .bridge-config-pane label{display:grid;gap:6px;font-size:11px;font-weight:800;color:var(--brown)}
 .bridge-config-pane input,.bridge-config-pane select{width:100%;min-width:0;min-height:42px;border:1px solid var(--line-strong);border-radius:9px;background:var(--paper);color:var(--brown);padding:8px;font:inherit;font-size:12px}
-.bridge-config-type{grid-column:1}
-.bridge-config-assignees{grid-column:2}
-.bridge-config-cars{grid-column:3}
-.bridge-config-formats{grid-column:4}
+.bridge-config-type{grid-area:type}
+.bridge-config-assignees{grid-area:assignees}
+.bridge-config-cars{grid-area:cars}
+.bridge-config-formats{grid-area:formats}
 .bridge-config-assignees .bridge-assignees{padding:0;margin:0;display:grid;gap:10px;border:0;background:transparent}
 .bridge-config-assignees .bridge-assignee-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:9px}
 .bridge-config-assignees .bridge-assignee-row small{font-size:10px;color:var(--muted)}
 .bridge-config-assignees .bridge-add-executor{font-size:11px;white-space:normal;padding:10px}
-.bridge-config-cars .bridge-car-list{max-height:320px;overflow:auto;min-height:130px}
+.bridge-config-cars .bridge-car-list{display:grid;grid-template-columns:minmax(0,1fr);max-height:420px;min-height:210px;overflow-y:auto;overflow-x:hidden;align-content:start}
+.bridge-config-cars .bridge-car-option{display:flex!important;flex-direction:row!important;align-items:center;gap:10px;width:100%;min-width:0;min-height:58px;box-sizing:border-box;white-space:normal}
+.bridge-config-cars .bridge-car-option input[type="checkbox"]{width:18px!important;min-width:18px!important;height:18px!important;min-height:18px!important;flex:0 0 18px;padding:0;margin:0;accent-color:var(--brown)}
+.bridge-config-cars .bridge-car-copy{display:grid;flex:1 1 auto;min-width:0;max-width:100%;width:auto;white-space:normal;overflow-wrap:break-word;word-break:normal}
 .bridge-config-cars .bridge-stock-summary{font-size:11px}
 .bridge-config-cars .bridge-confirm{margin-top:auto;font-size:12px;white-space:normal}
 .bridge-config-formats .bridge-format-grid{display:grid;grid-template-columns:1fr;gap:8px;max-height:370px;overflow:auto}
 .bridge-config-formats .bridge-format-option{display:flex!important;flex-direction:row!important;gap:8px!important;align-items:center!important;font-size:11px!important;padding:8px!important}
 .bridge-config-formats .bridge-format-option input{width:16px;min-width:16px;height:16px;min-height:16px}
-.bridge-editor-footer{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:12px;font-size:11px}
+.bridge-editor-footer{grid-area:footer;display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:12px;font-size:11px}
 .bridge-editor-footer .bridge-submit{min-height:45px;font-size:12px}
-@media(max-width:1350px){.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bridge-config-type{grid-column:1}.bridge-config-assignees{grid-column:2}.bridge-config-cars{grid-column:1}.bridge-config-formats{grid-column:2}}
-@media(max-width:850px){.bridge-studio-layout{grid-template-columns:minmax(0,1fr)}.bridge-studio-sidebar{position:static;max-height:280px;min-height:0}.bridge-studio-sidebar .bridge-approved-list{max-height:160px}.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:620px){.bridge-editor-grid{grid-template-columns:1fr}.bridge-config-type,.bridge-config-assignees,.bridge-config-cars,.bridge-config-formats{grid-column:1}.bridge-editor-footer{flex-direction:column;align-items:stretch}.bridge-studio-header h2{font-size:18px}}
+@media(max-width:1350px){.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"type assignees" "cars cars" "formats formats" "footer footer"}}
+@media(max-width:850px){.bridge-studio-layout{grid-template-columns:minmax(0,1fr)}.bridge-studio-sidebar{position:static;max-height:280px;min-height:0}.bridge-studio-sidebar .bridge-approved-list{max-height:160px}.bridge-editor-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"type assignees" "cars cars" "formats formats" "footer footer"}}
+@media(max-width:620px){.bridge-editor-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"type" "assignees" "cars" "formats" "footer"}.bridge-editor-footer{flex-direction:column;align-items:stretch}.bridge-studio-header h2{font-size:18px}}
+
+/* Desktop task workspace: fill the open viewport instead of a very tall page.
+   Long lists (stock, sizes and approved ideas) retain their own accessible scroll. */
+@media (min-width:1351px) and (min-height:720px){
+  .content:has(.bridge-studio-toolbar){padding-top:12px;padding-bottom:10px}
+  .bridge-studio-layout{height:calc(100dvh - 146px);min-height:0;align-items:stretch}
+  .bridge-studio-sidebar,.bridge-studio-workspace{height:100%;max-height:none;min-height:0;overflow:hidden;position:static}
+  .bridge-studio-sidebar{padding:12px;gap:8px}
+  .bridge-studio-workspace{display:flex;flex-direction:column;gap:10px;padding:12px}
+  .bridge-studio-header{flex:0 0 auto;gap:8px;padding-bottom:8px}
+  .bridge-studio-header h2{font-size:18px;margin:2px 0}
+  .bridge-editor-grid{flex:1;min-height:0;grid-template-rows:minmax(0,1.12fr) minmax(0,1fr) auto;gap:9px}
+  .bridge-config-pane{min-height:0;overflow:hidden;gap:7px;padding:10px}
+  .bridge-config-assignees .bridge-assignees{flex:1;min-height:0;max-height:none;overflow-y:auto;scrollbar-width:thin}
+  .bridge-config-formats .bridge-format-grid{flex:1;min-height:0;max-height:none;overflow-y:auto;scrollbar-width:thin}
+  .bridge-config-cars .bridge-car-list{flex:1;min-height:0;max-height:none;overflow-y:auto;scrollbar-width:thin}
+  .bridge-config-cars .bridge-confirm{flex:0 0 auto}
+  .bridge-editor-footer{padding-top:8px}
+}
+@media (max-width:700px){
+  .bridge-studio-toolbar{gap:7px;margin-bottom:10px}
+  .bridge-studio-toolbar .bridge-top-categories{justify-content:center;flex:1 1 100%;gap:5px!important}
+  .bridge-studio-toolbar .bridge-toolbar-actions{flex:1 1 100%}
+  .bridge-studio-toolbar .bridge-toolbar-actions .btn{white-space:normal}
+}
 </style>
   <script src="./theme-manager.js"></script>
 </head>

@@ -36,6 +36,38 @@ const selectionCodes = bridge => [...new Set(bridge.selectedCodes||[])];
 const ideaRows = plan => plan ? [...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))] : [];
 const selectedIdeas = state => selectionCodes(state.bridge).map(code=>getIdea(state.plan,code)).filter(Boolean);
 const defaultAssignment = () => ({assignee:'',dueOn:nowInRiyadh()});
+/** Strategy flow destination per idea: none | agenda (تاريخ النشر) | campaign (تاريخ التمويل).
+ * draftId '__new__' means a new draft name typed in `name`. */
+export const NEW_PLAN_DRAFT='__new__';
+export function placementForIdea(bridge,code){
+  const saved=bridge.placementsByIdea?.[code];
+  if(saved)return saved;
+  const last=bridge.lastPlacement;
+  return last?{...last}:{kind:'',draftId:'',name:'',date:''};
+}
+export function readPlacementForm(form,code,fallback){
+  const field=name=>form?.elements?.namedItem(name+'_'+code);
+  if(!field('placementKind'))return fallback;
+  return {kind:String(field('placementKind')?.value||''),draftId:String(field('placementDraft')?.value||''),
+    name:String(field('placementName')?.value||'').trim().replace(/\s+/g,' '),date:String(field('placementDate')?.value||'')};
+}
+/** Validated payload row, or null for «تاسك فقط». Throws an Arabic reason. */
+export function placementPayload(bridge,idea,placement){
+  const label=idea.title||idea.code;
+  if(!placement||!placement.kind)throw Error('حدد في «نوع التاسك في التسويق» هل الفكرة لأجندة أو حملة أو تاسك فقط: '+label);
+  if(placement.kind==='none')return null;
+  if(placement.kind!=='agenda'&&placement.kind!=='campaign')throw Error('اختيار الوجهة غير صحيح: '+label);
+  const dateLabel=placement.kind==='agenda'?'تاريخ النشر':'تاريخ التمويل';
+  if(!validISODate(placement.date)||placement.date<nowInRiyadh())throw Error('حدد '+dateLabel+' (اليوم أو بعده) للفكرة: '+label);
+  const base={ideaCode:idea.code,kind:placement.kind,date:placement.date,category:String(idea.marketingCategory||'').slice(0,120)};
+  if(placement.draftId&&placement.draftId!==NEW_PLAN_DRAFT){
+    const draft=(bridge.planDrafts||[]).find(row=>row.id===placement.draftId);
+    if(!draft||draft.kind!==placement.kind)throw Error('اختر اسم '+(placement.kind==='agenda'?'الأجندة':'الحملة')+' من القائمة أو اكتب اسمًا جديدًا: '+label);
+    return {...base,draftId:draft.id};
+  }
+  if(!placement.name||placement.name.length>250)throw Error('اكتب اسم '+(placement.kind==='agenda'?'الأجندة':'الحملة')+' الجديدة للفكرة: '+label);
+  return {...base,name:placement.name};
+}
 /** Compare old shared-assignee drafts and new per-idea drafts by their data, not
  * JSON object insertion order. This preserves safe retries across schema versions. */
 export function sameAssignmentDraft(saved,draft) {
@@ -64,7 +96,8 @@ export function newBridgeState() {
  return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
   category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
   formatIdsByKind:{image:[],video:[]},formatIdsByIdea:{},taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},activeAssignmentIdeaCode:'',carSelectionsByIdea:{},carModesByIdea:{},
-  remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true};
+  remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true,
+  planDrafts:[],placementsByIdea:{},lastPlacement:null};
 }
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category))throw Error('تصنيف غير معتمد');
@@ -85,6 +118,7 @@ export function toggleBridgeIdea(state,code,checked) {
    bridge.assignmentsByIdea=Object.fromEntries(bridge.selectedCodes.map(ideaCode=>[ideaCode,
      (stored.assignmentsByIdea?.[ideaCode] || stored.assignments || [defaultAssignment()]).map(row=>({...row}))]));
    bridge.formatIdsByIdea=stored.formatIdsByIdea||{};
+   bridge.placementsByIdea={...(stored.placementsByIdea||{}),...bridge.placementsByIdea};
  }else bridge.selectedCodes=checked?[...selectionCodes(bridge).filter(x=>x!==code),code]:selectionCodes(bridge).filter(x=>x!==code);
  if(!bridge.selectedCodes.includes(bridge.ideaCode)) selectBridgeIdea(state,bridge.selectedCodes[0]||'',false);
  else bridge.activeAssignmentIdeaCode=bridge.ideaCode;
@@ -101,6 +135,7 @@ export function selectBridgeIdea(state, code, add=true) {
      state.bridge.assignmentsByIdea=Object.fromEntries(state.bridge.selectedCodes.map(ideaCode=>[ideaCode,
        (first.integrationDraft.assignmentsByIdea?.[ideaCode] || first.integrationDraft.assignments || [defaultAssignment()]).map(row=>({...row}))]));
      state.bridge.formatIdsByIdea=first.integrationDraft.formatIdsByIdea||{};
+     state.bridge.placementsByIdea={...(first.integrationDraft.placementsByIdea||{}),...state.bridge.placementsByIdea};
    }
    else if(!state.bridge.selectedCodes.includes(code))state.bridge.selectedCodes.push(code);
  }
@@ -129,11 +164,31 @@ export async function reloadBridge(state) {
   if(state.loading)return;
   state.loading=true;state.error='';
   try {
-    const [stock,people,types]=await Promise.all([fetchBridge('stock'),fetchBridge('executors'),fetchBridge('catalog')]);
+    const [stock,people,types,drafts]=await Promise.all([fetchBridge('stock'),fetchBridge('executors'),fetchBridge('catalog'),
+      fetchBridge('plan-drafts').catch(()=>({drafts:[]}))]);
     state.stock=stock.cars||[];state.executors=people.executors||[];
     state.taskTypes=types.taskTypes||[];state.formats=types.formats||[];
+    state.planDrafts=drafts.drafts||[];
   }catch(error){state.error=String(error?.message||error);}
   finally{state.loading=false;}
+}
+function placementFields(bridge,idea){
+  const code=idea.code,p=placementForIdea(bridge,code);
+  const drafts=(bridge.planDrafts||[]).filter(row=>row.kind===p.kind);
+  const kindLabel=p.kind==='campaign'?'الحملة':'الأجندة';
+  const isNew=p.draftId===NEW_PLAN_DRAFT||(!p.draftId&&Boolean(p.name));
+  return `<div class="bridge-placement" data-placement-code="${escape(code)}">
+    <label>الوجهة في قسم النشر<select name="placementKind_${escape(code)}" data-placement="kind" required>
+      ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
+    ${p.kind==='agenda'||p.kind==='campaign'?`
+    <label>اسم ${kindLabel}<select name="placementDraft_${escape(code)}" data-placement="draft">
+      ${opt('','اختر '+kindLabel+' (مسودة)',isNew?NEW_PLAN_DRAFT:p.draftId)}
+      ${drafts.map(row=>opt(row.id,row.name+' — '+row.planNo+' · '+(row.ideaCount||0)+' فكرة',isNew?NEW_PLAN_DRAFT:p.draftId)).join('')}
+      ${opt(NEW_PLAN_DRAFT,'+ '+kindLabel+' جديدة',isNew?NEW_PLAN_DRAFT:p.draftId)}</select></label>
+    ${isNew?`<label>اسم ${kindLabel} الجديدة<input name="placementName_${escape(code)}" maxlength="250" value="${escape(p.name)}" placeholder="مثال: ${p.kind==='campaign'?'حملة ديسمبر':'أجندة ديسمبر'}" required/></label>`:''}
+    <label>${p.kind==='agenda'?'تاريخ النشر':'تاريخ التمويل'}<input type="date" name="placementDate_${escape(code)}" min="${nowInRiyadh()}" value="${escape(p.date)}" required/></label>
+    <small>تظهر في التسويق كـ «مسودة ${kindLabel}» داخل قسم النشر حتى لو الفكرة لم تُنفذ بعد.</small>`:''}
+  </div>`;
 }
 export function bridgePage(state) {
   const bridge=state.bridge,plan=state.plan;
@@ -202,6 +257,7 @@ export function bridgePage(state) {
             <form id="bridge-assign" class="bridge-assignment-form" novalidate>
               <section class="bridge-config-pane bridge-config-type"><h3>نوع التاسك في التسويق</h3>
                 <label>نوع التاسك في التسويق<select name="taskTypeId" required ${locked?'disabled':''}><option value="">اختر النوع</option>${bridge.taskTypes.map(type=>opt(type.id,type.name,taskTypeDefault)).join('')}</select></label>
+                ${placementFields(bridge,current)}
                 <small>كود الفكرة: ${escape(current.code)}</small></section>
               <section class="bridge-config-pane bridge-config-assignees" data-idea-code="${escape(current.code)}"><h3>المنفذون ومواعيد التسليم لكل فكرة</h3>
                 <div class="bridge-assignees">${rows.map((entry,index)=>{
@@ -297,9 +353,14 @@ export async function assignBridgeIdea(state,form) {
      throw Error('اختر مقاسات '+(kind==='image'?'الصور':'الفيديو')+' للفكرة: '+idea.title);
  }
  const formatsByKind=originalDraft?.formatIdsByKind||bridge.formatIdsByKind;
+ // Strategy flow destination (agenda / campaign draft) per idea.
+ const currentPlacement=readPlacementForm(form,bridge.ideaCode,null);
+ if(currentPlacement)bridge.placementsByIdea[bridge.ideaCode]=currentPlacement;
+ const placementsByIdea=Object.fromEntries(ideas.map(idea=>[idea.code,bridge.placementsByIdea?.[idea.code]||originalDraft?.placementsByIdea?.[idea.code]||null]));
+ const placements=ideas.map(idea=>placementPayload(bridge,idea,placementsByIdea[idea.code])).filter(Boolean);
  const assets=groups.flatMap(group=>group.assets);
  const pending=assets.filter(a=>a.integrationDraft?.pending===true&&a.integrationRequestKey);
- const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignmentsByIdea,formatIdsByKind:formatsByKind,formatIdsByIdea:formatsByIdea,
+ const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignmentsByIdea,formatIdsByKind:formatsByKind,formatIdsByIdea:formatsByIdea,placementsByIdea,
    name:pending.length ? (pending[0].integrationDraft?.name||name) : name};
  let requestKey;
  if(pending.length){
@@ -328,7 +389,8 @@ export async function assignBridgeIdea(state,form) {
      deliveryMode:assignment.deliveryMode,mediaKind:imageOrVideo(idea),ideaName:idea.title,idea:ideaText,
      explanation,creativeTreatment,dueOn:assignment.dueOn,formatIds:formatsByIdea[idea.code]};
  })));
- const result=await fetchBridge('assignments',{body:{requestKey,typeId,name:draft.name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items}});
+ const result=await fetchBridge('assignments',{body:{requestKey,typeId,name:draft.name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items,
+   ...(placements.length?{placements}:{})}});
  const links=groups.flatMap(({idea,assets})=>{
    const primary=items.find(item=>item.ideaCode===idea.code&&item.deliveryMode==='files') || items.find(item=>item.ideaCode===idea.code);
    const itemId=result.items?.find(row=>row.client_key===primary?.clientKey)?.id;
@@ -342,6 +404,8 @@ export async function assignBridgeIdea(state,form) {
  });
  if(links.some(link=>!link.itemId))throw Error('تم إنشاء التاسك لكن ربط المطلوبات لم يكتمل؛ أعد نفس الطلب');
  await linkMarketingTask(links);
+ bridge.placementsByIdea={};
+ try{ bridge.planDrafts=(await fetchBridge('plan-drafts')).drafts||bridge.planDrafts; }catch{ /* list refresh is optional */ }
  for(const link of links){
    const asset=plan.assets.find(a=>a.code===link.code);
    const old=link.previousTask&&link.previousTask.taskId!==link.taskId?[link.previousTask]:[];

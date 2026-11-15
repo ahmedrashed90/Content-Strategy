@@ -1331,3 +1331,8 @@ body:has(.manual-idea-overlay){overflow:hidden}
   .bridge-studio-toolbar .bridge-toolbar-actions{flex:1 1 100%}
   .bridge-studio-toolbar .bridge-toolbar-actions .btn{white-space:normal}
 }
+
+/* Strategy flow: agenda / campaign destination per idea inside «نوع التاسك في التسويق». */
+.bridge-placement{display:grid;gap:10px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line,#e2d6ca)}
+.bridge-placement label{display:grid;gap:6px}
+.bridge-placement small{opacity:.75}

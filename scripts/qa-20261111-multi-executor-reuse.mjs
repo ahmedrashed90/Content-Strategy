@@ -48,6 +48,8 @@ bridge.assignments=[{assignee:'photographer|photo-dept',dueOn:'2027-05-01'},
 bridge.taskTypes=[{id:'task-type',name:'تعريف'}];
 bridge.formats=[{id:'format-1',mediaKinds:['video'],platform_name:'Instagram',name:'Reels'}];
 bridge.formatIdsByKind.video=['format-1'];bridge.formatIdsByIdea.V01=['format-1'];
+// Strategy flow: this suite covers «تاسك فقط» (no agenda/campaign draft).
+bridge.placementsByIdea={V01:{kind:'none'}};
 bridge.executors=[{user_id:'photographer',department_id:'photo-dept',full_name:'أحمد ناجي',department_name:'قسم التصوير'},
  {user_id:'editor',department_id:'edit-dept',full_name:'محمد فؤاد',department_name:'قسم المونتاج'}];
 const state={plan,bridge};
@@ -64,6 +66,7 @@ await assert.rejects(()=>assignBridgeIdea(state,form),/simulated temporary Fires
 assert.equal(created.size,1,'One Marketing task despite Firestore link failure');
 assert.equal(idea.dueDate,'2026-11-05','Old due date is preserved until task successfully linked');
 assert.equal(attempts[0].items.length,2);
+assert.equal(attempts[0].placements,undefined,'«تاسك فقط» sends no draft placement');
 const [photo,edit]=attempts[0].items;
 assert.equal(photo.deliveryMode,'drive_link');assert.equal(photo.dueOn,'2027-05-01');
 assert.equal(edit.deliveryMode,'files');assert.equal(edit.dueOn,'2027-05-03');
@@ -85,6 +88,7 @@ assert.equal(idea.integrationDraft,null);
 bridge.assignments=[{assignee:'editor|edit-dept',dueOn:'2027-06-01'}];
 const one={...form,elements:{namedItem:name=>({taskTypeId:{value:'task-type'},
  assignee_V01_0:{value:'editor|edit-dept'},dueOn_V01_0:{value:'2027-06-01'}}[name])}};
+bridge.placementsByIdea={V01:{kind:'none'}};
 await assignBridgeIdea(state,one);
 assert.equal(created.size,2,'Reusing an already linked idea must create a new legitimate task');
 assert.equal(idea.previousMarketingTasks.length,2,'Old and previous links must remain in history');
@@ -93,6 +97,7 @@ assert.equal(idea.previousMarketingTasks[1].taskId,'new-task-0');
 bridge.assignments=[{assignee:'photographer|photo-dept',dueOn:'2027-07-01'}];
 const captureOnly={...form,elements:{namedItem:name=>({taskTypeId:{value:'task-type'},
  assignee_V01_0:{value:'photographer|photo-dept'},dueOn_V01_0:{value:'2027-07-01'}}[name])}};
+bridge.placementsByIdea={V01:{kind:'none'}};
 await assignBridgeIdea(state,captureOnly);
 assert.equal(created.size,3);
 assert.equal(attempts.at(-1).items[0].deliveryMode,'drive_link');

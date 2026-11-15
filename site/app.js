@@ -5,7 +5,7 @@ import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaselin
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
@@ -1088,6 +1088,13 @@ function rememberBridgeAssignmentForm(form) {
   // Each idea owns its output sizes. Keep the active selections in memory when
   // switching between approved ideas; older formatIdsByKind remains readable.
   const code=state.bridge.ideaCode;
+  // Strategy flow: agenda/campaign destination of the idea currently open.
+  const placement=code?readPlacementForm(form,code,null):null;
+  if(placement){
+    if(placement.kind!=='agenda'&&placement.kind!=='campaign'){placement.draftId='';placement.name='';placement.date='';}
+    state.bridge.placementsByIdea[code]=placement;
+    if(placement.kind)state.bridge.lastPlacement={...placement};
+  }
   if(code){
     state.bridge.formatIdsByIdea[code]=[...form.querySelectorAll('input[name="format_'+code+'"]:checked')].map(input=>input.value);
   }
@@ -1106,6 +1113,13 @@ async function submitBridgeAssignment(form) {
   if(missingCode){
     selectBridgeIdea(state,missingCode,false);
     state.bridge.error='حدد المنفذ وتاريخ التسليم لكل فكرة قبل إنشاء التاسك.';
+    render();return;
+  }
+  const missingPlacement=state.bridge.selectedCodes.find(code=>!state.bridge.placementsByIdea[code]?.kind);
+  if(missingPlacement){
+    selectBridgeIdea(state,missingPlacement,false);
+    state.bridge.placementsByIdea[missingPlacement]=placementForIdea(state.bridge,missingPlacement);
+    state.bridge.error='حدد في «نوع التاسك في التسويق» الأجندة أو الحملة (أو تاسك فقط) لهذه الفكرة ثم أعد الضغط على إنشاء التاسك.';
     render();return;
   }
   state.bridge.busy=true;state.bridge.error='';
@@ -1225,6 +1239,7 @@ app.addEventListener('change', async event => {
   if(event.target.closest?.('#bridge-assign')){
     rememberBridgeAssignmentForm(event.target.closest('#bridge-assign'));
     if(event.target.matches?.('select[name^="assignee_"]'))render();
+    if(event.target.matches?.('select[data-placement]'))render();
     return;
   }
   if(event.target.closest?.('#manual-idea-form')&&event.target.name==='kind'){
