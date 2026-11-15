@@ -1357,3 +1357,6 @@ body:has(.manual-idea-overlay){overflow:hidden}
 .plan-pill.p-unused{background:#f7f1ec;color:#7a5a4b;border-color:#e3d3c6}
 .bridge-placement-name{display:grid;gap:6px}
 .bridge-placement-delete{justify-self:start;font-size:11px!important;padding:5px 10px!important;color:#a0402d!important;border-color:#e8c4b8!important;background:#fff7f4!important}
+/* «إنشاء تاسك واحد…» always visible: sticks to the bottom of the workspace. */
+.bridge-editor-footer{position:sticky;bottom:0;z-index:5;background:var(--surface,#fffaf6);padding:10px 0 4px;border-top:1px solid var(--line,#e8d8cc);box-shadow:0 -10px 18px -14px rgba(74,33,28,.35)}
+@media (min-width:1351px) and (min-height:720px){.bridge-editor-footer{bottom:-12px;padding-bottom:12px}}
