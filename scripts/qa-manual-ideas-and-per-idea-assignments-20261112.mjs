@@ -100,6 +100,12 @@ const form={elements:{namedItem:key=>({value:{
 bridge.planDrafts=[{id:'d0000000-0000-4000-8000-000000000001',kind:'campaign',name:'حملة رمضان',planNo:'CMP-000007',ideaCount:2}];
 bridge.placementsByIdea={'MAN-I02':{kind:'campaign',draftId:'d0000000-0000-4000-8000-000000000001',name:'',date:'2027-06-20'}};
 const placementHtml=context.__qa.bridgePage(state);
+// A NEW name typed for one idea is offered in the dropdown of the other ideas.
+const typedState={...state,bridge:{...bridge,ideaCode:'MAN-I02',placementsByIdea:{'MAN-V01':{kind:'campaign',draftId:'__new__',name:'حملة يناير',date:'2027-05-10'},'MAN-I02':{kind:'campaign',draftId:'',name:'',date:'2027-05-10'}}}};
+const typedHtml=context.__qa.bridgePage(typedState);
+assert(typedHtml.includes('value="__new__:حملة يناير"'),'Typed new name is selectable for the other ideas');
+assert(typedHtml.includes('حذف الاسم')===false,'Delete appears only for a saved name');
+assert(!/\(مسودة\)/.test(typedHtml),'No «مسودة» wording in the strategy dropdown');
 assert(placementHtml.includes('name="placementKind_MAN-V01"'),'Task type block offers agenda/campaign per idea');
 await context.__qa.assignBridgeIdea(state,form);
 assert.equal(requests.length,1);

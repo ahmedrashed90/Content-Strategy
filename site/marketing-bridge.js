@@ -48,8 +48,43 @@ export function placementForIdea(bridge,code){
 export function readPlacementForm(form,code,fallback){
   const field=name=>form?.elements?.namedItem(name+'_'+code);
   if(!field('placementKind'))return fallback;
-  return {kind:String(field('placementKind')?.value||''),draftId:String(field('placementDraft')?.value||''),
-    name:String(field('placementName')?.value||'').trim().replace(/\s+/g,' '),date:String(field('placementDate')?.value||'')};
+  const draftValue=String(field('placementDraft')?.value||'');
+  // «__new__:اسم» = a new name already typed for another idea in this assignment.
+  const typedName=draftValue.startsWith(NEW_PLAN_DRAFT+':')?draftValue.slice(NEW_PLAN_DRAFT.length+1):'';
+  return {kind:String(field('placementKind')?.value||''),draftId:typedName?NEW_PLAN_DRAFT:draftValue,
+    name:typedName||String(field('placementName')?.value||'').trim().replace(/\s+/g,' '),date:String(field('placementDate')?.value||'')};
+}
+/** Same normalization as Marketing, so «أجندة ديسمبر» and «اجندة  ديسمبر» match. */
+export const planNameKey=value=>String(value||'').normalize('NFKC').replace(/[\u064b-\u065f\u0670\u0640]/g,'')
+  .replace(/[إأآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').trim().replace(/\s+/g,' ').toLowerCase();
+/** New names typed for other ideas of the SAME assignment (not saved yet). */
+export function typedPlanNames(bridge,kind,exceptCode=''){
+  const saved=new Set((bridge.planDrafts||[]).filter(row=>row.kind===kind).map(row=>planNameKey(row.name)));
+  const names=new Map();
+  for(const [code,p] of Object.entries(bridge.placementsByIdea||{})){
+    if(code===exceptCode||p?.kind!==kind||p.draftId!==NEW_PLAN_DRAFT||!p.name)continue;
+    const key=planNameKey(p.name);
+    if(key&&!saved.has(key)&&!names.has(key))names.set(key,p.name);
+  }
+  return [...names.values()];
+}
+/** «حذف الاسم»: removes an agenda/campaign name that was not sent for review. */
+export async function deleteBridgePlanName(state,draftId){
+  const bridge=state.bridge||state;
+  const draft=(bridge.planDrafts||[]).find(row=>row.id===draftId);
+  if(!draft)throw Error('الاسم غير موجود؛ حدّث القائمة');
+  await fetchBridge('delete-draft',{body:{draftId}});
+  bridge.planDrafts=(bridge.planDrafts||[]).filter(row=>row.id!==draftId);
+  for(const placement of Object.values(bridge.placementsByIdea||{}))if(placement?.draftId===draftId){placement.draftId='';placement.name='';}
+  if(bridge.lastPlacement?.draftId===draftId)bridge.lastPlacement=null;
+  return draft;
+}
+/** After a successful assignment the page starts clean for new ideas. Car
+ * confirmation stays on the idea itself (it is part of the idea approval). */
+export function resetBridgeAssignment(state){
+  Object.assign(state.bridge,{selectedCodes:[],ideaCode:'',activeAssignmentIdeaCode:'',mode:'single',chosenStocks:[],stockSearch:'',
+    taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},formatIdsByIdea:{},formatIdsByKind:{image:[],video:[]},
+    carSelectionsByIdea:{},carModesByIdea:{},placementsByIdea:{},lastPlacement:null,error:''});
 }
 /** Validated payload row, or null for «تاسك فقط». Throws an Arabic reason. */
 export function placementPayload(bridge,idea,placement){
@@ -155,7 +190,7 @@ export async function fetchBridge(resource, options={}) {
   const idToken = await auth.currentUser.getIdToken();
   const url = new URL('/api/marketing-bridge',window.location.origin);
   if (!options.body) { url.searchParams.set('resource',resource); if(options.taskId)url.searchParams.set('taskId',options.taskId); }
-  const reply = await fetch(url,{method:options.body?'POST':'GET',headers:{Authorization:`Bearer ${idToken}`, ...(options.body?{'Content-Type':'application/json'}:{})},...(options.body?{body:JSON.stringify({action:resource==='agenda'?'agenda':'assign',...options.body})}:{})});
+  const reply = await fetch(url,{method:options.body?'POST':'GET',headers:{Authorization:`Bearer ${idToken}`, ...(options.body?{'Content-Type':'application/json'}:{})},...(options.body?{body:JSON.stringify({action:resource==='agenda'?'agenda':resource==='delete-draft'?'delete-draft':'assign',...options.body})}:{})});
   const payload = await reply.json().catch(()=>({ok:false,error:'Invalid API response'}));
   if(!reply.ok || !payload.ok)throw Error(payload.error || `Bridge request failed (${reply.status})`);
   return payload;
@@ -175,19 +210,25 @@ export async function reloadBridge(state) {
 function placementFields(bridge,idea){
   const code=idea.code,p=placementForIdea(bridge,code);
   const drafts=(bridge.planDrafts||[]).filter(row=>row.kind===p.kind);
+  const typed=typedPlanNames(bridge,p.kind,code);
   const kindLabel=p.kind==='campaign'?'الحملة':'الأجندة';
-  const isNew=p.draftId===NEW_PLAN_DRAFT||(!p.draftId&&Boolean(p.name));
+  const typedMatch=p.draftId===NEW_PLAN_DRAFT&&p.name?typed.find(name=>planNameKey(name)===planNameKey(p.name)):'';
+  const isNew=!typedMatch&&(p.draftId===NEW_PLAN_DRAFT||(!p.draftId&&Boolean(p.name)));
+  const current=typedMatch?NEW_PLAN_DRAFT+':'+typedMatch:isNew?NEW_PLAN_DRAFT:p.draftId;
+  const selectedDraft=drafts.find(row=>row.id===p.draftId);
   return `<div class="bridge-placement" data-placement-code="${escape(code)}">
     <label>الوجهة في قسم النشر<select name="placementKind_${escape(code)}" data-placement="kind" required>
       ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
     ${p.kind==='agenda'||p.kind==='campaign'?`
-    <label>اسم ${kindLabel}<select name="placementDraft_${escape(code)}" data-placement="draft">
-      ${opt('','اختر '+kindLabel+' (مسودة)',isNew?NEW_PLAN_DRAFT:p.draftId)}
-      ${drafts.map(row=>opt(row.id,row.name+' — '+row.planNo+' · '+(row.ideaCount||0)+' فكرة',isNew?NEW_PLAN_DRAFT:p.draftId)).join('')}
-      ${opt(NEW_PLAN_DRAFT,'+ '+kindLabel+' جديدة',isNew?NEW_PLAN_DRAFT:p.draftId)}</select></label>
+    <label>اسم ${kindLabel}<span class="bridge-placement-name"><select name="placementDraft_${escape(code)}" data-placement="draft">
+      ${opt('','اختر '+kindLabel,current)}
+      ${drafts.map(row=>opt(row.id,row.name+' · '+(row.ideaCount||0)+' فكرة',current)).join('')}
+      ${typed.map(name=>opt(NEW_PLAN_DRAFT+':'+name,name+' · جديدة في هذا التكليف',current)).join('')}
+      ${opt(NEW_PLAN_DRAFT,'+ '+(p.kind==='campaign'?'حملة':'أجندة')+' جديدة',current)}</select>
+      ${selectedDraft?`<button type="button" class="btn p-small bridge-placement-delete" data-action="bridge-delete-plan-name" data-draft="${escape(selectedDraft.id)}" title="حذف هذا الاسم من القائمة">حذف الاسم</button>`:''}</span></label>
     ${isNew?`<label>اسم ${kindLabel} الجديدة<input name="placementName_${escape(code)}" maxlength="250" value="${escape(p.name)}" placeholder="مثال: ${p.kind==='campaign'?'حملة ديسمبر':'أجندة ديسمبر'}" required/></label>`:''}
     <label>${p.kind==='agenda'?'تاريخ النشر':'تاريخ التمويل'}<input type="date" name="placementDate_${escape(code)}" min="${nowInRiyadh()}" value="${escape(p.date)}" required/></label>
-    <small>تظهر في التسويق كـ «مسودة ${kindLabel}» داخل قسم النشر حتى لو الفكرة لم تُنفذ بعد.</small>`:''}
+    <small>تظهر في قسم النشر بالتسويق حتى لو الفكرة لم تُنفذ بعد.</small>`:''}
   </div>`;
 }
 export function bridgePage(state) {

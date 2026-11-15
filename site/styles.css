@@ -1355,3 +1355,5 @@ body:has(.manual-idea-overlay){overflow:hidden}
 /* Ideas: «تم الاستخدام / لم يتم الاستخدام» beside the review status. */
 .plan-pill.p-used{background:#e8f1ff;color:#1f4f8f;border-color:#bcd3f3}
 .plan-pill.p-unused{background:#f7f1ec;color:#7a5a4b;border-color:#e3d3c6}
+.bridge-placement-name{display:grid;gap:6px}
+.bridge-placement-delete{justify-self:start;font-size:11px!important;padding:5px 10px!important;color:#a0402d!important;border-color:#e8c4b8!important;background:#fff7f4!important}

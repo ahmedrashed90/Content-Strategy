@@ -5,7 +5,7 @@ import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaselin
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
@@ -1126,6 +1126,7 @@ async function submitBridgeAssignment(form) {
   try {
     const result=await assignBridgeIdea(state,form);
     toast('تم إنشاء تاسك '+result.taskNo+' وربطه بالأفكار المختارة.');
+    resetBridgeAssignment(state);
     state.bridge.lastCreatedTask={name:result.taskNo,title:result.name||'',id:result.id};
   } catch(error) {
     state.bridge.error=error?.message||'تعذر إنشاء التاسك. لم تتم إعادة المحاولة تلقائيًا لمنع التكرار.';
@@ -1409,6 +1410,16 @@ app.addEventListener('click', async event => {
       selectBridgeIdea(state,code,false);
       state.bridge.error='';render();
     }catch(error){state.bridge.error=error?.message||'تعذر اختيار الفكرة';render();}
+    return;
+  }
+  if(action==='bridge-delete-plan-name'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    const draft=(state.bridge.planDrafts||[]).find(row=>row.id===control.dataset.draft);
+    if(!draft||!window.confirm('حذف «'+draft.name+'» من القائمة؟ لن يتم حذف أي تاسك.'))return;
+    state.bridge.busy=true;render();
+    try{await deleteBridgePlanName(state,draft.id);toast('تم حذف «'+draft.name+'»');state.bridge.error='';}
+    catch(error){state.bridge.error=String(error?.message||error).replace(/^Invalid placement:\s*/,'');}
+    finally{state.bridge.busy=false;render();}
     return;
   }
   if(action==='bridge-add-assignee'){

@@ -75,8 +75,10 @@ export default async function handler(request,response) {
   }
   const assign = method === 'POST' && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.action === 'assign';
   const agenda = method === 'POST' && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.action === 'agenda';
-  if (!read && !assign && !agenda) return responseJson(response,405,{ok:false,error:'Unsupported integration action'});
-  if ((assign || agenda) && Number(request.headers['content-length'] || 0) > 1048576) return responseJson(response,413,{ok:false,error:'Assignment is too large'});
+  // «حذف الاسم»: delete an agenda/campaign name that was not sent for review.
+  const deleteDraft = method === 'POST' && payload && typeof payload === 'object' && !Array.isArray(payload) && payload.action === 'delete-draft';
+  if (!read && !assign && !agenda && !deleteDraft) return responseJson(response,405,{ok:false,error:'Unsupported integration action'});
+  if ((assign || agenda || deleteDraft) && Number(request.headers['content-length'] || 0) > 1048576) return responseJson(response,413,{ok:false,error:'Assignment is too large'});
   try {
     await requireOwner(request);
   } catch (error) {
@@ -85,7 +87,7 @@ export default async function handler(request,response) {
   const apiKey = env(read ? 'MZJ_STRATEGY_READ_KEY' : 'MZJ_STRATEGY_ASSIGN_KEY');
   if (apiKey.length < 32) return responseJson(response,503,{ok:false,error:'Server-to-server integration key is not configured'});
   try {
-    const upstream = new URL(`/api/strategy-integration/${read ? resource : agenda ? 'agenda' : 'assignments'}`,upstreamOrigin());
+    const upstream = new URL(`/api/strategy-integration/${read ? resource : agenda ? 'agenda' : deleteDraft ? 'plan-drafts' : 'assignments'}`,upstreamOrigin());
     if (read && resource === 'assignments') {
       const taskId = string(request.query.taskId,36);
       if (!/^[0-9a-f-]{36}$/i.test(taskId)) return responseJson(response,400,{ok:false,error:'taskId is required'});
@@ -93,8 +95,8 @@ export default async function handler(request,response) {
     }
     const upstreamResponse = await fetch(upstream,{
       method:read?'GET':'POST',
-      headers:{Authorization:`Bearer ${apiKey}`,Accept:'application/json',...((assign||agenda)?{'Content-Type':'application/json'}:{})},
-      ...((assign||agenda)?{body:JSON.stringify((({action,...fields})=>fields)(payload))}:{}),
+      headers:{Authorization:`Bearer ${apiKey}`,Accept:'application/json',...((assign||agenda||deleteDraft)?{'Content-Type':'application/json'}:{})},
+      ...((assign||agenda||deleteDraft)?{body:JSON.stringify((({action,...fields})=>fields)(payload))}:{}),
       signal:AbortSignal.timeout(20000),
       redirect:'error',
     });
