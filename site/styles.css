@@ -1336,3 +1336,22 @@ body:has(.manual-idea-overlay){overflow:hidden}
 .bridge-placement{display:grid;gap:10px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line,#e2d6ca)}
 .bridge-placement label{display:grid;gap:6px}
 .bridge-placement small{opacity:.75}
+
+/* 20261116: «نوع التاسك في التسويق» and «المنفذون ومواعيد التسليم» are shown in full
+   (no clipped fields / inner scroll); the sizes block is a compact chip grid.
+   The workspace scrolls as one page; only the stock list keeps its own scroll. */
+.bridge-config-assignees .bridge-assignees{max-height:none;overflow:visible}
+.bridge-config-formats .bridge-format-grid{grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:6px;max-height:none;overflow:visible}
+.bridge-config-formats .bridge-format-option{padding:6px 9px!important;gap:7px!important;font-size:10.5px!important;line-height:1.45;min-height:0}
+.bridge-config-formats .bridge-format-option small{font-size:9.5px}
+@media (min-width:1351px) and (min-height:720px){
+  .bridge-studio-workspace{overflow-y:auto;scrollbar-width:thin}
+  .bridge-editor-grid{flex:0 0 auto;min-height:auto;grid-template-rows:auto auto auto}
+  .bridge-config-type,.bridge-config-assignees,.bridge-config-formats{overflow:visible;min-height:auto}
+  .bridge-config-assignees .bridge-assignees,.bridge-config-formats .bridge-format-grid{flex:0 0 auto;overflow:visible;max-height:none}
+  .bridge-config-cars{overflow:hidden}
+  .bridge-config-cars .bridge-car-list{flex:1 1 auto;max-height:560px;min-height:220px}
+}
+/* Ideas: «تم الاستخدام / لم يتم الاستخدام» beside the review status. */
+.plan-pill.p-used{background:#e8f1ff;color:#1f4f8f;border-color:#bcd3f3}
+.plan-pill.p-unused{background:#f7f1ec;color:#7a5a4b;border-color:#e3d3c6}
