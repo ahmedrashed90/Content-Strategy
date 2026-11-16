@@ -86,10 +86,10 @@ export function buildStrategicAgenda(state){
  const warnings=[];
  if(excluded)warnings.push(excluded+' منتج مستبعد لأنه مجدول مسبقًا أو بدون مقاس نهائي متاح.');
  if(entries.length<days)warnings.push('يوجد '+(days-entries.length)+' يومًا بلا منتج جاهز؛ لن تُملأ بأفكار غير معتمدة.');
- if(!entries.some(x=>x.category==='بيعي - قسط'))
-   warnings.push('لا يوجد منتج تمويلي جاهز في هذه الفترة؛ يلزم إنتاج محتوى «بيعي - قسط» بدل تكرار منتج.');
- if(!entries.some(x=>x.category==='بيعي - كاش'))
-   warnings.push('لا يوجد منتج كاش جاهز في هذه الفترة.');
+ if(!entries.some(x=>x.category==='بيعي - قسط'||x.category==='بيعي'))
+   warnings.push('لا يوجد محتوى بيعي تمويلي (قسط) جاهز في هذه الفترة؛ يلزم إنتاج محتوى «بيعي - قسط» أو «بيعي» بدل تكرار منتج.');
+ if(!entries.some(x=>x.category==='بيعي - كاش'||x.category==='بيعي'))
+   warnings.push('لا يوجد محتوى بيعي كاش جاهز في هذه الفترة.');
  if(pending.length)warnings.push(pending.length+' منتج معتمد خارج الفترة أو لم تسمح جاهزيته وتوازن الجدول بإدراجه.');
  a.entries=entries;a.warnings=warnings;a.generated=true;a.saved=null;a.requestKey='';a.requestSnapshot='';
  return {entries,warnings,start:a.start,end};

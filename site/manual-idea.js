@@ -1,7 +1,7 @@
 import { prepareIdeaBatch } from './idea-import.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const categories = ['تعريفي - بالبراند','تعريفي - بالويب سايت','تعريفي - مواصفات السيارات','بيعي - قسط','بيعي - كاش'];
+const categories = ['تعريفي - بالبراند','تعريفي - بالويب سايت','تعريفي - مواصفات السيارات','بيعي','بيعي - قسط','بيعي - كاش'];
 const platforms = [['facebook','فيسبوك'],['instagram','إنستجرام'],['tiktok','تيك توك'],['snapchat','سناب شات']];
 const emptyScene = () => ({title:'',startSecond:'',endSecond:'',goal:'',location:'',visual:'',voiceOver:'',screenText:'',camera:'',sound:'',transition:''});
 const emptySlide = () => ({title:'',screenText:'',visualDescription:'',supportingText:'',notes:''});
