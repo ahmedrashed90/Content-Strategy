@@ -31,6 +31,9 @@ const imageOrVideo = idea => idea?.kind === 'video' ? 'video' : 'image';
 const opt = (value,label,current) => `<option value="${escape(value)}" ${String(value)===String(current)?'selected':''}>${escape(label)}</option>`;
 
 export const CAMPAIGN_CATEGORIES = ['تعريفي - بالبراند','تعريفي - بالويب سايت','تعريفي - مواصفات السيارات','بيعي - قسط','بيعي - كاش'];
+// بيعي - قسط وبيعي - كاش يُعاملان كمجموعة واحدة ويمكن جمعهما في تكليف واحد
+const SALES_CATEGORIES = new Set(['بيعي - قسط','بيعي - كاش','بيعي']);
+const sameCategoryGroup = (a,b) => (SALES_CATEGORIES.has(a)&&SALES_CATEGORIES.has(b)) || a===b;
 const eligible = idea => idea && !idea.retiredFromIdeaBank && !idea.requiresVerification && idea.sourceStatus!=='موقوف' && CAMPAIGN_CATEGORIES.includes(idea.marketingCategory);
 const selectionCodes = bridge => [...new Set(bridge.selectedCodes||[])];
 const ideaRows = plan => plan ? [...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))] : [];
@@ -135,20 +138,23 @@ export function newBridgeState() {
   planDrafts:[],placementsByIdea:{},lastPlacement:null};
 }
 export function selectBridgeCategory(state, category) {
- if(category&&!CAMPAIGN_CATEGORIES.includes(category))throw Error('تصنيف غير معتمد');
+ if(category&&!CAMPAIGN_CATEGORIES.includes(category)&&!SALES_CATEGORIES.has(category))throw Error('تصنيف غير معتمد');
  Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',assignmentsByIdea:{},activeAssignmentIdeaCode:'',formatIdsByIdea:{},carSelectionsByIdea:{},carModesByIdea:{},error:''});
 }
 export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
  if(!eligible(idea)||!ideaIsApproved(state.plan,code))throw Error('الفكرة غير معتمدة أو غير متاحة');
- if(checked&&bridge.category&&idea.marketingCategory!==bridge.category)
+ if(checked&&bridge.category&&!sameCategoryGroup(idea.marketingCategory,bridge.category))
    throw Error('لا يمكن جمع فكرتين من تصنيفين مختلفين في تاسك واحد');
  if(checked&&!bridge.category)bridge.category=idea.marketingCategory;
+ // لو المجموعة بيعي خليها تظهر كـ "بيعي" مش بالتصنيف الأول فقط
+ if(checked&&bridge.category&&idea.marketingCategory!==bridge.category&&SALES_CATEGORIES.has(idea.marketingCategory))
+   bridge.category='بيعي';
  if(checked && selectionCodes(bridge).length>=30)throw Error('الحد الأقصى 30 فكرة في التاسك الواحد');
  const stored=state.plan?.assets?.find(a=>a.code===code)?.integrationDraft;
  if(checked&&stored?.pending===true&&Array.isArray(stored.ideaCodes)){
    const ready=stored.ideaCodes.map(c=>getIdea(state.plan,c));
-   if(ready.some(row=>!eligible(row)||row.marketingCategory!==bridge.category))throw Error('تعذر استعادة مجموعة التكليف المحفوظة');
+   if(ready.some(row=>!eligible(row)||!sameCategoryGroup(row.marketingCategory,bridge.category)))throw Error('تعذر استعادة مجموعة التكليف المحفوظة');
    bridge.selectedCodes=[...stored.ideaCodes];
    bridge.assignmentsByIdea=Object.fromEntries(bridge.selectedCodes.map(ideaCode=>[ideaCode,
      (stored.assignmentsByIdea?.[ideaCode] || stored.assignments || [defaultAssignment()]).map(row=>({...row}))]));
@@ -234,9 +240,9 @@ function placementFields(bridge,idea){
 export function bridgePage(state) {
   const bridge=state.bridge,plan=state.plan;
   const all=ideaRows(plan).filter(row=>eligible(row)&&ideaIsApproved(plan,row.code));
-  const selected=selectedIdeas(state).filter(row=>eligible(row)&&row.marketingCategory===bridge.category);
+  const selected=selectedIdeas(state).filter(row=>eligible(row)&&sameCategoryGroup(row.marketingCategory,bridge.category));
   const q=String(bridge.ideaSearch||'').trim().toLocaleLowerCase();
-  const visible=all.filter(row=>(!bridge.category||row.marketingCategory===bridge.category)&&
+  const visible=all.filter(row=>(!bridge.category||sameCategoryGroup(row.marketingCategory,bridge.category))&&
     (!q||[row.code,row.title,row.marketingCategory,row.executor,row.marketingExecutorName].join(' ').toLocaleLowerCase().includes(q)));
   const current=selected.find(row=>row.code===bridge.ideaCode)||null;
   const activeAssets=current?taskCodes(plan,current.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean):[];
@@ -248,7 +254,9 @@ export function bridgePage(state) {
   const savedCars=(activeAssets[0]?.approvedVehicles||[]).map(stockId).sort();
   const selectionCurrent=confirmed&&savedMode===bridge.mode&&JSON.stringify(savedCars)===JSON.stringify([...bridge.chosenStocks].sort());
   const selectedCategories=new Set(selected.map(row=>row.marketingCategory));
-  const ready=selected.length>0&&selected.length===selectionCodes(bridge).length&&selectedCategories.size===1&&selected.every(row=>{
+  // بيعي - قسط وبيعي - كاش تُعدّان مجموعة واحدة (بيعي) لأغراض الاعتماد
+  const isSalesGroup=[...selectedCategories].every(c=>SALES_CATEGORIES.has(c));
+  const ready=selected.length>0&&selected.length===selectionCodes(bridge).length&&(selectedCategories.size===1||isSalesGroup)&&selected.every(row=>{
     const assets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
     return assets.length>0&&assets.every(asset=>asset.creativeApprovedAt&&(!asset.integrationDraft?.pending||asset.integrationRequestKey));
   });
@@ -262,8 +270,17 @@ export function bridgePage(state) {
   const currentFormats=current ? (pendingDraft?.formatIdsByIdea?.[current.code]||bridge.formatIdsByIdea?.[current.code]||
     pendingDraft?.formatIdsByKind?.[kind]||bridge.formatIdsByKind?.[kind]||[]) : [];
   const sizes=bridge.formats.filter(format=>format.mediaKinds?.includes(kind));
-  const categories=`<button type="button" class="bridge-category-tab ${!bridge.category?'active':''}" data-action="bridge-pick-category" data-category="">كل التصنيفات <span>${all.length}</span></button>`+
-    CAMPAIGN_CATEGORIES.map(category=>`<button type="button" class="bridge-category-tab ${category===bridge.category?'active':''}" data-action="bridge-pick-category" data-category="${escape(category)}">${escape(category)} <span>${all.filter(row=>row.marketingCategory===category).length}</span></button>`).join('');
+  // نعرض تاب "بيعي (قسط وكاش)" اللي يجمع الاثنين معًا
+  const DISPLAY_CATEGORIES=[
+    ...CAMPAIGN_CATEGORIES.filter(c=>!SALES_CATEGORIES.has(c)),
+    'بيعي', // تاب الجمع
+    'بيعي - قسط','بيعي - كاش',
+  ];
+  const categoryLabel=(c)=>c==='بيعي'?'بيعي (قسط وكاش)':c;
+  const categoryCount=(c)=>c==='بيعي'?all.filter(row=>SALES_CATEGORIES.has(row.marketingCategory)).length:all.filter(row=>row.marketingCategory===c).length;
+  const isCategoryActive=(c)=>c?((c==='بيعي'&&bridge.category==='بيعي')||c===bridge.category):!bridge.category;
+  const categories=`<button type="button" class="bridge-category-tab ${isCategoryActive('')?'active':''}" data-action="bridge-pick-category" data-category="">كل التصنيفات <span>${all.length}</span></button>`+
+    DISPLAY_CATEGORIES.map(c=>`<button type="button" class="bridge-category-tab ${isCategoryActive(c)?'active':''}" data-action="bridge-pick-category" data-category="${escape(c)}">${escape(categoryLabel(c))} <span>${categoryCount(c)}</span></button>`).join('');
   const ideaCards=visible.map(idea=>{
     const checked=selectionCodes(bridge).includes(idea.code);
     const focused=idea.code===bridge.ideaCode;
@@ -350,7 +367,7 @@ export async function approveBridgeIdea(state, mode, selectedCars) {
 }
 export async function assignBridgeIdea(state,form) {
  const plan=state.plan,bridge=state.bridge,ideas=selectedIdeas(state);
- if(!ideas.length||ideas.length>30||ideas.some(idea=>!eligible(idea)||idea.marketingCategory!==bridge.category||!ideaIsApproved(plan,idea.code)))
+ if(!ideas.length||ideas.length>30||ideas.some(idea=>!eligible(idea)||!sameCategoryGroup(idea.marketingCategory,bridge.category)||!ideaIsApproved(plan,idea.code)))
    throw Error('اختر من 1 إلى 30 فكرة معتمدة من نفس التصنيف');
  const name=groupedName(bridge.category,ideas);
  const groups=ideas.map(idea=>({idea,assets:taskCodes(plan,idea.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean)}));
