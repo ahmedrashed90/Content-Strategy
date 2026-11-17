@@ -51,10 +51,26 @@ export function placementForIdea(bridge,code){
 export function readPlacementForm(form,code,fallback){
   const field=name=>form?.elements?.namedItem(name+'_'+code);
   if(!field('placementKind'))return fallback;
+  const kind=String(field('placementKind')?.value||'');
+  if(kind==='shared'){
+    const readSub=prefix=>{
+      const el=name=>form?.elements?.namedItem(prefix+name+'_'+code);
+      const draftValue=String(el('Draft')?.value||'');
+      const typedName=draftValue.startsWith(NEW_PLAN_DRAFT+':')?draftValue.slice(NEW_PLAN_DRAFT.length+1):'';
+      return {draftId:typedName?NEW_PLAN_DRAFT:draftValue,
+        name:typedName||String(el('Name')?.value||'').trim().replace(/\s+/g,' '),
+        date:String(el('Date')?.value||'')};
+    };
+    const agenda=readSub('agenda');
+    const campaign=readSub('campaign');
+    return {kind:'shared',draftId:'',name:'',date:'',
+      agendaDraftId:agenda.draftId,agendaName:agenda.name,agendaDate:agenda.date,
+      campaignDraftId:campaign.draftId,campaignName:campaign.name,campaignDate:campaign.date};
+  }
   const draftValue=String(field('placementDraft')?.value||'');
   // «__new__:اسم» = a new name already typed for another idea in this assignment.
   const typedName=draftValue.startsWith(NEW_PLAN_DRAFT+':')?draftValue.slice(NEW_PLAN_DRAFT.length+1):'';
-  return {kind:String(field('placementKind')?.value||''),draftId:typedName?NEW_PLAN_DRAFT:draftValue,
+  return {kind,draftId:typedName?NEW_PLAN_DRAFT:draftValue,
     name:typedName||String(field('placementName')?.value||'').trim().replace(/\s+/g,' '),date:String(field('placementDate')?.value||'')};
 }
 /** Same normalization as Marketing, so «أجندة ديسمبر» and «اجندة  ديسمبر» match. */
@@ -65,9 +81,21 @@ export function typedPlanNames(bridge,kind,exceptCode=''){
   const saved=new Set((bridge.planDrafts||[]).filter(row=>row.kind===kind).map(row=>planNameKey(row.name)));
   const names=new Map();
   for(const [code,p] of Object.entries(bridge.placementsByIdea||{})){
-    if(code===exceptCode||p?.kind!==kind||p.draftId!==NEW_PLAN_DRAFT||!p.name)continue;
-    const key=planNameKey(p.name);
-    if(key&&!saved.has(key)&&!names.has(key))names.set(key,p.name);
+    if(code===exceptCode||!p)continue;
+    // Direct placement (agenda or campaign)
+    if(p.kind===kind&&p.draftId===NEW_PLAN_DRAFT&&p.name){
+      const key=planNameKey(p.name);
+      if(key&&!saved.has(key)&&!names.has(key))names.set(key,p.name);
+    }
+    // Shared placement: check sub-fields for the requested kind
+    if(p.kind==='shared'){
+      const subDraftId=p[kind+'DraftId']||'';
+      const subName=p[kind+'Name']||'';
+      if(subDraftId===NEW_PLAN_DRAFT&&subName){
+        const key=planNameKey(subName);
+        if(key&&!saved.has(key)&&!names.has(key))names.set(key,subName);
+      }
+    }
   }
   return [...names.values()];
 }
@@ -89,12 +117,9 @@ export function resetBridgeAssignment(state){
     taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},formatIdsByIdea:{},formatIdsByKind:{image:[],video:[]},
     carSelectionsByIdea:{},carModesByIdea:{},placementsByIdea:{},lastPlacement:null,error:''});
 }
-/** Validated payload row, or null for «تاسك فقط». Throws an Arabic reason. */
-export function placementPayload(bridge,idea,placement){
+/** Validated single payload row for agenda or campaign. Throws an Arabic reason. */
+function singlePlacementPayload(bridge,idea,placement){
   const label=idea.title||idea.code;
-  if(!placement||!placement.kind)throw Error('حدد في «نوع التاسك في التسويق» هل الفكرة لأجندة أو حملة أو تاسك فقط: '+label);
-  if(placement.kind==='none')return null;
-  if(placement.kind!=='agenda'&&placement.kind!=='campaign')throw Error('اختيار الوجهة غير صحيح: '+label);
   const dateLabel=placement.kind==='agenda'?'تاريخ النشر':'تاريخ التمويل';
   if(!validISODate(placement.date)||placement.date<nowInRiyadh())throw Error('حدد '+dateLabel+' (اليوم أو بعده) للفكرة: '+label);
   const base={ideaCode:idea.code,kind:placement.kind,date:placement.date,category:String(idea.marketingCategory||'').slice(0,120)};
@@ -105,6 +130,19 @@ export function placementPayload(bridge,idea,placement){
   }
   if(!placement.name||placement.name.length>250)throw Error('اكتب اسم '+(placement.kind==='agenda'?'الأجندة':'الحملة')+' الجديدة للفكرة: '+label);
   return {...base,name:placement.name};
+}
+/** Validated payload row(s), null for «تاسك فقط», or array of two for «مشتركة». Throws an Arabic reason. */
+export function placementPayload(bridge,idea,placement){
+  const label=idea.title||idea.code;
+  if(!placement||!placement.kind)throw Error('حدد في «نوع التاسك في التسويق» هل الفكرة لأجندة أو حملة أو تاسك فقط: '+label);
+  if(placement.kind==='none')return null;
+  if(placement.kind==='shared'){
+    const a=singlePlacementPayload(bridge,idea,{kind:'agenda',draftId:placement.agendaDraftId||'',name:placement.agendaName||'',date:placement.agendaDate||''});
+    const c=singlePlacementPayload(bridge,idea,{kind:'campaign',draftId:placement.campaignDraftId||'',name:placement.campaignName||'',date:placement.campaignDate||''});
+    return [a,c];
+  }
+  if(placement.kind!=='agenda'&&placement.kind!=='campaign')throw Error('اختيار الوجهة غير صحيح: '+label);
+  return singlePlacementPayload(bridge,idea,placement);
 }
 /** Compare old shared-assignee drafts and new per-idea drafts by their data, not
  * JSON object insertion order. This preserves safe retries across schema versions. */
@@ -213,6 +251,29 @@ export async function reloadBridge(state) {
   }catch(error){state.error=String(error?.message||error);}
   finally{state.loading=false;}
 }
+function subPlacementFields(bridge,code,subKind,p){
+  const drafts=(bridge.planDrafts||[]).filter(row=>row.kind===subKind);
+  const typed=typedPlanNames(bridge,subKind,code);
+  const kindLabel=subKind==='campaign'?'الحملة':'الأجندة';
+  const prefix=subKind;
+  const savedDraftId=p[prefix+'DraftId']||'';
+  const savedName=p[prefix+'Name']||'';
+  const savedDate=p[prefix+'Date']||'';
+  const typedMatch=savedDraftId===NEW_PLAN_DRAFT&&savedName?typed.find(name=>planNameKey(name)===planNameKey(savedName)):'';
+  const isNew=!typedMatch&&(savedDraftId===NEW_PLAN_DRAFT||(!savedDraftId&&Boolean(savedName)));
+  const current=typedMatch?NEW_PLAN_DRAFT+':'+typedMatch:isNew?NEW_PLAN_DRAFT:savedDraftId;
+  const selectedDraft=drafts.find(row=>row.id===savedDraftId);
+  return `<fieldset class="bridge-shared-sub"><legend>${escape(kindLabel)}</legend>
+    <label>اسم ${kindLabel}<span class="bridge-placement-name"><select name="${prefix}Draft_${escape(code)}" data-placement="draft">
+      ${opt('','اختر '+kindLabel,current)}
+      ${drafts.map(row=>opt(row.id,row.name+' · '+(row.ideaCount||0)+' فكرة',current)).join('')}
+      ${typed.map(name=>opt(NEW_PLAN_DRAFT+':'+name,name+' · جديدة في هذا التكليف',current)).join('')}
+      ${opt(NEW_PLAN_DRAFT,'+ '+(subKind==='campaign'?'حملة':'أجندة')+' جديدة',current)}</select>
+      ${selectedDraft?`<button type="button" class="btn p-small bridge-placement-delete" data-action="bridge-delete-plan-name" data-draft="${escape(selectedDraft.id)}" title="حذف هذا الاسم من القائمة">حذف الاسم</button>`:''}</span></label>
+    ${isNew?`<label>اسم ${kindLabel} الجديدة<input name="${prefix}Name_${escape(code)}" maxlength="250" value="${escape(savedName)}" placeholder="مثال: ${subKind==='campaign'?'حملة ديسمبر':'أجندة ديسمبر'}" required/></label>`:''}
+    <label>${subKind==='agenda'?'تاريخ النشر':'تاريخ التمويل'}<input type="date" name="${prefix}Date_${escape(code)}" min="${nowInRiyadh()}" value="${escape(savedDate)}" required/></label>
+  </fieldset>`;
+}
 function placementFields(bridge,idea){
   const code=idea.code,p=placementForIdea(bridge,code);
   const drafts=(bridge.planDrafts||[]).filter(row=>row.kind===p.kind);
@@ -224,7 +285,7 @@ function placementFields(bridge,idea){
   const selectedDraft=drafts.find(row=>row.id===p.draftId);
   return `<div class="bridge-placement" data-placement-code="${escape(code)}">
     <label>الوجهة في قسم النشر<select name="placementKind_${escape(code)}" data-placement="kind" required>
-      ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
+      ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('shared','مشتركة (حملة + أجندة)',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
     ${p.kind==='agenda'||p.kind==='campaign'?`
     <label>اسم ${kindLabel}<span class="bridge-placement-name"><select name="placementDraft_${escape(code)}" data-placement="draft">
       ${opt('','اختر '+kindLabel,current)}
@@ -235,6 +296,7 @@ function placementFields(bridge,idea){
     ${isNew?`<label>اسم ${kindLabel} الجديدة<input name="placementName_${escape(code)}" maxlength="250" value="${escape(p.name)}" placeholder="مثال: ${p.kind==='campaign'?'حملة ديسمبر':'أجندة ديسمبر'}" required/></label>`:''}
     <label>${p.kind==='agenda'?'تاريخ النشر':'تاريخ التمويل'}<input type="date" name="placementDate_${escape(code)}" min="${nowInRiyadh()}" value="${escape(p.date)}" required/></label>
     <small>تظهر في قسم النشر بالتسويق حتى لو الفكرة لم تُنفذ بعد.</small>`:''}
+    ${p.kind==='shared'?subPlacementFields(bridge,code,'agenda',p)+subPlacementFields(bridge,code,'campaign',p)+`<small>تظهر مسودة أجندة ومسودة حملة في قسم النشر بالتسويق.</small>`:''}
   </div>`;
 }
 export function bridgePage(state) {
@@ -415,7 +477,7 @@ export async function assignBridgeIdea(state,form) {
  const currentPlacement=readPlacementForm(form,bridge.ideaCode,null);
  if(currentPlacement)bridge.placementsByIdea[bridge.ideaCode]=currentPlacement;
  const placementsByIdea=Object.fromEntries(ideas.map(idea=>[idea.code,bridge.placementsByIdea?.[idea.code]||originalDraft?.placementsByIdea?.[idea.code]||null]));
- const placements=ideas.map(idea=>placementPayload(bridge,idea,placementsByIdea[idea.code])).filter(Boolean);
+ const placements=ideas.flatMap(idea=>{const p=placementPayload(bridge,idea,placementsByIdea[idea.code]);return p==null?[]:Array.isArray(p)?p:[p];});
  const assets=groups.flatMap(group=>group.assets);
  const pending=assets.filter(a=>a.integrationDraft?.pending===true&&a.integrationRequestKey);
  const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignmentsByIdea,formatIdsByKind:formatsByKind,formatIdsByIdea:formatsByIdea,placementsByIdea,

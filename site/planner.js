@@ -218,16 +218,17 @@ export function ideasPage(state){
   const sourceTab=state.ideaSourceTab||'all';
   const kind=state.ideaKind||'all',review=state.ideaReviewFilter||'all',category=state.ideaCategoryFilter||'all',search=(state.ideaSearch||'').toLocaleLowerCase();
   const rawIdeas=[...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))].filter(a=>reviewStatusFor(plan,a.code)!=='مرفوض');
-  const allIdeas=sourceTab==='claude'?rawIdeas.filter(a=>a.source==='claude'):sourceTab==='manual'?rawIdeas.filter(a=>a.source!=='claude'):rawIdeas;
-  const claudeCount=rawIdeas.filter(a=>a.source==='claude').length;
-  const manualCount=rawIdeas.filter(a=>a.source!=='claude').length;
+  const allIdeas=sourceTab==='used'?rawIdeas.filter(a=>ideaWasUsed(plan,a.code)):sourceTab==='claude'?rawIdeas.filter(a=>a.source==='claude'&&!ideaWasUsed(plan,a.code)):sourceTab==='manual'?rawIdeas.filter(a=>a.source!=='claude'&&!ideaWasUsed(plan,a.code)):rawIdeas.filter(a=>!ideaWasUsed(plan,a.code));
+  const usedCount=rawIdeas.filter(a=>ideaWasUsed(plan,a.code)).length;
+  const claudeCount=rawIdeas.filter(a=>a.source==='claude'&&!ideaWasUsed(plan,a.code)).length;
+  const manualCount=rawIdeas.filter(a=>a.source!=='claude'&&!ideaWasUsed(plan,a.code)).length;
   const ideas=allIdeas.filter(a=>(kind==='all'||mediaType(a)===kind)
     && (category==='all'||(category==='بيعي'?a.marketingCategory?.startsWith('بيعي'):a.marketingCategory===category))
     && (review==='all'||reviewStatusFor(plan,a.code)===review)
     &&(!search||`${a.code} ${a.title} ${executorFor(plan,a.code)}`.toLocaleLowerCase().includes(search)));
   const actions=`<button type="button" class="btn btn-primary" data-action="manual-open">+ إضافة فكرة</button><button class="btn" data-action="toggle-idea-import">${state.ideaImportOpen?'إغلاق الاستيراد':'استيراد أو استبدال JSON'}</button>`;
   const panel=state.ideaImportOpen?ideaBatchPanel(state):'';
-  const sourceTabs=[['الكل','all',rawIdeas.length],['Claude','claude',claudeCount],['يدوي','manual',manualCount]];
+  const sourceTabs=[['الكل','all',rawIdeas.length-usedCount],['أفكار مستخدمة','used',usedCount],['Claude','claude',claudeCount],['يدوي','manual',manualCount]];
   const tiles=[['كل الأفكار','all',allIdeas.length],['بانتظار المراجعة','بانتظار المراجعة',allIdeas.filter(a=>reviewStatusFor(plan,a.code)==='بانتظار المراجعة').length],['معتمد','معتمد',allIdeas.filter(a=>ideaIsApproved(plan,a.code)).length]];
   return `<div class="ideas-controls-center"><div class="ui-page-actions">${actions}</div>`
     +`<div class="ideas-source-tabs" aria-label="مصدر الأفكار">${sourceTabs.map(([label,value,count])=>`<button class="ideas-source-tab ${sourceTab===value?'is-active':''}" type="button" data-action="ideas-source-tab" data-source="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div>`
