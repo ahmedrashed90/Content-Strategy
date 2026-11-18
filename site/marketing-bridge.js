@@ -159,9 +159,9 @@ export function placementPayload(bridge,idea,placement){
   if(!placement||!placement.kind)throw Error('حدد في «نوع التاسك في التسويق» هل الفكرة لأجندة أو حملة أو تاسك فقط: '+label);
   if(placement.kind==='none')return null;
   if(placement.kind==='shared'){
-    // سيستم التسويق يسمح للفكرة بمسودة واحدة فقط (أجندة أو حملة) — راجع
-    // normalizePlacements و applyStrategyPlacements هناك. حتى يُعدَّل، نرفض مبكرًا برسالة واضحة.
-    throw Error('«مشتركة (حملة + أجندة)» غير مدعومة في سيستم التسويق حاليًا: الفكرة الواحدة تُقبل في مسودة واحدة فقط. اختر «أجندة» أو «حملة» للفكرة: '+label);
+    const a=singlePlacementPayload(bridge,idea,{kind:'agenda',draftId:placement.agendaDraftId||'',name:placement.agendaName||'',date:placement.agendaDate||''});
+    const c=singlePlacementPayload(bridge,idea,{kind:'campaign',draftId:placement.campaignDraftId||'',name:placement.campaignName||'',date:placement.campaignDate||''});
+    return [a,c];
   }
   if(placement.kind!=='agenda'&&placement.kind!=='campaign')throw Error('اختيار الوجهة غير صحيح: '+label);
   return singlePlacementPayload(bridge,idea,placement);
@@ -318,8 +318,7 @@ function placementFields(bridge,idea){
   const selectedDraft=drafts.find(row=>row.id===p.draftId);
   return `<div class="bridge-placement" data-placement-code="${escape(code)}">
     <label>الوجهة في قسم النشر<select name="placementKind_${escape(code)}" data-placement="kind" required>
-      ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('shared','مشتركة (حملة + أجندة) — غير مدعومة في التسويق حاليًا',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
-    ${p.kind==='shared'?`<div class="notice warning">سيستم التسويق يقبل الفكرة في مسودة واحدة فقط (أجندة أو حملة). اختر واحدة منهما لإنشاء التاسك.</div>`:''}
+      ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('shared','مشتركة (حملة + أجندة)',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
     ${p.kind==='agenda'||p.kind==='campaign'?`
     <label>اسم ${kindLabel}<span class="bridge-placement-name"><select name="placementDraft_${escape(code)}" data-placement="draft">
       ${opt('','اختر '+kindLabel,current)}
