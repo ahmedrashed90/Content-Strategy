@@ -229,11 +229,12 @@ export function selectBridgeIdea(state, code, add=true) {
  const idea=getIdea(state.plan,code);
  if(idea && !eligible(idea))throw Error('هذه الفكرة موقوفة أو ليست ضمن البنك النشط');
  const first=idea ? state.plan?.assets.find(asset=>asset.code===taskCodes(state.plan,code)[0]) : null;
- if(idea && (state.bridge.category!==idea.marketingCategory))Object.assign(state.bridge,{category:idea.marketingCategory,selectedCodes:[]});
+ if(idea && !sameCategoryGroup(idea.marketingCategory,state.bridge.category||''))Object.assign(state.bridge,{category:idea.marketingCategory,selectedCodes:[]});
+ if(idea && state.bridge.category && idea.marketingCategory!==state.bridge.category && SALES_CATEGORIES.has(idea.marketingCategory) && SALES_CATEGORIES.has(state.bridge.category))state.bridge.category='بيعي';
  if(idea && add){
    const stored=first?.integrationDraft?.ideaCodes;
    if(first?.integrationDraft?.pending===true && Array.isArray(stored) && stored.length && first.integrationRequestKey) {
-     state.bridge.selectedCodes=stored.filter(c=>getIdea(state.plan,c)?.marketingCategory===idea.marketingCategory);
+     state.bridge.selectedCodes=stored.filter(c=>{const i=getIdea(state.plan,c);return i&&sameCategoryGroup(i.marketingCategory,idea.marketingCategory);});
      state.bridge.assignmentsByIdea=Object.fromEntries(state.bridge.selectedCodes.map(ideaCode=>[ideaCode,
        (first.integrationDraft.assignmentsByIdea?.[ideaCode] || first.integrationDraft.assignments || [defaultAssignment()]).map(row=>({...row}))]));
      state.bridge.formatIdsByIdea=first.integrationDraft.formatIdsByIdea||{};
