@@ -532,8 +532,10 @@ export async function assignBridgeIdea(state,form) {
      deliveryMode:assignment.deliveryMode,mediaKind:imageOrVideo(idea),ideaName:idea.title,idea:ideaText,
      explanation,creativeTreatment,dueOn:assignment.dueOn,formatIds:formatsByIdea[idea.code]};
  })));
- const result=await fetchBridge('assignments',{body:{requestKey,typeId,name:draft.name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items,
-   ...(placements.length?{placements}:{})}});
+ const assignBody={requestKey,typeId,name:draft.name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items,
+   ...(placements.length?{placements}:{})};
+ console.log('[bridge] assignment payload placements:',JSON.stringify(placements));
+ const result=await fetchBridge('assignments',{body:assignBody});
  const links=groups.flatMap(({idea,assets})=>{
    const primary=items.find(item=>item.ideaCode===idea.code&&item.deliveryMode==='files') || items.find(item=>item.ideaCode===idea.code);
    const itemId=result.items?.find(row=>row.client_key===primary?.clientKey)?.id;
