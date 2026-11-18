@@ -159,9 +159,9 @@ export function placementPayload(bridge,idea,placement){
   if(!placement||!placement.kind)throw Error('حدد في «نوع التاسك في التسويق» هل الفكرة لأجندة أو حملة أو تاسك فقط: '+label);
   if(placement.kind==='none')return null;
   if(placement.kind==='shared'){
-    const a=singlePlacementPayload(bridge,idea,{kind:'agenda',draftId:placement.agendaDraftId||'',name:placement.agendaName||'',date:placement.agendaDate||''});
-    const c=singlePlacementPayload(bridge,idea,{kind:'campaign',draftId:placement.campaignDraftId||'',name:placement.campaignName||'',date:placement.campaignDate||''});
-    return [a,c];
+    // سيستم التسويق يسمح للفكرة بمسودة واحدة فقط (أجندة أو حملة) — راجع
+    // normalizePlacements و applyStrategyPlacements هناك. حتى يُعدَّل، نرفض مبكرًا برسالة واضحة.
+    throw Error('«مشتركة (حملة + أجندة)» غير مدعومة في سيستم التسويق حاليًا: الفكرة الواحدة تُقبل في مسودة واحدة فقط. اختر «أجندة» أو «حملة» للفكرة: '+label);
   }
   if(placement.kind!=='agenda'&&placement.kind!=='campaign')throw Error('اختيار الوجهة غير صحيح: '+label);
   return singlePlacementPayload(bridge,idea,placement);
@@ -318,7 +318,8 @@ function placementFields(bridge,idea){
   const selectedDraft=drafts.find(row=>row.id===p.draftId);
   return `<div class="bridge-placement" data-placement-code="${escape(code)}">
     <label>الوجهة في قسم النشر<select name="placementKind_${escape(code)}" data-placement="kind" required>
-      ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('shared','مشتركة (حملة + أجندة)',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
+      ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('shared','مشتركة (حملة + أجندة) — غير مدعومة في التسويق حاليًا',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
+    ${p.kind==='shared'?`<div class="notice warning">سيستم التسويق يقبل الفكرة في مسودة واحدة فقط (أجندة أو حملة). اختر واحدة منهما لإنشاء التاسك.</div>`:''}
     ${p.kind==='agenda'||p.kind==='campaign'?`
     <label>اسم ${kindLabel}<span class="bridge-placement-name"><select name="placementDraft_${escape(code)}" data-placement="draft">
       ${opt('','اختر '+kindLabel,current)}
@@ -345,7 +346,8 @@ export function bridgePage(state) {
   const current=selected.find(row=>row.code===bridge.ideaCode)||null;
   const activeAssets=current?taskCodes(plan,current.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean):[];
   const pendingDraft=activeAssets.find(asset=>asset.integrationDraft?.pending)?.integrationDraft||null;
-  const locked=Boolean(pendingDraft);
+  // المسودة المحفوظة تُستخدم لاسترجاع ما أدخلته فقط، ولا تقفل الحقول.
+  const locked=false;
   const confirmed=activeAssets.length>0&&activeAssets.every(asset=>Boolean(asset.creativeApprovedAt));
   const pending=activeAssets.some(asset=>asset.integrationDraft?.pending===true);
   const savedMode=activeAssets[0]?.approvedCarMode||'single';
@@ -430,7 +432,7 @@ export function bridgePage(state) {
               <section class="bridge-config-pane bridge-config-formats"><h3>مقاسات ${kind==='video'?'الفيديو':'الصور'}</h3>
                 <div class="bridge-format-grid">${sizes.map(dim=>`<label class="bridge-format-option"><input type="checkbox" name="format_${escape(current.code)}" value="${escape(dim.representativeId)}" ${dim.ids.some(id=>currentFormats.includes(id))?'checked':''} ${locked?'disabled':''}/><span>${escape(dim.width||'?')} × ${escape(dim.height||'?')} px</span></label>`).join('')||'<small>لا توجد مقاسات. حدّث المنفذين والمقاسات.</small>'}</div></section>
               <div class="bridge-editor-footer"><span>${selected.length} فكرة مختارة · ${selected.filter(idea=>taskCodes(plan,idea.code).every(code=>plan.assets.find(asset=>asset.code===code)?.creativeApprovedAt)).length} مؤكدة السيارات</span>
-                <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!taskNameValid||bridge.busy?'disabled':''}>${selected.some(idea=>taskCodes(plan,idea.code).some(code=>plan.assets.find(a=>a.code===code)?.integrationDraft))?'استكمال إنشاء التاسك المحفوظ':'إنشاء تاسك واحد يحتوي '+selected.length+' فكرة'}</button></div>
+                <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!taskNameValid||bridge.busy?'disabled':''}>${'إنشاء تاسك واحد يحتوي '+selected.length+' فكرة'}</button></div>
             </form>
             <form id="bridge-approval" class="bridge-config-pane bridge-config-cars"><h3>تأكيد السيارات لكل فكرة</h3>
               <label>نوع اختيار السيارات<select id="bridge-mode" name="carMode" ${pending?'disabled':''}>
@@ -518,12 +520,13 @@ export async function assignBridgeIdea(state,form) {
  const pending=assets.filter(a=>a.integrationDraft?.pending===true&&a.integrationRequestKey);
  const draft={pending:true,ideaCodes:ideas.map(x=>x.code),typeId,assignmentsByIdea,formatIdsByKind:formatsByKind,formatIdsByIdea:formatsByIdea,placementsByIdea,
    name:pending.length ? (pending[0].integrationDraft?.name||name) : name};
+ // إعادة المحاولة بنفس البيانات تُعيد استخدام نفس المفتاح حتى لا يتكرر التاسك على السيرفر.
+ // أي تعديل على المجموعة أو المنفذين أو المواعيد = محاولة جديدة بمفتاح جديد، بدل قفل الشاشة.
+ const keys=[...new Set(pending.map(a=>a.integrationRequestKey))];
+ const sameRetry=pending.length>0&&keys.length===1&&pending.length===assets.length&&
+   sameAssignmentDraft(pending[0].integrationDraft,draft);
  let requestKey;
- if(pending.length){
-   const keys=[...new Set(pending.map(a=>a.integrationRequestKey))];
-   const saved=pending[0].integrationDraft;
-   if(keys.length!==1||pending.length!==assets.length||!sameAssignmentDraft(saved,draft))
-     throw Error('يوجد تكليف محفوظ غير مكتمل. استكمل نفس المجموعة والمنفذين والمواعيد أولًا.');
+ if(sameRetry){
    requestKey=keys[0];
  }else{
    requestKey=crypto.randomUUID();
@@ -545,10 +548,8 @@ export async function assignBridgeIdea(state,form) {
      deliveryMode:assignment.deliveryMode,mediaKind:imageOrVideo(idea),ideaName:idea.title,idea:ideaText,
      explanation,creativeTreatment,dueOn:assignment.dueOn,formatIds:formatsByIdea[idea.code]};
  })));
- const assignBody={requestKey,typeId,name:draft.name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items,
-   ...(placements.length?{placements}:{})};
- console.log('[bridge] assignment payload placements:',JSON.stringify(placements));
- const result=await fetchBridge('assignments',{body:assignBody});
+ const result=await fetchBridge('assignments',{body:{requestKey,typeId,name:draft.name,source:{planId:PLAN_ID,ideaCodes:ideas.map(x=>x.code)},items,
+   ...(placements.length?{placements}:{})}});
  const links=groups.flatMap(({idea,assets})=>{
    const primary=items.find(item=>item.ideaCode===idea.code&&item.deliveryMode==='files') || items.find(item=>item.ideaCode===idea.code);
    const itemId=result.items?.find(row=>row.client_key===primary?.clientKey)?.id;
