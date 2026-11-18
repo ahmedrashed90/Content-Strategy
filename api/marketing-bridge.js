@@ -3,7 +3,7 @@ import { createVerify } from 'node:crypto';
 // This function runs on the strategy project's server, not in the browser.
 // It verifies the Firebase owner and forwards one of four allowlisted calls.
 const CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
-const READ_RESOURCES = new Set(['stock','executors','catalog','assignments','agenda-products','plan-drafts']);
+const READ_RESOURCES = new Set(['stock','executors','catalog','assignments','idea-assignments','agenda-products','plan-drafts']);
 let cachedCerts = null;
 let cachedUntil = 0;
 
@@ -92,6 +92,14 @@ export default async function handler(request,response) {
       const taskId = string(request.query.taskId,36);
       if (!/^[0-9a-f-]{36}$/i.test(taskId)) return responseJson(response,400,{ok:false,error:'taskId is required'});
       upstream.searchParams.set('taskId',taskId);
+    }
+    if (read && resource === 'idea-assignments') {
+      const ideaCode=string(request.query.ideaCode,44);
+      const planId=string(request.query.planId,120);
+      if(!/^[A-Za-z0-9_-]{3,44}$/.test(ideaCode)||planId!=='mzj-2026-launch-cycle-01')
+        return responseJson(response,400,{ok:false,error:'Invalid strategy idea'});
+      upstream.searchParams.set('ideaCode',ideaCode);
+      upstream.searchParams.set('planId',planId);
     }
     const upstreamResponse = await fetch(upstream,{
       method:read?'GET':'POST',

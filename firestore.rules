@@ -73,6 +73,34 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // Independent unfinished task drafts. Only the owner can view, save,
+      // resume or discard them, including after a browser refresh.
+      match /assignmentDrafts/{draftId} {
+        allow get, list: if isOwner();
+        allow create: if isOwner()
+          && request.resource.data.id == draftId
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.status == 'draft'
+          && request.resource.data.selectedCodes is list
+          && request.resource.data.selectedCodes.size() <= 100
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner()
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.status == 'draft'
+          && request.resource.data.selectedCodes is list
+          && request.resource.data.selectedCodes.size() <= 100
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'selectedCodes','category','ideaCode','taskTypeId',
+            'assignmentsByIdea','formatIdsByIdea','placementsByIdea',
+            'carModesByIdea','carSelectionsByIdea','updatedAt'
+          ])
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner();
+      }
+
       match /posts/{postId} {
         allow get, list: if isOwner();
         allow create: if isOwner()

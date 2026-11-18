@@ -40,6 +40,43 @@ export async function createPublishingPlan(seed,uid) {
   return loadPublishingPlan();
 }
 
+/** Owner-only incomplete assignment drafts. This is a real Firestore collection,
+ * separate from the idempotent integrationDraft attached to in-flight tasks.
+ * A draft may be incomplete: there is deliberately no task-creation validation here. */
+const assignmentDraftCollection = [...base, 'assignmentDrafts'];
+const assignmentDraftId = value => /^[0-9a-f-]{36}$/i.test(String(value||'')) && String(value).length === 36;
+export async function listAssignmentDrafts() {
+  const {db,api}=await sdk();
+  const snapshot=await api.getDocs(api.collection(db,...assignmentDraftCollection));
+  return snapshot.docs.map(row=>({ ...row.data(), id:row.id }))
+    .filter(row=>row.status==='draft')
+    .sort((a,b)=>String(b.updatedAt?.toDate?.()?.toISOString?.()||b.updatedAt||'').localeCompare(String(a.updatedAt?.toDate?.()?.toISOString?.()||a.updatedAt||'')));
+}
+export async function saveAssignmentDraft(draft) {
+  if(!assignmentDraftId(draft?.id) || !Array.isArray(draft.selectedCodes) || draft.selectedCodes.length>100 ||
+     new Set(draft.selectedCodes).size!==draft.selectedCodes.length)throw Error('بيانات مسودة التكليف غير صحيحة');
+  const payload=JSON.parse(JSON.stringify({
+    selectedCodes:draft.selectedCodes, category:draft.category||'', ideaCode:draft.ideaCode||'',
+    taskTypeId:draft.taskTypeId||'', assignmentsByIdea:draft.assignmentsByIdea||{},
+    formatIdsByIdea:draft.formatIdsByIdea||{}, placementsByIdea:draft.placementsByIdea||{},
+    carModesByIdea:draft.carModesByIdea||{}, carSelectionsByIdea:draft.carSelectionsByIdea||{}
+  }));
+  if(JSON.stringify(payload).length>175000)throw Error('المسودة كبيرة جدًا، قلّل عدد الأفكار في التكليف');
+  const {db,api}=await sdk();
+  const ref=api.doc(db,...assignmentDraftCollection,draft.id);
+  const previous=await api.getDoc(ref);
+  if(previous.exists() && previous.data()?.status!=='draft')throw Error('هذه المسودة لم تعد مفتوحة');
+  const current={ id:draft.id, status:'draft', ownerUid:(await connectFirebase()).auth.currentUser?.uid || '',
+    ...payload, updatedAt:api.serverTimestamp() };
+  await api.setDoc(ref,{...current,...(!previous.exists()?{createdAt:api.serverTimestamp()}: {})},{merge:true});
+  return { ...payload,id:draft.id,status:'draft'};
+}
+export async function deleteAssignmentDraft(id) {
+  if(!assignmentDraftId(id))throw Error('معرّف المسودة غير صحيح');
+  const {db,api}=await sdk();
+  await api.deleteDoc(api.doc(db,...assignmentDraftCollection,id));
+}
+
 export async function updatePublishingAsset(code,changes) {
   const {db,api}=await sdk();
   await api.updateDoc(api.doc(db,...base,'assets',code), {...changes,updatedAt:api.serverTimestamp()});

@@ -310,14 +310,42 @@ function briefCard(plan,code,embedded=false){
   return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill(ideaKind(a))}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal||'')}</p><p><b>الرسالة:</b> ${e(a.message||'')}</p>${chapters}<h3>الكابشن حسب المنصة</h3>${caps||'<p>صورة ضمن نفس الفكرة أو قصة مساندة.</p>'}<h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'لا توجد هاشتاجات مطلوبة لهذا الأصل')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">فتح البريف كاملًا</button>`:''}</section>`;
 }
 
+/** Historical links are collected from ALL assets of a composite idea and from
+ * the authoritative read-only Marketing task history. One task appears once. */
+export function assignmentHistoryForIdea(plan,ideaCode,remote=[]){
+  const tasks=new Map();
+  for(const asset of ideaAssets(plan,ideaCode)){
+    for(const old of (asset.previousMarketingTasks||[])){
+      const key=String(old.taskId||old.taskNo||'');if(!key)continue;
+      if(!tasks.has(key))tasks.set(key,{taskId:old.taskId||'',taskNo:old.taskNo||old.taskId||'',
+        assignees:old.assignees||[{name:old.executorName||'غير محدد',dueOn:old.dueDate||''}],isCurrent:false});
+    }
+    if(asset.marketingTaskId){
+      const key=asset.marketingTaskId;
+      tasks.set(key,{taskId:key,taskNo:asset.marketingTaskNo||key,
+        assignees:asset.marketingAssignees||[{name:asset.marketingExecutorName||'غير محدد',dueOn:asset.dueDate||''}],isCurrent:true});
+    }
+  }
+  for(const task of remote){
+    const key=String(task.taskId||task.taskNo||'');if(!key)continue;
+    const existing=tasks.get(key)||{};
+    tasks.set(key,{...existing,...task,isCurrent:Boolean(existing.isCurrent),
+      assignees:Array.isArray(task.assignees)&&task.assignees.length?task.assignees:existing.assignees||[]});
+  }
+  return [...tasks.values()].sort((a,b)=>String(b.createdAt||b.taskNo||'').localeCompare(String(a.createdAt||a.taskNo||'')));
+}
+
 export function assetDetailPage(state){
   const plan=state.plan,idea=getIdea(plan,state.selectedAssetCode);
   if(!idea)return pageHeader('مراجعة البريف','الفكرة غير موجودة','');
   const codes=taskCodes(plan,idea.code);
-  const main=plan.assets.find(a=>a.code===codes[0]);
+  const main=ideaAssets(plan,idea.code).find(a=>a.marketingTaskId)||plan.assets.find(a=>a.code===codes[0]);
   const status=reviewStatusFor(plan,idea.code),linked=ideaIsLinked(plan,idea.code);
   const pendingRequest=ideaAssets(plan,idea.code).some(asset=>asset.integrationRequestKey&&!asset.marketingTaskId);
-  const prior=Array.isArray(main?.previousMarketingTasks)?main.previousMarketingTasks:[];
+  const remoteTasks=state.bridge?.historyByIdea?.[idea.code]||[];
+  const prior=assignmentHistoryForIdea(plan,idea.code,remoteTasks);
+  const historyLoading=Boolean(state.bridge?.historyLoading?.[idea.code]);
+  const historyError=state.bridge?.historyError?.[idea.code]||'';
   const reviewHistory=Array.isArray(main?.reviewHistory)?main.reviewHistory:[];
   const actions=`<button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف</button>`;
   const isSourceBlocked=Boolean(idea.requiresVerification||idea.sourceStatus==='موقوف');
@@ -335,7 +363,17 @@ export function assetDetailPage(state){
     ${status==='معتمد'&&!isSourceBlocked?`<button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}" type="button">تجهيز تكليف جديد</button>`:''}
   </section>`;
   const historyPanel=reviewHistory.length?`<details class="card panel brief-review-history"><summary>سجل المراجعات</summary><div class="review-history">${[...reviewHistory].reverse().slice(0,10).map(record=>`<div class="review-history-item"><span>${reviewTag(record.status)}</span><small>${record.at?e(new Date(record.at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})):''}</small></div>`).join('')}</div></details>`:'';
-  const priorPanel=prior.length?`<section class="card panel prior-task-panel"><h2>التكليفات السابقة</h2><div class="prior-task-list">${[...prior].reverse().map(old=>`<div class="prior-task-row"><span><strong>${e(old.taskNo||old.taskId||'—')}</strong><small>مرتبط سابقًا ولا يتغير عند إعادة مراجعة الفكرة</small></span><span>${old.dueDate?dl(old.dueDate):'—'}</span></div>`).join('')}</div></section>`:'';
+  const priorPanel=(prior.length||historyLoading||historyError)?`<section class="card panel prior-task-panel"><h2>التكليفات السابقة</h2>
+    ${historyLoading?'<p class="minor">جارٍ قراءة سجل التكليفات من التسويق…</p>':''}
+    ${historyError?`<p class="minor" role="alert">تعذر تحديث سجل التسويق؛ المعروض حاليًا هو المحفوظ في الاستراتيجية.</p>`:''}
+    <div class="prior-task-list">${prior.map(task=>{const expanded=state.bridge?.expandedTaskId===task.taskId;
+      const names=(task.assignees||[]).map(row=>e(row.name||'غير محدد')).join('، ');
+      return `<article class="prior-task-row prior-task-expandable">
+        <button type="button" class="prior-task-open" data-action="bridge-show-history-task" data-task="${e(task.taskId)}" aria-expanded="${expanded}">
+          <strong dir="ltr">${e(task.taskNo||task.taskId||'—')}</strong><small>${task.isCurrent?'التكليف الحالي':'تكليف سابق'}${task.isDeleted?' · مؤرشف':''}</small></button>
+        <small>${names||'اضغط لعرض المنفذين'}</small>
+        ${expanded?`<div class="prior-task-details">${(task.assignees||[]).map(row=>`<div><span>المنفذ: <strong>${e(row.name||'غير محدد')}</strong></span><span>التسليم: <strong>${row.dueOn?dl(row.dueOn):'غير محدد'}</strong></span></div>`).join('')||'<p>تفاصيل المنفذين غير متاحة في السجل القديم.</p>'}</div>`:''}
+      </article>`;}).join('')}</div></section>`:'';
   const executionPanel=linked?`<section class="card panel production-side-panel"><div class="page-eyebrow">التكليف الحالي</div><h2>سيستم التسويق</h2><div class="production-summary-list"><div><span>رقم التاسك</span><strong>${e(main?.marketingTaskNo||main?.marketingTaskId||'')}</strong></div><div><span>المنفذ</span><strong>${e(main?.marketingExecutorName||main?.executor||'غير محدد')}</strong></div><div><span>التسليم</span><strong>${e(main?.dueDate?dl(main.dueDate):'غير محدد')}</strong></div></div><button class="btn" data-action="bridge-open-asset" data-id="${e(idea.code)}">متابعة التكليف</button></section>`:'';
   const side=[executionPanel,priorPanel].filter(Boolean).join('');
   return pageHeader('مراجعة البريف',idea.title,'',actions)

@@ -1,6 +1,6 @@
 import { connectFirebase } from './firebase.js';
 import { getIdea, taskCodes, ideaIsApproved, nowInRiyadh, toCreativeTreatmentText } from './planner.js';
-import { PLAN_ID, updateManyAssets, linkMarketingTask } from './plan-firebase.js';
+import { PLAN_ID, updateManyAssets, linkMarketingTask, listAssignmentDrafts, saveAssignmentDraft, deleteAssignmentDraft } from './plan-firebase.js';
 import { validISODate } from './idea-import.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -119,7 +119,10 @@ export async function deleteBridgePlanName(state,draftId){
   if(!draft)throw Error('الاسم غير موجود؛ حدّث القائمة');
   await fetchBridge('delete-draft',{body:{draftId}});
   bridge.planDrafts=(bridge.planDrafts||[]).filter(row=>row.id!==draftId);
-  for(const placement of Object.values(bridge.placementsByIdea||{}))if(placement?.draftId===draftId){placement.draftId='';placement.name='';}
+  for(const placement of Object.values(bridge.placementsByIdea||{})){
+    if(placement?.draftId===draftId){placement.draftId='';placement.name='';}
+    for(const kind of ['agenda','campaign'])if(placement?.[kind+'DraftId']===draftId){placement[kind+'DraftId']='';placement[kind+'Name']='';}
+  }
   if(bridge.lastPlacement?.draftId===draftId)bridge.lastPlacement=null;
   return draft;
 }
@@ -128,7 +131,7 @@ export async function deleteBridgePlanName(state,draftId){
 export function resetBridgeAssignment(state){
   Object.assign(state.bridge,{selectedCodes:[],ideaCode:'',activeAssignmentIdeaCode:'',mode:'single',chosenStocks:[],stockSearch:'',
     taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},formatIdsByIdea:{},formatIdsByKind:{image:[],video:[]},
-    carSelectionsByIdea:{},carModesByIdea:{},placementsByIdea:{},lastPlacement:null,error:''});
+    carSelectionsByIdea:{},carModesByIdea:{},placementsByIdea:{},lastPlacement:null,currentDraftId:'',draftsOpen:false,error:''});
 }
 export async function clearPendingDraft(state){
   const plan=state.plan,bridge=state.bridge,ideas=selectedIdeas(state);
@@ -205,8 +208,96 @@ export function newBridgeState() {
   category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',ideaUsageFilter:'all',mode:'single',chosenStocks:[],stockSearch:'',
   formatIdsByKind:{image:[],video:[]},formatIdsByIdea:{},taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},activeAssignmentIdeaCode:'',carSelectionsByIdea:{},carModesByIdea:{},
   remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true,
-  planDrafts:[],placementsByIdea:{},lastPlacement:null};
+  planDrafts:[],placementsByIdea:{},lastPlacement:null,
+  savedDrafts:[],currentDraftId:'',draftsOpen:false,draftLoadError:'',draftSaving:false,
+  historyByIdea:{},historyLoading:{},historyError:{},expandedTaskId:''};
 }
+/** An assignment is ready to confirm only when ALL fields for that idea
+ * are complete; the owner may fill them in any order. This validator also
+ * protects the Firestore approval write, not only the disabled UI button. */
+export function bridgeIdeaMissing(state, ideaCode) {
+  const bridge=state.bridge,plan=state.plan,idea=getIdea(plan,ideaCode);
+  if(!idea || !selectionCodes(bridge).includes(ideaCode))return ['حدد الفكرة المعتمدة أولًا'];
+  const missing=[];
+  const typePref=String(bridge.category||'').startsWith('تعريفي')?'تعريف':String(bridge.category||'').startsWith('بيعي')?'بيع':'';
+  const matching=bridge.taskTypes.filter(type=>typePref && String(type.name||'').includes(typePref));
+  const typeId=bridge.taskTypeId||(matching.length===1?matching[0].id:'');
+  if(!bridge.taskTypes.some(type=>type.id===typeId))missing.push('نوع التاسك في التسويق');
+  const placement=bridge.placementsByIdea?.[ideaCode]||null;
+  try { placementPayload(bridge,idea,placement); }
+  catch(error) { missing.push(String(error?.message||'الوجهة في قسم النشر')); }
+  const assignments=assignmentsForIdea(bridge,ideaCode);
+  if(!assignments.length || assignments.length>10 || assignments.some(row=>{
+    const [userId,departmentId]=String(row.assignee||'').split('|');
+    return !bridge.executors.some(user=>user.user_id===userId&&user.department_id===departmentId)
+      || !validISODate(row.dueOn) || row.dueOn<nowInRiyadh();
+  }) || new Set(assignments.map(row=>String(row.assignee||'').split('|')[0])).size!==assignments.length)
+    missing.push('المنفذون ومواعيد التسليم لكل فكرة');
+  const kind=imageOrVideo(idea);
+  const formats=bridge.formatIdsByIdea?.[ideaCode]||[];
+  if(!formats.length||formats.some(id=>!bridge.formats.some(row=>row.id===id&&row.mediaKinds?.includes(kind))))
+    missing.push('مقاسات '+(kind==='video'?'الفيديو':'الصور'));
+  const active=bridge.ideaCode===ideaCode;
+  const assets=taskCodes(plan,ideaCode).map(code=>plan.assets.find(row=>row.code===code)).filter(Boolean);
+  const mode=active?bridge.mode:(bridge.carModesByIdea?.[ideaCode]||assets[0]?.approvedCarMode||'single');
+  const cars=active?bridge.chosenStocks:(bridge.carSelectionsByIdea?.[ideaCode]||((assets[0]?.approvedVehicles||[]).map(stockId)));
+  if(!['none','single','compare'].includes(mode)||
+     (mode==='none'&&cars.length>0)||(mode==='single'&&cars.length<1)||(mode==='compare'&&cars.length<2) ||
+     cars.some(value=>!bridge.stock.some(car=>stockId(car)===value)))missing.push('تأكيد السيارات لكل فكرة');
+  return missing;
+}
+
+const draftSnapshot = bridge => {
+  const carSelectionsByIdea={...bridge.carSelectionsByIdea};
+  const carModesByIdea={...bridge.carModesByIdea};
+  if(bridge.ideaCode){carSelectionsByIdea[bridge.ideaCode]=[...bridge.chosenStocks];carModesByIdea[bridge.ideaCode]=bridge.mode;}
+  return {id:bridge.currentDraftId||crypto.randomUUID(), selectedCodes:selectionCodes(bridge),
+    category:bridge.category,ideaCode:bridge.ideaCode,taskTypeId:bridge.taskTypeId,
+    assignmentsByIdea:bridge.assignmentsByIdea,formatIdsByIdea:bridge.formatIdsByIdea,
+    placementsByIdea:bridge.placementsByIdea,carModesByIdea,carSelectionsByIdea};
+};
+export async function refreshBridgeSavedDrafts(bridge) {
+  try {bridge.savedDrafts=await listAssignmentDrafts();bridge.draftLoadError='';}
+  catch(error){bridge.draftLoadError='تعذر قراءة مسودات التكليفات من Firestore. انشر قواعد firestore.rules المرفقة. '+String(error?.message||'');}
+}
+export async function persistBridgeAssignmentDraft(state) {
+  const bridge=state.bridge;
+  if(!selectionCodes(bridge).length)throw Error('حدد فكرة واحدة على الأقل قبل حفظ المسودة');
+  const snapshot=draftSnapshot(bridge);
+  const saved=await saveAssignmentDraft(snapshot);
+  bridge.currentDraftId=saved.id;
+  await refreshBridgeSavedDrafts(bridge);
+  return saved;
+}
+export function resumeBridgeAssignmentDraft(state,draftId) {
+  const bridge=state.bridge, draft=bridge.savedDrafts.find(row=>row.id===draftId);
+  if(!draft)throw Error('المسودة غير موجودة أو تم حذفها');
+  const selectedCodes=(draft.selectedCodes||[]).filter(code=>{
+    const idea=getIdea(state.plan,code);
+    return eligible(idea)&&ideaIsApproved(state.plan,code);
+  });
+  if(!selectedCodes.length)throw Error('الأفكار المحفوظة في المسودة لم تعد متاحة أو معتمدة');
+  Object.assign(bridge,{
+    currentDraftId:draft.id,selectedCodes,category:draft.category||'',ideaCode:'',
+    taskTypeId:draft.taskTypeId||'',assignmentsByIdea:structuredClone(draft.assignmentsByIdea||{}),
+    formatIdsByIdea:structuredClone(draft.formatIdsByIdea||{}),
+    placementsByIdea:structuredClone(draft.placementsByIdea||{}),
+    carModesByIdea:structuredClone(draft.carModesByIdea||{}),
+    carSelectionsByIdea:structuredClone(draft.carSelectionsByIdea||{}),
+    activeAssignmentIdeaCode:'',lastPlacement:null,error:'',draftsOpen:false,
+  });
+  selectBridgeIdea(state,selectedCodes.includes(draft.ideaCode)?draft.ideaCode:selectedCodes[0],false);
+  if(selectedCodes.length !== (draft.selectedCodes||[]).length)
+    bridge.error='بعض الأفكار في المسودة لم تعد معتمدة. راجع الاختيارات قبل إنشاء التكليف.';
+  return draft;
+}
+export async function discardBridgeAssignmentDraft(state,draftId){
+  const bridge=state.bridge;
+  await deleteAssignmentDraft(draftId);
+  if(bridge.currentDraftId===draftId){resetBridgeAssignment(state);bridge.currentDraftId='';}
+  await refreshBridgeSavedDrafts(bridge);
+}
+
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category)&&!SALES_CATEGORIES.has(category))throw Error('تصنيف غير معتمد');
  Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',assignmentsByIdea:{},activeAssignmentIdeaCode:'',formatIdsByIdea:{},carSelectionsByIdea:{},carModesByIdea:{},error:''});
@@ -266,7 +357,7 @@ export async function fetchBridge(resource, options={}) {
   if (!auth.currentUser) throw Error('Please sign in to Firebase');
   const idToken = await auth.currentUser.getIdToken();
   const url = new URL('/api/marketing-bridge',window.location.origin);
-  if (!options.body) { url.searchParams.set('resource',resource); if(options.taskId)url.searchParams.set('taskId',options.taskId); }
+  if (!options.body) { url.searchParams.set('resource',resource); if(options.taskId)url.searchParams.set('taskId',options.taskId); if(options.ideaCode){url.searchParams.set('ideaCode',options.ideaCode);url.searchParams.set('planId',PLAN_ID);} }
   const reply = await fetch(url,{method:options.body?'POST':'GET',headers:{Authorization:`Bearer ${idToken}`, ...(options.body?{'Content-Type':'application/json'}:{})},...(options.body?{body:JSON.stringify({action:resource==='agenda'?'agenda':resource==='delete-draft'?'delete-draft':'assign',...options.body})}:{})});
   const payload = await reply.json().catch(()=>({ok:false,error:'Invalid API response'}));
   if(!reply.ok || !payload.ok)throw Error(payload.error || `Bridge request failed (${reply.status})`);
@@ -281,6 +372,7 @@ export async function reloadBridge(state) {
     state.stock=stock.cars||[];state.executors=people.executors||[];
     state.taskTypes=types.taskTypes||[];state.formats=types.formats||[];
     state.planDrafts=drafts.drafts||[];
+    await refreshBridgeSavedDrafts(state);
   }catch(error){state.error=String(error?.message||error);}
   finally{state.loading=false;}
 }
@@ -296,9 +388,11 @@ function subPlacementFields(bridge,code,subKind,p){
   const isNew=!typedMatch&&(savedDraftId===NEW_PLAN_DRAFT||(!savedDraftId&&Boolean(savedName)));
   const current=typedMatch?NEW_PLAN_DRAFT+':'+typedMatch:isNew?NEW_PLAN_DRAFT:savedDraftId;
   const selectedDraft=drafts.find(row=>row.id===savedDraftId);
+  const staleDraft=Boolean(savedDraftId&&savedDraftId!==NEW_PLAN_DRAFT&&!selectedDraft);
   return `<fieldset class="bridge-shared-sub"><legend>${escape(kindLabel)}</legend>
     <label>اسم ${kindLabel}<span class="bridge-placement-name"><select name="${prefix}Draft_${escape(code)}" data-placement="draft">
       ${opt('','اختر '+kindLabel,current)}
+      ${staleDraft?`<option value=\"${escape(savedDraftId)}\" selected disabled>المسودة السابقة غير متاحة — اختر مسودة أخرى</option>`:''}
       ${drafts.map(row=>opt(row.id,row.name+' · '+(row.ideaCount||0)+' فكرة',current)).join('')}
       ${typed.map(name=>opt(NEW_PLAN_DRAFT+':'+name,name+' · جديدة في هذا التكليف',current)).join('')}
       ${opt(NEW_PLAN_DRAFT,'+ '+(subKind==='campaign'?'حملة':'أجندة')+' جديدة',current)}</select>
@@ -316,12 +410,14 @@ function placementFields(bridge,idea){
   const isNew=!typedMatch&&(p.draftId===NEW_PLAN_DRAFT||(!p.draftId&&Boolean(p.name)));
   const current=typedMatch?NEW_PLAN_DRAFT+':'+typedMatch:isNew?NEW_PLAN_DRAFT:p.draftId;
   const selectedDraft=drafts.find(row=>row.id===p.draftId);
+  const staleDraft=Boolean(p.draftId&&p.draftId!==NEW_PLAN_DRAFT&&!selectedDraft);
   return `<div class="bridge-placement" data-placement-code="${escape(code)}">
     <label>الوجهة في قسم النشر<select name="placementKind_${escape(code)}" data-placement="kind" required>
       ${opt('','اختر: أجندة أو حملة',p.kind)}${opt('agenda','أجندة',p.kind)}${opt('campaign','حملة',p.kind)}${opt('shared','مشتركة (حملة + أجندة)',p.kind)}${opt('none','بدون — تاسك فقط',p.kind)}</select></label>
     ${p.kind==='agenda'||p.kind==='campaign'?`
     <label>اسم ${kindLabel}<span class="bridge-placement-name"><select name="placementDraft_${escape(code)}" data-placement="draft">
       ${opt('','اختر '+kindLabel,current)}
+      ${staleDraft?`<option value=\"${escape(p.draftId)}\" selected disabled>المسودة السابقة غير متاحة — اختر مسودة أخرى</option>`:''}
       ${drafts.map(row=>opt(row.id,row.name+' · '+(row.ideaCount||0)+' فكرة',current)).join('')}
       ${typed.map(name=>opt(NEW_PLAN_DRAFT+':'+name,name+' · جديدة في هذا التكليف',current)).join('')}
       ${opt(NEW_PLAN_DRAFT,'+ '+(p.kind==='campaign'?'حملة':'أجندة')+' جديدة',current)}</select>
@@ -352,12 +448,14 @@ export function bridgePage(state) {
   const savedMode=activeAssets[0]?.approvedCarMode||'single';
   const savedCars=(activeAssets[0]?.approvedVehicles||[]).map(stockId).sort();
   const selectionCurrent=confirmed&&savedMode===bridge.mode&&JSON.stringify(savedCars)===JSON.stringify([...bridge.chosenStocks].sort());
+  const ideaMissing=current?bridgeIdeaMissing(state,current.code):[];
   const selectedCategories=new Set(selected.map(row=>row.marketingCategory));
   // بيعي - قسط وبيعي - كاش تُعدّان مجموعة واحدة (بيعي) لأغراض الاعتماد
   const isSalesGroup=[...selectedCategories].every(c=>SALES_CATEGORIES.has(c));
   const ready=selected.length>0&&selected.length===selectionCodes(bridge).length&&(selectedCategories.size===1||isSalesGroup)&&selected.every(row=>{
     const assets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-    return assets.length>0&&assets.every(asset=>asset.creativeApprovedAt&&(!asset.integrationDraft?.pending||asset.integrationRequestKey));
+    return assets.length>0&&assets.every(asset=>asset.creativeApprovedAt&&(!asset.integrationDraft?.pending||asset.integrationRequestKey)) &&
+      !bridgeIdeaMissing(state,row.code).length;
   });
   const typePref=bridge.category.startsWith('تعريفي')?'تعريف':bridge.category.startsWith('بيعي')?'بيع':'';
   const matching=bridge.taskTypes.filter(type=>String(type.name||'').includes(typePref));
@@ -394,8 +492,13 @@ export function bridgePage(state) {
   }).join('');
   return `<div class="bridge-studio-toolbar" role="group" aria-label="فلاتر التصنيفات وتحديث البيانات">
       ${plan?`<nav class="bridge-category-tabs bridge-top-categories" aria-label="التصنيفات">${categories}</nav>`:''}
-      <div class="ui-page-actions bridge-toolbar-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div>
+      <div class="ui-page-actions bridge-toolbar-actions">
+        <button type="button" class="btn" data-action="bridge-open-drafts">مسودات التكليفات (${bridge.savedDrafts.length})</button>
+        <button type="button" class="btn" data-action="bridge-save-draft" ${bridge.draftSaving||!selected.length?'disabled':''}>${bridge.currentDraftId?'تحديث مسودة التكليف':'حفظ مسودة التكليف'}</button>
+        <button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div>
     </div>
+    ${bridge.draftLoadError?`<div class="notice warning">${escape(bridge.draftLoadError)}</div>`:''}
+    ${bridge.draftsOpen?`<section class="bridge-drafts-panel" aria-label="مسودات التكليفات"><header><strong>مسودات التكليفات المحفوظة في Firestore</strong><button type="button" class="btn p-small" data-action="bridge-open-drafts">إغلاق</button></header><div class="bridge-drafts-items">${bridge.savedDrafts.map(d=>`<article class="bridge-saved-draft"><div><strong>${escape(d.selectedCodes?.length||0)} فكرة</strong><small>آخر تعديل: ${escape(d.updatedAt?.toDate?.()?.toLocaleString?.('ar-SA')||'محفوظة في قاعدة البيانات')}</small></div><button type="button" class="btn p-small" data-action="bridge-resume-draft" data-draft="${escape(d.id)}">استكمال المسودة</button><button type="button" class="btn p-small" data-action="bridge-delete-saved-draft" data-draft="${escape(d.id)}">حذف</button></article>`).join('')||'<p>لا توجد مسودات محفوظة. اختر أفكارًا ثم اضغط «حفظ مسودة التكليف».</p>'}</div></section>`:''}
     ${bridge.error?`<div id="bridge-error" role="alert" class="notice warning">${escape(bridge.error)}${bridge.error.includes('تكليف محفوظ')?` <button type="button" class="btn p-small" data-action="bridge-clear-draft">مسح التكليف المحفوظ</button>`:''}</div>`:''}
     ${!plan?'<div class="notice warning">حمّل خطة المحتوى أولًا.</div>':`
     <div class="bridge-studio">
@@ -409,7 +512,7 @@ export function bridgePage(state) {
         </aside>
         <main class="bridge-studio-workspace">
           ${current?`<header class="bridge-studio-header"><div><small>كود الفكرة: <b dir="ltr">${escape(current.code)}</b></small><h2>${escape(current.title)}</h2><p>${escape(current.marketingCategory)} · ${kind==='video'?'فيديو':'صورة'}</p></div>
-          <span class="bridge-status-chip ${confirmed?'is-done':''}">${confirmed?'تم تأكيد السيارات':'بانتظار تأكيد السيارات'}</span></header>
+          <span class="bridge-status-chip ${confirmed&&selectionCurrent?'is-done':''}">${confirmed&&selectionCurrent?'تم تأكيد السيارات':'بانتظار تأكيد السيارات'}</span></header>
           <div class="bridge-editor-grid">
             <form id="bridge-assign" class="bridge-assignment-form" novalidate>
               <section class="bridge-config-pane bridge-config-type"><h3>نوع التاسك في التسويق</h3>
@@ -439,7 +542,8 @@ export function bridgePage(state) {
               ${bridge.mode!=='none'?`<label>بحث في الاستوك<input id="bridge-stock-search" type="search" value="${escape(bridge.stockSearch)}" placeholder="اسم السيارة أو الموديل"/></label>
                 <div class="bridge-stock-summary">السيارات المحددة لهذه الفكرة: <strong>${bridge.chosenStocks.length}</strong></div>
                 <div class="bridge-car-list" id="bridge-cars">${renderStockOptions(bridge)||'<p>لا توجد سيارات مطابقة.</p>'}</div>`:''}
-              <button type="submit" class="btn btn-primary bridge-confirm" ${pending||bridge.busy||(bridge.mode==='single'&&bridge.chosenStocks.length<1)||(bridge.mode==='compare'&&bridge.chosenStocks.length<2)?'disabled':''}>${selectionCurrent?'حفظ تأكيد السيارات':'تأكيد سيارات هذه الفكرة والمتابعة'}</button>
+              <div id="bridge-completion-hint" class="bridge-completion-hint ${ideaMissing.length?'is-missing':'is-ready'}" role="status">${ideaMissing.length?'أكمل المطلوب لتفعيل الحفظ: '+ideaMissing.map(escape).join(' · '):'اكتملت بيانات هذه الفكرة. يمكنك تأكيد السيارات الآن.'}</div>
+              <button type="submit" class="btn btn-primary bridge-confirm" ${pending||bridge.busy||ideaMissing.length?'disabled':''}>${selectionCurrent?'حفظ تأكيد السيارات':'تأكيد سيارات هذه الفكرة والمتابعة'}</button>
             </form>
           </div>`:`<div class="bridge-studio-empty"><h2>اختر فكرة معتمدة من القائمة</h2><p>حدد الفكرة من اليمين لتظهر إعدادات التكليف والسيارات والمقاسات بعرض الصفحة.</p></div>`}
         </main>
@@ -454,6 +558,8 @@ export function currentApproval(state) {
 export async function approveBridgeIdea(state, mode, selectedCars) {
   const {idea,assets}=currentApproval(state);
   if(!idea || !assets.length || !ideaIsApproved(state.plan,idea.code))throw Error('يجب مراجعة الفكرة واعتمادها قبل اختيار السيارات');
+  const missing=bridgeIdeaMissing(state,idea.code);
+  if(missing.length)throw Error('أكمل البيانات المطلوبة قبل حفظ تأكيد السيارات: '+missing.join(' · '));
   if(assets.some(a=>a.integrationDraft?.pending===true))throw Error('يوجد طلب تكليف غير مكتمل؛ استكمله أولًا قبل تغيير السيارات');
   if(!['none','single','compare'].includes(mode))throw Error('نوع اختيار السيارات غير صحيح');
   if(mode==='single' && selectedCars.length<1 || mode==='compare' && selectedCars.length<2 || mode==='none' && selectedCars.length)throw Error('Car selection does not match the comparison requirement');
@@ -556,6 +662,7 @@ export async function assignBridgeIdea(state,form) {
    const names=ideaAssignees.map(row=>row.name).join('، ');
    const dueDate=ideaAssignees.find(row=>row.deliveryMode==='files')?.dueOn||ideaAssignees[0].dueOn;
    return assets.map(asset=>({code:asset.code,taskId:result.id,taskNo:result.taskNo,itemId:itemId||'',executorName:names,newDueDate:dueDate,
+     assignees:ideaAssignees.map(a=>({name:a.name,dueOn:a.dueOn})),
      previousMarketingTasks:asset.previousMarketingTasks||[],previousTask:asset.marketingTaskId?{
        taskId:asset.marketingTaskId,taskNo:asset.marketingTaskNo||'',itemId:asset.marketingItemId||'',
        executorName:asset.marketingExecutorName||'',linkedAt:asset.marketingLinkedAt||'',dueDate:asset.dueDate||''}:null}));
@@ -573,6 +680,18 @@ export async function assignBridgeIdea(state,form) {
  }
  return result;
 }
+/** Every previous task for this idea, read from Marketing's durable audit history.
+ * Avoid relying only on the first slide's Firestore previousMarketingTasks. */
+export async function fetchBridgeIdeaAssignments(state,code) {
+  const bridge=state.bridge;
+  if(bridge.historyLoading[code])return;
+  bridge.historyLoading[code]=true;bridge.historyError[code]='';
+  try {const answer=await fetchBridge('idea-assignments',{ideaCode:code});
+    bridge.historyByIdea[code]=answer.tasks||[];
+  } catch(error) {bridge.historyError[code]=String(error?.message||error);}
+  finally {bridge.historyLoading[code]=false;}
+}
+
 export async function checkBridgeTask(state){
   const item=currentApproval(state).assets.find(row=>row.marketingTaskId);
   if(!item)throw Error('No linked Marketing task for this idea');

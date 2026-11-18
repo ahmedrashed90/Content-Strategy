@@ -2,10 +2,10 @@ import { newManualIdeaDraft, readManualIdeaForm, prepareManualIdea, emptyScene, 
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
-import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost, deleteAssignmentDraft } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
@@ -696,6 +696,7 @@ async function boot() {
           state.plan=loaded;
           state.planStatus=loaded?'saved':'missing';
           state.planError='';
+          if(loaded && state.view==='asset'&&state.selectedAssetCode)void loadBriefTaskHistory(state.selectedAssetCode);
         }catch(err){
           state.plan=null;
           state.planStatus='denied';
@@ -1071,6 +1072,10 @@ async function submitBridgeApproval(form) {
   const selected=[...state.bridge.chosenStocks];
   state.bridge.busy=true;state.bridge.error='';
   try {
+    // Persist the fully selected per-idea assignment configuration before
+    // confirming its vehicles. Refresh or later return must restore every field.
+    // An incomplete assignment may still be saved separately at any time.
+    await persistBridgeAssignmentDraft(state);
     await approveBridgeIdea(state,form.elements.namedItem('carMode').value,selected);
     const outstanding=state.bridge.selectedCodes.find(code=>code!==currentCode &&
       taskCodes(state.plan,code).some(id=>!state.plan.assets.find(asset=>asset.code===id)?.creativeApprovedAt));
@@ -1088,6 +1093,10 @@ async function submitBridgeApproval(form) {
     if(target)document.getElementById(target)?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
+app.addEventListener('input', event => {
+  if(event.target?.closest?.('#bridge-assign'))refreshBridgeConfirmButton();
+});
+
 function rememberBridgeAssignmentForm(form) {
   if(!form)return;
   state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
@@ -1138,9 +1147,13 @@ async function submitBridgeAssignment(form) {
   }
   state.bridge.busy=true;state.bridge.error='';
   try {
+    const savedDraftId=state.bridge.currentDraftId;
     const result=await assignBridgeIdea(state,form);
     toast('تم إنشاء تاسك '+result.taskNo+' وربطه بالأفكار المختارة.');
     resetBridgeAssignment(state);
+    if(savedDraftId){try{await deleteAssignmentDraft(savedDraftId);await refreshBridgeSavedDrafts(state.bridge);}
+      catch(error){console.warn('The task was created, but its completed draft could not be cleaned:',error?.message||error);}}
+
     state.bridge.lastCreatedTask={name:result.taskNo,title:result.name||'',id:result.id};
   } catch(error) {
     state.bridge.error=error?.message||'تعذر إنشاء التاسك. لم تتم إعادة المحاولة تلقائيًا لمنع التكرار.';
@@ -1253,6 +1266,7 @@ app.addEventListener('change', async event => {
   if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
   if(event.target.closest?.('#bridge-assign')){
     rememberBridgeAssignmentForm(event.target.closest('#bridge-assign'));
+    refreshBridgeConfirmButton();
     if(event.target.matches?.('select[name^="assignee_"]'))render();
     if(event.target.matches?.('select[data-placement]'))render();
     return;
@@ -1271,6 +1285,7 @@ app.addEventListener('change', async event => {
     else{state.bridge.chosenStocks=state.bridge.chosenStocks.filter(v=>v!==value);}
     const summary=document.querySelector('.bridge-stock-summary strong');
     if(summary)summary.textContent=String(state.bridge.chosenStocks.length);
+    refreshBridgeConfirmButton();
     return;
   }
   if(event.target.id==='publishing-plan-file'){
@@ -1325,11 +1340,27 @@ function readBriefDraft(){
 function canLeaveBrief(){
   return state.view!=='asset'||!state.briefBaseline||readBriefDraft()===state.briefBaseline||window.confirm('فيه تغييرات في البريف لسه ما اتحفظتش. ترجع من غير حفظ؟');
 }
+async function loadBriefTaskHistory(code){
+  if((typeof isLocalPreview !== 'undefined' && isLocalPreview)||!code||!state.bridge?.historyLoading||state.bridge.historyLoading[code])return;
+  await fetchBridgeIdeaAssignments(state,code);
+  if(state.view==='asset'&&state.selectedAssetCode===code){const y=window.scrollY;render();window.scrollTo({top:y,behavior:'instant'});}
+}
+function refreshBridgeConfirmButton(){
+  if(state.view!=='bridge'||!state.bridge.ideaCode)return;
+  const form=app.querySelector('#bridge-assign');if(form)rememberBridgeAssignmentForm(form);
+  const missing=bridgeIdeaMissing(state,state.bridge.ideaCode);
+  const button=app.querySelector('#bridge-approval .bridge-confirm');
+  if(button)button.disabled=Boolean(state.bridge.busy||missing.length||state.plan?.assets.some(asset=>asset.code===state.bridge.ideaCode && asset.integrationDraft?.pending));
+  const message=app.querySelector('#bridge-completion-hint');
+  if(message){message.textContent=missing.length?'أكمل المطلوب لتفعيل الحفظ: '+missing.join(' · '):'اكتملت بيانات هذه الفكرة. يمكنك تأكيد السيارات الآن.';
+    message.classList.toggle('is-missing',missing.length>0);message.classList.toggle('is-ready',!missing.length);}
+}
 function openBrief(code){
   const previous=state.view;
   if(previous!=='asset'){state.briefReturnView=previous;state.briefReturnScrollY=window.scrollY||0;}
   state.selectedAssetCode=code;
   state.view='asset';render();state.briefBaseline=readBriefDraft();
+  void loadBriefTaskHistory(code);
   window.scrollTo({top:0,behavior:'instant'});
 }
 app.addEventListener('click', async event => {
@@ -1348,6 +1379,35 @@ app.addEventListener('click', async event => {
     return;
   }
   const control = event.target.closest('[data-action]');
+  if(control?.dataset.action==='bridge-show-history-task'){
+    state.bridge.expandedTaskId=state.bridge.expandedTaskId===control.dataset.task?'':control.dataset.task||'';
+    const y=window.scrollY;render();window.scrollTo({top:y,behavior:'instant'});return;
+  }
+  if(control?.dataset.action==='bridge-open-drafts'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    state.bridge.draftsOpen=!state.bridge.draftsOpen;render();return;
+  }
+  if(control?.dataset.action==='bridge-save-draft'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    if(state.bridge.draftSaving)return;
+    state.bridge.draftSaving=true;render();
+    try{await persistBridgeAssignmentDraft(state);toast('تم حفظ مسودة التكليف في Firestore. تقدر تستكملها في أي وقت.');}
+    catch(error){state.bridge.error=String(error?.message||error);}
+    finally{state.bridge.draftSaving=false;render();}
+    return;
+  }
+  if(control?.dataset.action==='bridge-resume-draft'){
+    if(state.bridge.selectedCodes.length&&!window.confirm('استكمال هذه المسودة سيستبدل الاختيارات غير المحفوظة حاليًا. هل تريد المتابعة؟'))return;
+    try{resumeBridgeAssignmentDraft(state,control.dataset.draft||'');render();toast('تم استعادة مسودة التكليف.');}
+    catch(error){state.bridge.error=String(error?.message||error);render();}return;
+  }
+  if(control?.dataset.action==='bridge-delete-saved-draft'){
+    if(!window.confirm('حذف مسودة التكليف المحفوظة؟ لن يتم حذف التكليفات التي أُنشئت بالفعل.'))return;
+    state.bridge.draftSaving=true;render();
+    try{await discardBridgeAssignmentDraft(state,control.dataset.draft||'');toast('تم حذف مسودة التكليف.');}
+    catch(error){state.bridge.error=String(error?.message||error);}
+    finally{state.bridge.draftSaving=false;render();}return;
+  }
   if(control?.dataset.action==='bridge-reload'){state.bridge.error='';void reloadBridge(state.bridge).then(render);return;}
   if(control?.dataset.action==='bridge-check-task'){void checkBridgeTask(state).then(()=>{toast('\u062a\u0645 \u062a\u062d\u062f\u064a\u062b \u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0643\u0644\u064a\u0641');render()}).catch(error=>toast(error.message||'\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u062d\u0627\u0644\u0629'));return;}
   if(control?.dataset.action==='bridge-stock-filter'){state.bridge.stockSearch=document.getElementById('bridge-stock-search')?.value||'';render();return;}
