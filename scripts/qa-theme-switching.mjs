@@ -76,7 +76,7 @@ assert(approved.includes('تجهيز تكليف جديد'));
 const b=newBridgeState();b.category=asset.marketingCategory||'تعريفي - مواصفات السيارات';
 const bridgeHtml=bridgePage({plan:approvedPlan,bridge:b});
 assert(!bridgeHtml.includes('<button type="button" class="btn p-small" data-action="bridge-edit-cars"'));
-assert(bridgeHtml.includes('02 — تأكيد السيارات لكل فكرة'));
+assert(bridgeHtml.includes('bridge-studio-layout') && bridgeHtml.includes('bridge-top-categories'));
 assert(text('site/index.html').includes('theme-manager.js'));
 assert(text('site/theme.css').includes('theme-picker-grid'));
 console.log('PASS: 8 distinct themes; preview / apply / cancel; browser-local persistence; settings actions; restored detail view; review decisions; single car selection step.');

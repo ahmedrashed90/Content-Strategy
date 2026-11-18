@@ -42,6 +42,9 @@ export const ideaIsApproved=(plan,code)=>reviewStatusFor(plan,code)==='معتم�
 export const ideaIsLinked=(plan,code)=>ideaAssets(plan,code).some(asset=>Boolean(asset.marketingTaskId));
 const reviewTag=(status)=>pill(status==='مرفوض'?'مؤرشف':status==='مطلوب تعديل'?'بانتظار المراجعة':status,status==='معتمد'?'p-ready':status==='مرفوض'?'p-error':'p-neutral');
 const ideaKind=(idea)=>kindLabel[idea?.kind]||'غير معروف';
+/** Used = the idea was assigned in at least one Marketing task (current or earlier). */
+export const ideaWasUsed=(plan,code)=>ideaAssets(plan,code).some(asset=>Boolean(asset.marketingTaskId)||(asset.previousMarketingTasks||[]).length>0);
+const usageTag=(plan,code)=>ideaWasUsed(plan,code)?pill('تم الاستخدام','p-used'):pill('لم يتم الاستخدام','p-unused');
 const cleanVisualText = value => String(value||'').replace(/الشريحة\\s+\\d+\\s+\\(I\\d+\\)\\s*[:—-]?\\s*/g,'').trim();
 const imageCards = idea => {
  if(Array.isArray(idea.imageSlides) && idea.imageSlides.length) return idea.imageSlides;
@@ -212,19 +215,26 @@ export function tasksPage(state){
 export function ideasPage(state){
   const plan=state.plan;
   if(!plan)return importPanel(state);
+  const sourceTab=state.ideaSourceTab||'all';
   const kind=state.ideaKind||'all',review=state.ideaReviewFilter||'all',category=state.ideaCategoryFilter||'all',search=(state.ideaSearch||'').toLocaleLowerCase();
-  const allIdeas=[...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))].filter(a=>reviewStatusFor(plan,a.code)!=='مرفوض');
+  const rawIdeas=[...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))].filter(a=>reviewStatusFor(plan,a.code)!=='مرفوض');
+  const allIdeas=sourceTab==='used'?rawIdeas.filter(a=>ideaWasUsed(plan,a.code)):sourceTab==='claude'?rawIdeas.filter(a=>a.source==='claude'&&!ideaWasUsed(plan,a.code)):sourceTab==='manual'?rawIdeas.filter(a=>a.source!=='claude'&&!ideaWasUsed(plan,a.code)):rawIdeas.filter(a=>!ideaWasUsed(plan,a.code));
+  const usedCount=rawIdeas.filter(a=>ideaWasUsed(plan,a.code)).length;
+  const claudeCount=rawIdeas.filter(a=>a.source==='claude'&&!ideaWasUsed(plan,a.code)).length;
+  const manualCount=rawIdeas.filter(a=>a.source!=='claude'&&!ideaWasUsed(plan,a.code)).length;
   const ideas=allIdeas.filter(a=>(kind==='all'||mediaType(a)===kind)
-    && (category==='all'||a.marketingCategory===category)
+    && (category==='all'||(category==='بيعي'?a.marketingCategory?.startsWith('بيعي'):a.marketingCategory===category))
     && (review==='all'||reviewStatusFor(plan,a.code)===review)
     &&(!search||`${a.code} ${a.title} ${executorFor(plan,a.code)}`.toLocaleLowerCase().includes(search)));
-  const actions=`<button class="btn btn-primary" data-action="toggle-idea-import">${state.ideaImportOpen?'إغلاق الاستيراد':'استيراد أو استبدال JSON'}</button>`;
+  const actions=`<button type="button" class="btn btn-primary" data-action="manual-open">+ إضافة فكرة</button><button class="btn" data-action="toggle-idea-import">${state.ideaImportOpen?'إغلاق الاستيراد':'استيراد أو استبدال JSON'}</button>`;
   const panel=state.ideaImportOpen?ideaBatchPanel(state):'';
+  const sourceTabs=[['الكل','all',rawIdeas.length-usedCount],['أفكار مستخدمة','used',usedCount],['Claude','claude',claudeCount],['يدوي','manual',manualCount]];
   const tiles=[['كل الأفكار','all',allIdeas.length],['بانتظار المراجعة','بانتظار المراجعة',allIdeas.filter(a=>reviewStatusFor(plan,a.code)==='بانتظار المراجعة').length],['معتمد','معتمد',allIdeas.filter(a=>ideaIsApproved(plan,a.code)).length]];
   return `<div class="ideas-controls-center"><div class="ui-page-actions">${actions}</div>`
+    +`<div class="ideas-source-tabs" aria-label="مصدر الأفكار">${sourceTabs.map(([label,value,count])=>`<button class="ideas-source-tab ${sourceTab===value?'is-active':''}" type="button" data-action="ideas-source-tab" data-source="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div>`
     +`<div class="ideas-review-strip" aria-label="فلاتر مراحل المراجعة">${tiles.map(([label,value,count])=>`<button class="ideas-review-pill ${review===value?'is-selected':''}" type="button" data-action="ideas-filter-review" data-status="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div></div>`
-    +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-category">تصنيف الفكرة</label><select id="idea-category">${[['all','كل التصنيفات'],['تعريفي - بالبراند','تعريفي - بالبراند'],['تعريفي - بالويب سايت','تعريفي - بالويب سايت'],['تعريفي - مواصفات السيارات','تعريفي - مواصفات السيارات'],['بيعي - قسط','بيعي - قسط'],['بيعي - كاش','بيعي - كاش']].map(([k,v])=>option(k,v,category)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
-    +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card"><div class="p-idea-head">${a.marketingCategory?`<span class="idea-category-label">${e(a.marketingCategory)}</span>`:""}${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
+    +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-category">تصنيف الفكرة</label><select id="idea-category">${[['all','كل التصنيفات'],['تعريفي - بالبراند','تعريفي - بالبراند'],['تعريفي - بالويب سايت','تعريفي - بالويب سايت'],['تعريفي - مواصفات السيارات','تعريفي - مواصفات السيارات'],['بيعي','بيعي (قسط وكاش)'],['بيعي - قسط','بيعي - قسط'],['بيعي - كاش','بيعي - كاش']].map(([k,v])=>option(k,v,category)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
+    +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card${a.source==='claude'?' claude-idea-card':''}"><div class="p-idea-head">${a.source==='claude'?'<span class="idea-source-badge">Claude</span>':''}${a.marketingCategory?`<span class="idea-category-label">${e(a.marketingCategory)}</span>`:""}${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)} ${usageTag(plan,a.code)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
 }
 export function archivePage(state){
   const plan=state.plan;
@@ -300,19 +310,47 @@ function briefCard(plan,code,embedded=false){
   return `<section class="card panel p-brief-card"><div class="p-head-inline">${pill(ideaKind(a))}</div><h2>${e(a.title)}</h2><p>${e(a.audienceAndGoal||'')}</p><p><b>الرسالة:</b> ${e(a.message||'')}</p>${chapters}<h3>الكابشن حسب المنصة</h3>${caps||'<p>صورة ضمن نفس الفكرة أو قصة مساندة.</p>'}<h3>الهاشتاج</h3><p>${e(a.hashtagsByPlatform?.instagram||'لا توجد هاشتاجات مطلوبة لهذا الأصل')}</p>${embedded?`<button class="btn" data-action="open-asset" data-id="${e(code)}">فتح البريف كاملًا</button>`:''}</section>`;
 }
 
+/** Historical links are collected from ALL assets of a composite idea and from
+ * the authoritative read-only Marketing task history. One task appears once. */
+export function assignmentHistoryForIdea(plan,ideaCode,remote=[]){
+  const tasks=new Map();
+  for(const asset of ideaAssets(plan,ideaCode)){
+    for(const old of (asset.previousMarketingTasks||[])){
+      const key=String(old.taskId||old.taskNo||'');if(!key)continue;
+      if(!tasks.has(key))tasks.set(key,{taskId:old.taskId||'',taskNo:old.taskNo||old.taskId||'',
+        assignees:old.assignees||[{name:old.executorName||'غير محدد',dueOn:old.dueDate||''}],isCurrent:false});
+    }
+    if(asset.marketingTaskId){
+      const key=asset.marketingTaskId;
+      tasks.set(key,{taskId:key,taskNo:asset.marketingTaskNo||key,
+        assignees:asset.marketingAssignees||[{name:asset.marketingExecutorName||'غير محدد',dueOn:asset.dueDate||''}],isCurrent:true});
+    }
+  }
+  for(const task of remote){
+    const key=String(task.taskId||task.taskNo||'');if(!key)continue;
+    const existing=tasks.get(key)||{};
+    tasks.set(key,{...existing,...task,isCurrent:Boolean(existing.isCurrent),
+      assignees:Array.isArray(task.assignees)&&task.assignees.length?task.assignees:existing.assignees||[]});
+  }
+  return [...tasks.values()].sort((a,b)=>String(b.createdAt||b.taskNo||'').localeCompare(String(a.createdAt||a.taskNo||'')));
+}
+
 export function assetDetailPage(state){
   const plan=state.plan,idea=getIdea(plan,state.selectedAssetCode);
   if(!idea)return pageHeader('مراجعة البريف','الفكرة غير موجودة','');
   const codes=taskCodes(plan,idea.code);
-  const main=plan.assets.find(a=>a.code===codes[0]);
+  const main=ideaAssets(plan,idea.code).find(a=>a.marketingTaskId)||plan.assets.find(a=>a.code===codes[0]);
   const status=reviewStatusFor(plan,idea.code),linked=ideaIsLinked(plan,idea.code);
   const pendingRequest=ideaAssets(plan,idea.code).some(asset=>asset.integrationRequestKey&&!asset.marketingTaskId);
-  const prior=Array.isArray(main?.previousMarketingTasks)?main.previousMarketingTasks:[];
+  const remoteTasks=state.bridge?.historyByIdea?.[idea.code]||[];
+  const prior=assignmentHistoryForIdea(plan,idea.code,remoteTasks);
+  const historyLoading=Boolean(state.bridge?.historyLoading?.[idea.code]);
+  const historyError=state.bridge?.historyError?.[idea.code]||'';
   const reviewHistory=Array.isArray(main?.reviewHistory)?main.reviewHistory:[];
   const actions=`<button class="btn" data-action="copy-brief" data-id="${e(idea.code)}">نسخ البريف</button><button class="btn" data-action="download-brief" data-id="${e(idea.code)}">تنزيل البريف</button>`;
   const isSourceBlocked=Boolean(idea.requiresVerification||idea.sourceStatus==='موقوف');
   const decisionButtons=isSourceBlocked
-    ?'<div class="notice warning">الفكرة موقوفة لحين اعتماد المعلومات أو الشروط الناقصة في بريفها الأصلي. لا يمكن إنشاء تكليف لها حاليًا.</div>'
+    ?`<div class="notice warning">الفكرة موقوفة لحين التحقق من المعلومات أو الشروط الناقصة في بريفها الأصلي.</div><button class="btn btn-primary" name="reviewDecision" value="اعتماد الشروط" type="submit">اعتماد المعلومات والشروط وفك إيقاف الفكرة</button>`
     :status==='مرفوض'
     ?`<button class="btn btn-primary" name="reviewDecision" value="بانتظار المراجعة" type="submit">استرجاع الفكرة للمراجعة</button>`
     :status==='معتمد'
@@ -322,10 +360,20 @@ export function assetDetailPage(state){
     <div class="brief-decision-title"><h2>قرار الفكرة</h2>${reviewTag(status)}</div>
     ${pendingRequest?'<span class="review-pending-text">يوجد طلب تكليف لم تكتمل نتيجته. يلزم التحقق منه قبل تغيير حالة الفكرة.</span>':
       `<form id="idea-review-form" class="brief-decision-form"><input type="hidden" name="ideaCode" value="${e(idea.code)}"/><div class="review-decision-actions">${decisionButtons}</div></form>`}
-    ${status==='معتمد'?`<button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}" type="button">تجهيز تكليف جديد</button>`:''}
+    ${status==='معتمد'&&!isSourceBlocked?`<button class="btn btn-primary" data-action="bridge-open-asset" data-id="${e(idea.code)}" type="button">تجهيز تكليف جديد</button>`:''}
   </section>`;
   const historyPanel=reviewHistory.length?`<details class="card panel brief-review-history"><summary>سجل المراجعات</summary><div class="review-history">${[...reviewHistory].reverse().slice(0,10).map(record=>`<div class="review-history-item"><span>${reviewTag(record.status)}</span><small>${record.at?e(new Date(record.at).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'})):''}</small></div>`).join('')}</div></details>`:'';
-  const priorPanel=prior.length?`<section class="card panel prior-task-panel"><h2>التكليفات السابقة</h2><div class="prior-task-list">${[...prior].reverse().map(old=>`<div class="prior-task-row"><span><strong>${e(old.taskNo||old.taskId||'—')}</strong><small>مرتبط سابقًا ولا يتغير عند إعادة مراجعة الفكرة</small></span><span>${old.dueDate?dl(old.dueDate):'—'}</span></div>`).join('')}</div></section>`:'';
+  const priorPanel=(prior.length||historyLoading||historyError)?`<section class="card panel prior-task-panel"><h2>التكليفات السابقة</h2>
+    ${historyLoading?'<p class="minor">جارٍ قراءة سجل التكليفات من التسويق…</p>':''}
+    ${historyError?`<p class="minor" role="alert">تعذر تحديث سجل التسويق؛ المعروض حاليًا هو المحفوظ في الاستراتيجية.</p>`:''}
+    <div class="prior-task-list">${prior.map(task=>{const expanded=state.bridge?.expandedTaskId===task.taskId;
+      const names=(task.assignees||[]).map(row=>e(row.name||'غير محدد')).join('، ');
+      return `<article class="prior-task-row prior-task-expandable">
+        <button type="button" class="prior-task-open" data-action="bridge-show-history-task" data-task="${e(task.taskId)}" aria-expanded="${expanded}">
+          <strong dir="ltr">${e(task.taskNo||task.taskId||'—')}</strong><small>${task.isCurrent?'التكليف الحالي':'تكليف سابق'}${task.isDeleted?' · مؤرشف':''}</small></button>
+        <small>${names||'اضغط لعرض المنفذين'}</small>
+        ${expanded?`<div class="prior-task-details">${(task.assignees||[]).map(row=>`<div><span>المنفذ: <strong>${e(row.name||'غير محدد')}</strong></span><span>التسليم: <strong>${row.dueOn?dl(row.dueOn):'غير محدد'}</strong></span></div>`).join('')||'<p>تفاصيل المنفذين غير متاحة في السجل القديم.</p>'}</div>`:''}
+      </article>`;}).join('')}</div></section>`:'';
   const executionPanel=linked?`<section class="card panel production-side-panel"><div class="page-eyebrow">التكليف الحالي</div><h2>سيستم التسويق</h2><div class="production-summary-list"><div><span>رقم التاسك</span><strong>${e(main?.marketingTaskNo||main?.marketingTaskId||'')}</strong></div><div><span>المنفذ</span><strong>${e(main?.marketingExecutorName||main?.executor||'غير محدد')}</strong></div><div><span>التسليم</span><strong>${e(main?.dueDate?dl(main.dueDate):'غير محدد')}</strong></div></div><button class="btn" data-action="bridge-open-asset" data-id="${e(idea.code)}">متابعة التكليف</button></section>`:'';
   const side=[executionPanel,priorPanel].filter(Boolean).join('');
   return pageHeader('مراجعة البريف',idea.title,'',actions)
@@ -376,7 +424,7 @@ export function toBriefText(plan,code){
 export function toCreativeTreatmentText(plan,code){
   const idea=getIdea(plan,code);
   if(!idea)return '';
-  const lines=[`المعالجة الإبداعية — ${idea.title}`];
+  const lines=[`البريف — ${idea.title}`];
   if(idea.creativeTreatment)lines.push('التصور / المعالجة:',idea.creativeTreatment);
   lines.push('الهوك:',idea.hook||idea.screenText||'—',
     'النص / الفويس أوفر:',idea.script||'—', 'السيناريو التفصيلي:');

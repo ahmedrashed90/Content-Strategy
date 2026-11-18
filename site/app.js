@@ -1,10 +1,11 @@
+import { newManualIdeaDraft, readManualIdeaForm, prepareManualIdea, emptyScene, emptySlide, manualIdeaModal } from './manual-idea.js';
 import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
-import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
+import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost, deleteAssignmentDraft } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
@@ -74,9 +75,12 @@ const state = {
   agenda: newAgendaState(),
   pendingIdeaBatch: null,
   ideaImportError: '',
+  manualIdeaDraft: null,
+  manualIdeaError: '',
   importExecutor: '',
   taskPerson: 'الكل',
   taskWeek: 0,
+  ideaSourceTab: 'all',
   ideaKind: 'all',
   ideaCategoryFilter: 'all',
   ideaReviewFilter: 'all',
@@ -621,7 +625,7 @@ function render() {
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
   if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals','inspirations'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
   const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state), inspirations: ()=>inspirationsPage(state) };
-  app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>`;
+  app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>${manualIdeaModal(state.manualIdeaDraft,state.planSaving,state.manualIdeaError)}`;
 }
 
 async function boot() {
@@ -692,6 +696,7 @@ async function boot() {
           state.plan=loaded;
           state.planStatus=loaded?'saved':'missing';
           state.planError='';
+          if(loaded && state.view==='asset'&&state.selectedAssetCode)void loadBriefTaskHistory(state.selectedAssetCode);
         }catch(err){
           state.plan=null;
           state.planStatus='denied';
@@ -830,7 +835,51 @@ async function saveAssetEditor(form){
   }catch(err){toast('فشل حفظ معلومات التخطيط. راجع صلاحيات Firebase والاتصال.');console.warn(err);}
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ التخطيط داخل الاستراتيجية';}}
 }
+async function confirmSourceRequirements(form){
+  if(!state.plan||state.planSaving||isLocalPreview||!state.user)return;
+  const code=form.elements.namedItem('ideaCode')?.value||'';
+  const assets=ideaAssets(state.plan,code);
+  if(!assets.length||!assets.some(asset=>asset.requiresVerification||asset.sourceStatus==='موقوف')){
+    toast('الفكرة لا تحتاج إلى اعتماد شروط إضافية.');return;
+  }
+  if(assets.some(asset=>asset.integrationRequestKey&&!asset.marketingTaskId)){
+    toast('فيه طلب تكليف غير محسوم. تحقق من نتيجته أولًا.');return;
+  }
+  // Pre-flight: mirror Firestore rules validation on the full document state BEFORE write
+  const allowedExecutors=['','محمود','بلال','عبدالله'];
+  const allowedStatuses=['لم يبدأ','قيد التنفيذ','قيد المراجعة','مطلوب تعديل','قيد التعديل','معتمد','مرفوض'];
+  const allowedReviewStatuses=['بانتظار المراجعة','مطلوب تعديل','معتمد','مرفوض'];
+  for(const asset of assets){
+    if(!allowedExecutors.includes(asset.executor??'')){toast(`تعذر الاعتماد: المنفذ «${asset.executor}» غير مقبول في القواعد (${asset.code}).`);return;}
+    if(!allowedStatuses.includes(asset.status)){toast(`تعذر الاعتماد: حالة الإنتاج «${asset.status}» غير مقبولة في القواعد (${asset.code}).`);return;}
+    if('reviewStatus' in asset && asset.reviewStatus!=null && !allowedReviewStatuses.includes(asset.reviewStatus)){toast(`تعذر الاعتماد: حالة المراجعة «${asset.reviewStatus}» غير مقبولة في القواعد (${asset.code}).`);return;}
+  }
+  if(!window.confirm('هل راجعت المعلومات والشروط الناقصة في بريف الفكرة وتأكدت من استيفائها؟ سيتم تسجيل الاعتماد باسمك، دون تغيير التكليفات السابقة.'))return;
+  const at=new Date().toISOString();
+  const rows=assets.map(asset=>({code:asset.code,changes:{
+    requiresVerification:false,
+    sourceStatus:asset.sourceStatus==='موقوف'?'تم التحقق':(asset.sourceStatus||''),
+    sourceVerifiedAt:at,
+    sourceVerifiedByUid:state.user.uid
+  }}));
+  state.planSaving=true;
+  try{
+    await updateReviewAssetRows(rows);
+    const updates=new Map(rows.map(row=>[row.code,row.changes]));
+    state.plan.assets=state.plan.assets.map(asset=>updates.has(asset.code)?{...asset,...updates.get(asset.code)}:asset);
+    toast('تم اعتماد المعلومات والشروط. يمكنك الآن اعتماد الفكرة أو تجهيز تكليف جديد لو كانت معتمدة.');
+    state.briefBaseline='';
+  }catch(error){
+    const fc=error?.code||'';const fm=error?.message||'';
+    console.error('Verification save failed:',fc,fm,'\nassets:',JSON.stringify(assets.map(a=>({code:a.code,executor:a.executor,status:a.status,reviewStatus:a.reviewStatus,requiresVerification:a.requiresVerification,sourceStatus:a.sourceStatus}))));
+    if(fc==='permission-denied')toast('تعذر حفظ الاعتماد: القواعد رفضت التحديث. راجع الكونسول لتفاصيل الأصول.');
+    else toast(`تعذر حفظ اعتماد المعلومات (${fc||fm||'خطأ غير معروف'}).`);
+  }
+  finally{state.planSaving=true;render();if(state.view==='asset')state.briefBaseline=readBriefDraft();state.planSaving=false;}
+}
+
 async function saveIdeaReview(form,decision){
+  if(decision==='اعتماد الشروط'){await confirmSourceRequirements(form);return;}
   if(!state.plan||state.planSaving||isLocalPreview)return;
   const code=form.elements.namedItem('ideaCode')?.value||'';
   const assets=ideaAssets(state.plan,code);
@@ -910,6 +959,43 @@ async function savePostEditor(form){
   finally{state.planSaving=false;if(submit){submit.disabled=false;submit.textContent='حفظ تعديلات النشر والتكليف';}}
 }
 
+// Preserve the single full-screen composer scroll area when its fields are re-rendered.
+function renderManualIdeaAt(sectionSelector='') {
+  const before=app.querySelector('#manual-idea-form');
+  const offset=before?.scrollTop||0;
+  render();
+  const scroller=app.querySelector('#manual-idea-form');
+  if(!scroller)return;
+  if(sectionSelector){
+    const target=scroller.querySelector(sectionSelector);
+    if(target){
+      scroller.scrollTop=Math.max(0,scroller.scrollTop+target.getBoundingClientRect().top-scroller.getBoundingClientRect().top-16);
+      return;
+    }
+  }
+  scroller.scrollTop=offset;
+}
+
+// Manual ideas use the same Firestore write path and review workflow as JSON ideas.
+async function saveManualIdea(form) {
+  if(!state.plan||state.planSaving||!state.user||isLocalPreview)return;
+  const draft=readManualIdeaForm(form,state.manualIdeaDraft);
+  state.manualIdeaDraft=draft;
+  let idea;
+  try { idea=prepareManualIdea(draft,state.plan,'MANUAL'+Date.now().toString(36).toUpperCase()); }
+  catch(error){state.manualIdeaError=error?.message||'راجع بيانات الفكرة.';render();return;}
+  state.planSaving=true;state.manualIdeaError='';render();
+  try {
+    state.plan=await importPublishingIdeas([idea]);
+    state.manualIdeaDraft=null;state.ideaSourceTab='manual';state.ideaKind='all';
+    state.ideaReviewFilter='بانتظار المراجعة';state.ideaSearch='';
+    toast('تم حفظ الفكرة الجديدة في بنك الأفكار وإرسالها للمراجعة.');
+  }catch(error){
+    state.manualIdeaError=error?.message==='idea-already-exists'?'كود الفكرة موجود بالفعل. حاول الحفظ مرة أخرى.':
+      'تعذر حفظ الفكرة في Firestore؛ لم تتغير الأفكار الأخرى. تحقق من الاتصال وصلاحيات المستخدم.';
+  }finally {state.planSaving=false;render();}
+}
+
 // Reusable idea import: validate, preview, skip duplicates, then add only new assets.
 async function saveIdeaBatch(){
   if(!state.pendingIdeaBatch||state.planSaving||!state.user||isLocalPreview)return;
@@ -981,16 +1067,21 @@ async function saveSchedule(form){
 
 async function submitBridgeApproval(form) {
   if (state.bridge.busy || isLocalPreview) return;
+  rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
   const currentCode=state.bridge.ideaCode;
   const selected=[...state.bridge.chosenStocks];
   state.bridge.busy=true;state.bridge.error='';
   try {
+    // Persist the fully selected per-idea assignment configuration before
+    // confirming its vehicles. Refresh or later return must restore every field.
+    // An incomplete assignment may still be saved separately at any time.
+    await persistBridgeAssignmentDraft(state);
     await approveBridgeIdea(state,form.elements.namedItem('carMode').value,selected);
     const outstanding=state.bridge.selectedCodes.find(code=>code!==currentCode &&
       taskCodes(state.plan,code).some(id=>!state.plan.assets.find(asset=>asset.code===id)?.creativeApprovedAt));
     if(outstanding) selectBridgeIdea(state,outstanding,false);
     toast(outstanding?'تم تأكيد السيارات. انتقل لتأكيد الفكرة التالية.':'اكتمل تأكيد السيارات. انتقل لإنشاء التاسك.');
-    state.bridge.focusAfterSave=outstanding?'bridge-cars-area':'bridge-assignment-area';
+    state.bridge.focusAfterSave=outstanding?'bridge-approved-ideas':'bridge-assign';
   } catch(error) {
     state.bridge.error=error?.message||'تعذر تأكيد السيارات. لم يتم إنشاء تاسك.';
   } finally {
@@ -1002,12 +1093,67 @@ async function submitBridgeApproval(form) {
     if(target)document.getElementById(target)?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 }
+app.addEventListener('input', event => {
+  if(event.target?.closest?.('#bridge-assign'))refreshBridgeConfirmButton();
+});
+
+function rememberBridgeAssignmentForm(form) {
+  if(!form)return;
+  state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
+  for(const section of form.querySelectorAll('[data-idea-code]')){
+    const code=section.dataset.ideaCode;
+    const rows=[...section.querySelectorAll('.bridge-assignee-row')];
+    state.bridge.assignmentsByIdea[code]=rows.map((row,index)=>({
+      assignee:form.elements.namedItem('assignee_'+code+'_'+index)?.value||'',
+      dueOn:form.elements.namedItem('dueOn_'+code+'_'+index)?.value||nowInRiyadh()
+    }));
+  }
+  // Each idea owns its output sizes. Keep the active selections in memory when
+  // switching between approved ideas; older formatIdsByKind remains readable.
+  const code=state.bridge.ideaCode;
+  // Strategy flow: agenda/campaign destination of the idea currently open.
+  const placement=code?readPlacementForm(form,code,null):null;
+  if(placement){
+    if(placement.kind!=='agenda'&&placement.kind!=='campaign'){placement.draftId='';placement.name='';placement.date='';}
+    state.bridge.placementsByIdea[code]=placement;
+    if(placement.kind)state.bridge.lastPlacement={...placement};
+  }
+  if(code){
+    state.bridge.formatIdsByIdea[code]=[...form.querySelectorAll('input[name="format_'+code+'"]:checked')].map(input=>input.value);
+  }
+}
+
 async function submitBridgeAssignment(form) {
   if(state.bridge.busy||isLocalPreview)return;
+  // All idea panels belong to this one form, including panels hidden behind tabs.
+  // Native required validation cannot focus a hidden panel, so open the first
+  // incomplete idea before attempting the existing central assignment validator.
+  rememberBridgeAssignmentForm(form);
+  const missingCode=state.bridge.selectedCodes.find(code=>{
+    const rows=state.bridge.assignmentsByIdea[code]||[];
+    return !rows.length||rows.some(row=>!row.assignee||!row.dueOn);
+  });
+  if(missingCode){
+    selectBridgeIdea(state,missingCode,false);
+    state.bridge.error='حدد المنفذ وتاريخ التسليم لكل فكرة قبل إنشاء التاسك.';
+    render();return;
+  }
+  const missingPlacement=state.bridge.selectedCodes.find(code=>!state.bridge.placementsByIdea[code]?.kind);
+  if(missingPlacement){
+    selectBridgeIdea(state,missingPlacement,false);
+    state.bridge.placementsByIdea[missingPlacement]=placementForIdea(state.bridge,missingPlacement);
+    state.bridge.error='حدد في «نوع التاسك في التسويق» الأجندة أو الحملة (أو تاسك فقط) لهذه الفكرة ثم أعد الضغط على إنشاء التاسك.';
+    render();return;
+  }
   state.bridge.busy=true;state.bridge.error='';
   try {
+    const savedDraftId=state.bridge.currentDraftId;
     const result=await assignBridgeIdea(state,form);
     toast('تم إنشاء تاسك '+result.taskNo+' وربطه بالأفكار المختارة.');
+    resetBridgeAssignment(state);
+    if(savedDraftId){try{await deleteAssignmentDraft(savedDraftId);await refreshBridgeSavedDrafts(state.bridge);}
+      catch(error){console.warn('The task was created, but its completed draft could not be cleaned:',error?.message||error);}}
+
     state.bridge.lastCreatedTask={name:result.taskNo,title:result.name||'',id:result.id};
   } catch(error) {
     state.bridge.error=error?.message||'تعذر إنشاء التاسك. لم تتم إعادة المحاولة تلقائيًا لمنع التكرار.';
@@ -1027,6 +1173,7 @@ app.addEventListener('submit', event => {
   if(event.target.id==='idea-review-form'){
     event.preventDefault();void saveIdeaReview(event.target,event.submitter?.value||'');return;
   }
+  if(event.target.id==='manual-idea-form'){event.preventDefault();void saveManualIdea(event.target);return;}
   if(event.target.id==='bridge-approval'){
     event.preventDefault();void submitBridgeApproval(event.target);return;
   }
@@ -1118,26 +1265,27 @@ app.addEventListener('change', async event => {
   if(event.target.id==='bridge-category'){selectBridgeCategory(state,event.target.value);render();return;}
   if(event.target.id==='bridge-idea-search'){state.bridge.ideaSearch=event.target.value;return;}
   if(event.target.closest?.('#bridge-assign')){
-    const form=event.target.closest('#bridge-assign');
-    state.bridge.taskTypeId=form.elements.namedItem('taskTypeId')?.value||'';
-    state.bridge.assignments=state.bridge.assignments.map((entry,index)=>({
-      assignee:form.elements.namedItem('assignee_'+index)?.value||entry.assignee||'',
-      dueOn:form.elements.namedItem('dueOn_'+index)?.value||entry.dueOn||nowInRiyadh()
-    }));
-    state.bridge.formatIdsByKind=Object.fromEntries(['image','video'].map(kind=>[
-      kind,[...form.querySelectorAll('input[name="format_'+kind+'"]:checked')].map(x=>x.value)]));
+    rememberBridgeAssignmentForm(event.target.closest('#bridge-assign'));
+    refreshBridgeConfirmButton();
     if(event.target.matches?.('select[name^="assignee_"]'))render();
+    if(event.target.matches?.('select[data-placement]'))render();
     return;
   }
-  if(event.target.matches?.('input[name="bridge-select-idea"]')){try{toggleBridgeIdea(state,event.target.value,event.target.checked);render();}catch(err){toast(err.message);}return;}
+  if(event.target.closest?.('#manual-idea-form')&&event.target.name==='kind'){
+    state.manualIdeaDraft=readManualIdeaForm(event.target.form,state.manualIdeaDraft);
+    state.manualIdeaDraft.kind=event.target.value;
+    state.manualIdeaError='';renderManualIdeaAt();return;
+  }
+  if(event.target.matches?.('input[name="bridge-select-idea"]')){rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));const _sb=app.querySelector('.bridge-approved-list');const _st=_sb?.scrollTop||0;try{toggleBridgeIdea(state,event.target.value,event.target.checked);if(event.target.checked)selectBridgeIdea(state,event.target.value,false);render();const _sb2=app.querySelector('.bridge-approved-list');if(_sb2)_sb2.scrollTop=_st;}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
-  if(event.target.id==='bridge-mode'){state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
+  if(event.target.id==='bridge-mode'){rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
   if(event.target.matches?.('input[name="cars"]')){
     const value=event.target.value;
     if(event.target.checked){if(!state.bridge.chosenStocks.includes(value))state.bridge.chosenStocks.push(value);}
     else{state.bridge.chosenStocks=state.bridge.chosenStocks.filter(v=>v!==value);}
     const summary=document.querySelector('.bridge-stock-summary strong');
     if(summary)summary.textContent=String(state.bridge.chosenStocks.length);
+    refreshBridgeConfirmButton();
     return;
   }
   if(event.target.id==='publishing-plan-file'){
@@ -1192,11 +1340,27 @@ function readBriefDraft(){
 function canLeaveBrief(){
   return state.view!=='asset'||!state.briefBaseline||readBriefDraft()===state.briefBaseline||window.confirm('فيه تغييرات في البريف لسه ما اتحفظتش. ترجع من غير حفظ؟');
 }
+async function loadBriefTaskHistory(code){
+  if((typeof isLocalPreview !== 'undefined' && isLocalPreview)||!code||!state.bridge?.historyLoading||state.bridge.historyLoading[code])return;
+  await fetchBridgeIdeaAssignments(state,code);
+  if(state.view==='asset'&&state.selectedAssetCode===code){const y=window.scrollY;render();window.scrollTo({top:y,behavior:'instant'});}
+}
+function refreshBridgeConfirmButton(){
+  if(state.view!=='bridge'||!state.bridge.ideaCode)return;
+  const form=app.querySelector('#bridge-assign');if(form)rememberBridgeAssignmentForm(form);
+  const missing=bridgeIdeaMissing(state,state.bridge.ideaCode);
+  const button=app.querySelector('#bridge-approval .bridge-confirm');
+  if(button)button.disabled=Boolean(state.bridge.busy||missing.length||state.plan?.assets.some(asset=>asset.code===state.bridge.ideaCode && asset.integrationDraft?.pending));
+  const message=app.querySelector('#bridge-completion-hint');
+  if(message){message.textContent=missing.length?'أكمل المطلوب لتفعيل الحفظ: '+missing.join(' · '):'اكتملت بيانات هذه الفكرة. يمكنك تأكيد السيارات الآن.';
+    message.classList.toggle('is-missing',missing.length>0);message.classList.toggle('is-ready',!missing.length);}
+}
 function openBrief(code){
   const previous=state.view;
   if(previous!=='asset'){state.briefReturnView=previous;state.briefReturnScrollY=window.scrollY||0;}
   state.selectedAssetCode=code;
   state.view='asset';render();state.briefBaseline=readBriefDraft();
+  void loadBriefTaskHistory(code);
   window.scrollTo({top:0,behavior:'instant'});
 }
 app.addEventListener('click', async event => {
@@ -1215,6 +1379,35 @@ app.addEventListener('click', async event => {
     return;
   }
   const control = event.target.closest('[data-action]');
+  if(control?.dataset.action==='bridge-show-history-task'){
+    state.bridge.expandedTaskId=state.bridge.expandedTaskId===control.dataset.task?'':control.dataset.task||'';
+    const y=window.scrollY;render();window.scrollTo({top:y,behavior:'instant'});return;
+  }
+  if(control?.dataset.action==='bridge-open-drafts'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    state.bridge.draftsOpen=!state.bridge.draftsOpen;render();return;
+  }
+  if(control?.dataset.action==='bridge-save-draft'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    if(state.bridge.draftSaving)return;
+    state.bridge.draftSaving=true;render();
+    try{await persistBridgeAssignmentDraft(state);toast('تم حفظ مسودة التكليف في Firestore. تقدر تستكملها في أي وقت.');}
+    catch(error){state.bridge.error=String(error?.message||error);}
+    finally{state.bridge.draftSaving=false;render();}
+    return;
+  }
+  if(control?.dataset.action==='bridge-resume-draft'){
+    if(state.bridge.selectedCodes.length&&!window.confirm('استكمال هذه المسودة سيستبدل الاختيارات غير المحفوظة حاليًا. هل تريد المتابعة؟'))return;
+    try{resumeBridgeAssignmentDraft(state,control.dataset.draft||'');render();toast('تم استعادة مسودة التكليف.');}
+    catch(error){state.bridge.error=String(error?.message||error);render();}return;
+  }
+  if(control?.dataset.action==='bridge-delete-saved-draft'){
+    if(!window.confirm('حذف مسودة التكليف المحفوظة؟ لن يتم حذف التكليفات التي أُنشئت بالفعل.'))return;
+    state.bridge.draftSaving=true;render();
+    try{await discardBridgeAssignmentDraft(state,control.dataset.draft||'');toast('تم حذف مسودة التكليف.');}
+    catch(error){state.bridge.error=String(error?.message||error);}
+    finally{state.bridge.draftSaving=false;render();}return;
+  }
   if(control?.dataset.action==='bridge-reload'){state.bridge.error='';void reloadBridge(state.bridge).then(render);return;}
   if(control?.dataset.action==='bridge-check-task'){void checkBridgeTask(state).then(()=>{toast('\u062a\u0645 \u062a\u062d\u062f\u064a\u062b \u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0643\u0644\u064a\u0641');render()}).catch(error=>toast(error.message||'\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u062d\u0627\u0644\u0629'));return;}
   if(control?.dataset.action==='bridge-stock-filter'){state.bridge.stockSearch=document.getElementById('bridge-stock-search')?.value||'';render();return;}
@@ -1282,16 +1475,47 @@ app.addEventListener('click', async event => {
     catch(error){state.agenda.error=error?.message||'تعذر إنشاء أجندة في التسويق';}
     render();return;
   }
+  if(action==='bridge-focus-idea'){
+    const code=control.dataset.idea||'';
+    if(!code)return;
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    const _sb=app.querySelector('.bridge-approved-list');const _st=_sb?.scrollTop||0;
+    try{
+      if(!state.bridge.selectedCodes.includes(code))toggleBridgeIdea(state,code,true);
+      selectBridgeIdea(state,code,false);
+      state.bridge.error='';render();
+      const _sb2=app.querySelector('.bridge-approved-list');if(_sb2)_sb2.scrollTop=_st;
+    }catch(error){state.bridge.error=error?.message||'تعذر اختيار الفكرة';render();}
+    return;
+  }
+  if(action==='bridge-delete-plan-name'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    const draft=(state.bridge.planDrafts||[]).find(row=>row.id===control.dataset.draft);
+    if(!draft||!window.confirm('حذف «'+draft.name+'» من القائمة؟ لن يتم حذف أي تاسك.'))return;
+    state.bridge.busy=true;render();
+    try{await deleteBridgePlanName(state,draft.id);toast('تم حذف «'+draft.name+'»');state.bridge.error='';}
+    catch(error){state.bridge.error=String(error?.message||error).replace(/^Invalid placement:\s*/,'');}
+    finally{state.bridge.busy=false;render();}
+    return;
+  }
   if(action==='bridge-add-assignee'){
-    if(state.bridge.assignments.length<10){state.bridge.assignments.push({assignee:'',dueOn:nowInRiyadh()});render();}
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    const code=control.dataset.idea||state.bridge.selectedCodes[0];
+    if(!code||!state.bridge.selectedCodes.includes(code))return;
+    const rows=state.bridge.assignmentsByIdea[code]||[{assignee:'',dueOn:nowInRiyadh()}];
+    if(rows.length<10){state.bridge.assignmentsByIdea[code]=[...rows,{assignee:'',dueOn:nowInRiyadh()}];render();}
     return;
   }
   if(action==='bridge-remove-assignee'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    const code=control.dataset.idea||state.bridge.selectedCodes[0];
+    const rows=state.bridge.assignmentsByIdea[code]||[];
     const index=Number(control.dataset.index);
-    if(index>0&&index<state.bridge.assignments.length){state.bridge.assignments.splice(index,1);render();}
+    if(index>0&&index<rows.length){rows.splice(index,1);render();}
     return;
   }
   if(action==='bridge-pick-category'){
+    rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
     try{selectBridgeCategory(state,control.dataset.category||'');render();}
     catch(error){state.bridge.error=error?.message||'تعذر اختيار التصنيف';render();}
     return;
@@ -1299,6 +1523,18 @@ app.addEventListener('click', async event => {
   if(action==='bridge-filter-ideas'){
     state.bridge.ideaSearch=document.getElementById('bridge-idea-search')?.value||'';
     render();return;
+  }
+  if(action==='bridge-usage-filter'){
+    state.bridge.ideaUsageFilter=control.dataset.filter||'all';
+    render();return;
+  }
+  if(action==='bridge-clear-draft'){
+    if(!window.confirm('هل تريد مسح التكليف المحفوظ غير المكتمل؟ سيتم إلغاء الحفظ وستتمكن من إنشاء تكليف جديد.'))return;
+    state.bridge.busy=true;render();
+    try{await clearPendingDraft(state);toast('تم مسح التكليف المحفوظ.');state.bridge.error='';}
+    catch(error){state.bridge.error=error?.message||'تعذر مسح التكليف المحفوظ';}
+    finally{state.bridge.busy=false;render();}
+    return;
   }
   if(action==='bridge-toggle-cars'){state.bridge.carsExpanded=!state.bridge.carsExpanded;render();return;}
   if(action==='bridge-edit-cars'){
@@ -1330,6 +1566,37 @@ app.addEventListener('click', async event => {
     state.scheduleIdeaCode=action==='schedule-idea'?(control.dataset.id||''):'';
     state.view='schedule';render();window.scrollTo({top:0,behavior:'instant'});return;
   }
+  if(action==='manual-open'){
+    if(!state.plan){toast('حمّل خطة المحتوى أولًا.');return;}
+    state.manualIdeaDraft=newManualIdeaDraft();state.manualIdeaError='';render();return;
+  }
+  if(action==='manual-jump'){
+    const scroller=app.querySelector('#manual-idea-form');
+    const target=app.querySelector('#'+control.dataset.target);
+    if(scroller&&target&&scroller.contains(target)){
+      const distance=target.getBoundingClientRect().top-scroller.getBoundingClientRect().top;
+      scroller.scrollTo({top:Math.max(0,scroller.scrollTop+distance-16),behavior:'smooth'});
+    }
+    return;
+  }
+  if(action==='manual-close'){
+    if(!state.planSaving){state.manualIdeaDraft=null;state.manualIdeaError='';render();}
+    return;
+  }
+  if(action?.startsWith('manual-add-')||action?.startsWith('manual-remove-')){
+    const form=app.querySelector('#manual-idea-form');if(!form||!state.manualIdeaDraft||state.planSaving)return;
+    state.manualIdeaDraft=readManualIdeaForm(form,state.manualIdeaDraft);
+    const isScene=action.endsWith('scene');
+    const key=isScene?'scenes':'imageSlides';
+    const rows=state.manualIdeaDraft[key];
+    if(action.startsWith('manual-add-')){
+      if(rows.length<(isScene?30:24))rows.push(isScene?emptyScene():emptySlide());
+    } else {
+      const index=Number(control.dataset.index);
+      if(rows.length>1&&index>=0&&index<rows.length)rows.splice(index,1);
+    }
+    renderManualIdeaAt(action.startsWith('manual-add-')?'[data-manual-group="'+(isScene?'scene':'image')+'"]:last-child':'');return;
+  }
   if(action==='open-idea-import'){state.view='ideas';state.ideaImportOpen=true;state.pendingIdeaBatch=null;state.ideaImportError='';render();window.scrollTo({top:0,behavior:'instant'});return;}
   if(action==='toggle-idea-import'){state.ideaImportOpen=!state.ideaImportOpen;state.ideaImportError='';render();return;}
   if(action==='idea-import-mode'){state.ideaReplaceMode=control.dataset.mode==='replace';state.pendingIdeaBatch=null;state.ideaImportError='';render();return;}
@@ -1348,6 +1615,7 @@ app.addEventListener('click', async event => {
   if(action==='apply-plan-filter'){state.planFilter=app.querySelector('#plan-filter')?.value||'';render();return;}
   if(action==='clear-plan-filter'){state.planFilter='';state.calendarExecutor='all';state.calendarPlatform='all';state.calendarMedia='all';state.calendarStatus='all';render();return;}
   if(action==='apply-idea-search'){state.ideaSearch=app.querySelector('#idea-search')?.value||'';render();return;}
+  if(action==='ideas-source-tab'){state.ideaSourceTab=control.dataset.source||'all';state.ideaReviewFilter='all';render();return;}
   if(action==='ideas-filter-review'){state.ideaReviewFilter=control.dataset.status||'all';render();return;}
   if(action==='copy-brief'){await copyValue(toBriefText(state.plan,control.dataset.id));return;}
   if(action==='download-brief'){

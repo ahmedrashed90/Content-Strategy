@@ -45,11 +45,12 @@ assert(views.proposals.includes('تحديث المنتجات من التسويق
 assert(!views.proposals.includes('منتجات نهائية معتمدة فقط، توزيع يراعي'));
 assert(views.tasks.includes('delivery-list')&&!views.tasks.includes('delivery-timeline'));
 assert(views.tasks.includes('data-action="download-handoff"'));
-assert(views.bridge.includes('bridge-steps-layout'));
-assert(views.bridge.includes('data-action="bridge-toggle-cars"'));
+assert(views.bridge.includes('bridge-studio-layout'));
+assert(views.bridge.includes('id="bridge-mode"') && views.bridge.includes('bridge-editor-grid'));
 assert(views.bridge.includes('id="bridge-approval"'));
 assert(views.bridge.includes('id="bridge-assign"'));
-assert(views.bridge.includes('name="dueOn_0"'));
+assert(selected && views.bridge.includes(`name="dueOn_${selected.code}_0"`));
+assert(views.ideas.includes('data-action="manual-open"'));
 assert(!views.bridge.includes('إرسال للمراجعة'));
 assert(!views.bridge.includes('حفظ كمسودة'));
 assert(!views.bridge.includes('إنشاء تاسك من الأفكار المعتمدة'));

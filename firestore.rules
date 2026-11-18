@@ -51,17 +51,54 @@ service cloud.firestore {
           && request.resource.data.status == 'لم يبدأ';
         allow update: if isOwner()
           && request.resource.data.code == resource.data.code
-          && request.resource.data.executor in ['','محمود','بلال','عبدالله']
-          && request.resource.data.status in ['لم يبدأ','قيد التنفيذ','قيد المراجعة','مطلوب تعديل','قيد التعديل','معتمد','مرفوض']
-          && (!('reviewStatus' in request.resource.data) || request.resource.data.reviewStatus in ['بانتظار المراجعة','مطلوب تعديل','معتمد','مرفوض'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['executor'])
+              || request.resource.data.executor in ['','محمود','بلال','عبدالله'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+              || request.resource.data.status in ['لم يبدأ','قيد التنفيذ','قيد المراجعة','مطلوب تعديل','قيد التعديل','معتمد','مرفوض'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewStatus'])
+              || request.resource.data.reviewStatus in ['بانتظار المراجعة','مطلوب تعديل','معتمد','مرفوض'])
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'executor','status','dueDate','comments','updatedAt',
             'approvedVehicles','approvedCarMode','creativeApprovedAt','integrationRequestKey','integrationDraft',
             'reviewStatus','reviewNotes','reviewedAt','reviewedByUid','reviewHistory',
-            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks','retiredFromIdeaBank','retiredAt','retiredReason'
+            'marketingTaskId','marketingTaskNo','marketingItemId','marketingExecutorName','marketingLinkedAt','previousMarketingTasks','retiredFromIdeaBank','retiredAt','retiredReason',
+            'requiresVerification','sourceStatus','sourceVerifiedAt','sourceVerifiedByUid'
           ])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['requiresVerification','sourceStatus','sourceVerifiedAt','sourceVerifiedByUid'])
+              || (request.resource.data.requiresVerification == false
+                  && request.resource.data.sourceStatus != 'موقوف'
+                  && request.resource.data.sourceVerifiedByUid == request.auth.uid
+                  && request.resource.data.sourceVerifiedAt is string))
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;
+      }
+
+      // Independent unfinished task drafts. Only the owner can view, save,
+      // resume or discard them, including after a browser refresh.
+      match /assignmentDrafts/{draftId} {
+        allow get, list: if isOwner();
+        allow create: if isOwner()
+          && request.resource.data.id == draftId
+          && request.resource.data.ownerUid == request.auth.uid
+          && request.resource.data.status == 'draft'
+          && request.resource.data.selectedCodes is list
+          && request.resource.data.selectedCodes.size() <= 100
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner()
+          && request.resource.data.id == resource.data.id
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.status == 'draft'
+          && request.resource.data.selectedCodes is list
+          && request.resource.data.selectedCodes.size() <= 100
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'selectedCodes','category','ideaCode','taskTypeId',
+            'assignmentsByIdea','formatIdsByIdea','placementsByIdea',
+            'carModesByIdea','carSelectionsByIdea','updatedAt'
+          ])
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner();
       }
 
       match /posts/{postId} {

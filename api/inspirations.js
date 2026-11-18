@@ -1,5 +1,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { prepareIdeaBatch, IDEA_BATCH_SCHEMA } from '../site/idea-import.js';
 
 // ─── Config ──────────────────────────────────────────────────────
 function env(name) { return String(process.env[name] || '').trim(); }
@@ -99,29 +100,72 @@ export default async function handler(req, res) {
     }
 
     // ── POST /api/inspirations?action=push-ideas ─────────────────
-    // Claude pushes generated ideas back (updates inspiration status + stores idea refs)
+    // Claude pushes full ideas into assets collection + updates inspiration
     if (method === 'POST' && action === 'push-ideas') {
       let body = req.body;
       if (typeof body === 'string') body = JSON.parse(body);
 
       const inspirationId = String(body?.inspirationId || '').trim();
-      const generatedCodes = Array.isArray(body?.generatedCodes) ? body.generatedCodes : [];
+      const ideas = Array.isArray(body?.ideas) ? body.ideas : [];
       const notes = String(body?.notes || '').trim().slice(0, 500);
 
       if (!inspirationId) return responseJson(res, 400, { ok: false, error: 'inspirationId required' });
+      if (!ideas.length) return responseJson(res, 400, { ok: false, error: 'ideas array required' });
 
       const docRef = inspirationsRef.doc(inspirationId);
       const snap = await docRef.get();
       if (!snap.exists) return responseJson(res, 404, { ok: false, error: 'Inspiration not found' });
 
+      // Validate + normalize with the same importer the planner uses (site/idea-import.js),
+      // so every field the brief page shows is stored with the exact names it expects.
+      // Ideas whose code or title already exists are skipped as duplicates.
+      const assetsRef = db.collection('contentPlans').doc(PLAN_ID).collection('assets');
+      const existingSnap = await assetsRef.get();
+      const existingPlan = { assets: existingSnap.docs.map(doc => doc.data()), carousels: [] };
+
+      let prepared;
+      try {
+        prepared = prepareIdeaBatch(
+          { schema: IDEA_BATCH_SCHEMA, batchId: inspirationId, ideas: body.ideas },
+          existingPlan
+        );
+      } catch (err) {
+        return responseJson(res, 400, { ok: false, error: err.message });
+      }
+
+      const batch = db.batch();
+      const savedCodes = [];
+      for (const item of prepared.items) {
+        const doc = {
+          ...item,
+          source: 'claude',
+          status: 'لم يبدأ',
+          reviewStatus: 'بانتظار المراجعة',
+          executor: '',
+          inspirationId,
+          retiredFromIdeaBank: false,
+          createdAt: FieldValue.serverTimestamp(),
+        };
+        batch.create(assetsRef.doc(item.code), doc);
+        savedCodes.push(item.code);
+      }
+      if (savedCodes.length) await batch.commit();
+
+      // Inspiration status becomes «تم التوليد» once the batch has been processed
       await docRef.update({
         status: 'تم التوليد',
-        generatedIdeas: FieldValue.arrayUnion(...generatedCodes.map(String).slice(0, 30)),
+        generatedIdeas: FieldValue.arrayUnion(...savedCodes),
         notes: notes || snap.data().notes || '',
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      return responseJson(res, 200, { ok: true, updated: inspirationId });
+      return responseJson(res, 200, {
+        ok: true,
+        updated: inspirationId,
+        savedIdeas: savedCodes.length,
+        codes: savedCodes,
+        skippedDuplicates: prepared.duplicates,
+      });
     }
 
     // ── POST /api/inspirations?action=create ─────────────────────
