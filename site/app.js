@@ -844,6 +844,15 @@ async function confirmSourceRequirements(form){
   if(assets.some(asset=>asset.integrationRequestKey&&!asset.marketingTaskId)){
     toast('فيه طلب تكليف غير محسوم. تحقق من نتيجته أولًا.');return;
   }
+  // Pre-flight: mirror Firestore rules validation on the full document state BEFORE write
+  const allowedExecutors=['','محمود','بلال','عبدالله'];
+  const allowedStatuses=['لم يبدأ','قيد التنفيذ','قيد المراجعة','مطلوب تعديل','قيد التعديل','معتمد','مرفوض'];
+  const allowedReviewStatuses=['بانتظار المراجعة','مطلوب تعديل','معتمد','مرفوض'];
+  for(const asset of assets){
+    if(!allowedExecutors.includes(asset.executor??'')){toast(`تعذر الاعتماد: المنفذ «${asset.executor}» غير مقبول في القواعد (${asset.code}).`);return;}
+    if(!allowedStatuses.includes(asset.status)){toast(`تعذر الاعتماد: حالة الإنتاج «${asset.status}» غير مقبولة في القواعد (${asset.code}).`);return;}
+    if('reviewStatus' in asset && asset.reviewStatus!=null && !allowedReviewStatuses.includes(asset.reviewStatus)){toast(`تعذر الاعتماد: حالة المراجعة «${asset.reviewStatus}» غير مقبولة في القواعد (${asset.code}).`);return;}
+  }
   if(!window.confirm('هل راجعت المعلومات والشروط الناقصة في بريف الفكرة وتأكدت من استيفائها؟ سيتم تسجيل الاعتماد باسمك، دون تغيير التكليفات السابقة.'))return;
   const at=new Date().toISOString();
   const rows=assets.map(asset=>({code:asset.code,changes:{
@@ -859,8 +868,13 @@ async function confirmSourceRequirements(form){
     state.plan.assets=state.plan.assets.map(asset=>updates.has(asset.code)?{...asset,...updates.get(asset.code)}:asset);
     toast('تم اعتماد المعلومات والشروط. يمكنك الآن اعتماد الفكرة أو تجهيز تكليف جديد لو كانت معتمدة.');
     state.briefBaseline='';
-  }catch(error){console.warn('Verification save failed:',error?.code||error?.message);toast('تعذر حفظ اعتماد المعلومات. راجع قواعد Firestore.');}
-  finally{state.planSaving=false;render();if(state.view==='asset')state.briefBaseline=readBriefDraft();}
+  }catch(error){
+    const fc=error?.code||'';const fm=error?.message||'';
+    console.error('Verification save failed:',fc,fm,'\nassets:',JSON.stringify(assets.map(a=>({code:a.code,executor:a.executor,status:a.status,reviewStatus:a.reviewStatus,requiresVerification:a.requiresVerification,sourceStatus:a.sourceStatus}))));
+    if(fc==='permission-denied')toast('تعذر حفظ الاعتماد: القواعد رفضت التحديث. راجع الكونسول لتفاصيل الأصول.');
+    else toast(`تعذر حفظ اعتماد المعلومات (${fc||fm||'خطأ غير معروف'}).`);
+  }
+  finally{state.planSaving=true;render();if(state.view==='asset')state.briefBaseline=readBriefDraft();state.planSaving=false;}
 }
 
 async function saveIdeaReview(form,decision){

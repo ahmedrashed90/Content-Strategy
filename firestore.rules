@@ -51,9 +51,12 @@ service cloud.firestore {
           && request.resource.data.status == 'لم يبدأ';
         allow update: if isOwner()
           && request.resource.data.code == resource.data.code
-          && request.resource.data.executor in ['','محمود','بلال','عبدالله']
-          && request.resource.data.status in ['لم يبدأ','قيد التنفيذ','قيد المراجعة','مطلوب تعديل','قيد التعديل','معتمد','مرفوض']
-          && (!('reviewStatus' in request.resource.data) || request.resource.data.reviewStatus in ['بانتظار المراجعة','مطلوب تعديل','معتمد','مرفوض'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['executor'])
+              || request.resource.data.executor in ['','محمود','بلال','عبدالله'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+              || request.resource.data.status in ['لم يبدأ','قيد التنفيذ','قيد المراجعة','مطلوب تعديل','قيد التعديل','معتمد','مرفوض'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['reviewStatus'])
+              || request.resource.data.reviewStatus in ['بانتظار المراجعة','مطلوب تعديل','معتمد','مرفوض'])
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
             'executor','status','dueDate','comments','updatedAt',
             'approvedVehicles','approvedCarMode','creativeApprovedAt','integrationRequestKey','integrationDraft',
