@@ -1262,7 +1262,7 @@ app.addEventListener('change', async event => {
     state.manualIdeaDraft.kind=event.target.value;
     state.manualIdeaError='';renderManualIdeaAt();return;
   }
-  if(event.target.matches?.('input[name="bridge-select-idea"]')){rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));try{toggleBridgeIdea(state,event.target.value,event.target.checked);if(event.target.checked)selectBridgeIdea(state,event.target.value,false);render();}catch(err){toast(err.message);}return;}
+  if(event.target.matches?.('input[name="bridge-select-idea"]')){rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));const _sb=app.querySelector('.bridge-approved-list');const _st=_sb?.scrollTop||0;try{toggleBridgeIdea(state,event.target.value,event.target.checked);if(event.target.checked)selectBridgeIdea(state,event.target.value,false);render();const _sb2=app.querySelector('.bridge-approved-list');if(_sb2)_sb2.scrollTop=_st;}catch(err){toast(err.message);}return;}
   if(event.target.id==='bridge-idea'){selectBridgeIdea(state,event.target.value,false);render();return;}
   if(event.target.id==='bridge-mode'){rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));state.bridge.mode=event.target.value;state.bridge.chosenStocks=[];render();return;}
   if(event.target.matches?.('input[name="cars"]')){
@@ -1419,10 +1419,12 @@ app.addEventListener('click', async event => {
     const code=control.dataset.idea||'';
     if(!code)return;
     rememberBridgeAssignmentForm(app.querySelector('#bridge-assign'));
+    const _sb=app.querySelector('.bridge-approved-list');const _st=_sb?.scrollTop||0;
     try{
       if(!state.bridge.selectedCodes.includes(code))toggleBridgeIdea(state,code,true);
       selectBridgeIdea(state,code,false);
       state.bridge.error='';render();
+      const _sb2=app.querySelector('.bridge-approved-list');if(_sb2)_sb2.scrollTop=_st;
     }catch(error){state.bridge.error=error?.message||'تعذر اختيار الفكرة';render();}
     return;
   }
