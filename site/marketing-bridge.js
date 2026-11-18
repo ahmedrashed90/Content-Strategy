@@ -29,6 +29,19 @@ export const renderStockOptions = bridge => filterStockCars(bridge.stock,bridge.
 
 const imageOrVideo = idea => idea?.kind === 'video' ? 'video' : 'image';
 const opt = (value,label,current) => `<option value="${escape(value)}" ${String(value)===String(current)?'selected':''}>${escape(label)}</option>`;
+/** Deduplicate formats by width×height so each unique dimension appears once.
+ * Returns [{dimKey,width,height,ids:[...],representativeId,mediaKinds}]. */
+const deduplicateFormats = formats => {
+  const groups=new Map();
+  for(const f of formats){
+    const key=`${f.width||0}x${f.height||0}`;
+    if(!groups.has(key))groups.set(key,{dimKey:key,width:f.width,height:f.height,ids:[],representativeId:f.id,mediaKinds:new Set()});
+    const g=groups.get(key);
+    g.ids.push(f.id);
+    for(const k of (f.mediaKinds||[]))g.mediaKinds.add(k);
+  }
+  return [...groups.values()].map(g=>({...g,mediaKinds:[...g.mediaKinds]}));
+};
 
 export const CAMPAIGN_CATEGORIES = ['تعريفي - بالبراند','تعريفي - بالويب سايت','تعريفي - مواصفات السيارات','بيعي - قسط','بيعي - كاش'];
 // بيعي - قسط وبيعي - كاش يُعاملان كمجموعة واحدة ويمكن جمعهما في تكليف واحد
@@ -331,7 +344,7 @@ export function bridgePage(state) {
   const kind=current?imageOrVideo(current):'video';
   const currentFormats=current ? (pendingDraft?.formatIdsByIdea?.[current.code]||bridge.formatIdsByIdea?.[current.code]||
     pendingDraft?.formatIdsByKind?.[kind]||bridge.formatIdsByKind?.[kind]||[]) : [];
-  const sizes=bridge.formats.filter(format=>format.mediaKinds?.includes(kind));
+  const sizes=deduplicateFormats(bridge.formats.filter(format=>format.mediaKinds?.includes(kind)));
   // نعرض تاب "بيعي (قسط وكاش)" اللي يجمع الاثنين معًا
   const DISPLAY_CATEGORIES=[
     ...CAMPAIGN_CATEGORIES.filter(c=>!SALES_CATEGORIES.has(c)),
@@ -392,7 +405,7 @@ export function bridgePage(state) {
                 }).join('')}</div>
                 <button type="button" class="btn bridge-add-executor" data-action="bridge-add-assignee" data-idea="${escape(current.code)}" ${locked||rows.length>=10?'disabled':''}>+ إضافة منفذ لهذه الفكرة</button></section>
               <section class="bridge-config-pane bridge-config-formats"><h3>مقاسات ${kind==='video'?'الفيديو':'الصور'}</h3>
-                <div class="bridge-format-grid">${sizes.map(format=>`<label class="bridge-format-option"><input type="checkbox" name="format_${escape(current.code)}" value="${escape(format.id)}" ${currentFormats.includes(format.id)?'checked':''} ${locked?'disabled':''}/><span>${escape(format.platform_name)} — ${escape(format.name)}<small>${escape(format.width||'?')} × ${escape(format.height||'?')}</small></span></label>`).join('')||'<small>لا توجد مقاسات. حدّث المنفذين والمقاسات.</small>'}</div></section>
+                <div class="bridge-format-grid">${sizes.map(dim=>`<label class="bridge-format-option"><input type="checkbox" name="format_${escape(current.code)}" value="${escape(dim.representativeId)}" ${dim.ids.some(id=>currentFormats.includes(id))?'checked':''} ${locked?'disabled':''}/><span>${escape(dim.width||'?')} × ${escape(dim.height||'?')} px</span></label>`).join('')||'<small>لا توجد مقاسات. حدّث المنفذين والمقاسات.</small>'}</div></section>
               <div class="bridge-editor-footer"><span>${taskNameValid?'':'عنوان التاسك أطول من 250 حرفًا؛ اختر أفكارًا أقل.'} ${selected.length} فكرة مختارة · ${selected.filter(idea=>taskCodes(plan,idea.code).every(code=>plan.assets.find(asset=>asset.code===code)?.creativeApprovedAt)).length} مؤكدة السيارات</span>
                 <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!taskNameValid||bridge.busy?'disabled':''}>${selected.some(idea=>taskCodes(plan,idea.code).some(code=>plan.assets.find(a=>a.code===code)?.integrationDraft))?'استكمال إنشاء التاسك المحفوظ':'إنشاء تاسك واحد يحتوي '+selected.length+' فكرة'}</button></div>
             </form>
