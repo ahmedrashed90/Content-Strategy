@@ -5,7 +5,7 @@ import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaselin
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 
@@ -1463,6 +1463,18 @@ app.addEventListener('click', async event => {
   if(action==='bridge-filter-ideas'){
     state.bridge.ideaSearch=document.getElementById('bridge-idea-search')?.value||'';
     render();return;
+  }
+  if(action==='bridge-usage-filter'){
+    state.bridge.ideaUsageFilter=control.dataset.filter||'all';
+    render();return;
+  }
+  if(action==='bridge-clear-draft'){
+    if(!window.confirm('هل تريد مسح التكليف المحفوظ غير المكتمل؟ سيتم إلغاء الحفظ وستتمكن من إنشاء تكليف جديد.'))return;
+    state.bridge.busy=true;render();
+    try{await clearPendingDraft(state);toast('تم مسح التكليف المحفوظ.');state.bridge.error='';}
+    catch(error){state.bridge.error=error?.message||'تعذر مسح التكليف المحفوظ';}
+    finally{state.bridge.busy=false;render();}
+    return;
   }
   if(action==='bridge-toggle-cars'){state.bridge.carsExpanded=!state.bridge.carsExpanded;render();return;}
   if(action==='bridge-edit-cars'){

@@ -130,6 +130,15 @@ export function resetBridgeAssignment(state){
     taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},formatIdsByIdea:{},formatIdsByKind:{image:[],video:[]},
     carSelectionsByIdea:{},carModesByIdea:{},placementsByIdea:{},lastPlacement:null,error:''});
 }
+export async function clearPendingDraft(state){
+  const plan=state.plan,bridge=state.bridge,ideas=selectedIdeas(state);
+  const assets=ideas.flatMap(idea=>taskCodes(plan,idea.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean));
+  const stuck=assets.filter(a=>a.integrationDraft?.pending===true&&a.integrationRequestKey);
+  if(!stuck.length)throw Error('لا يوجد تكليف محفوظ لهذه الأفكار');
+  await updateManyAssets(stuck.map(a=>a.code),{integrationDraft:null,integrationRequestKey:''});
+  for(const a of stuck)Object.assign(a,{integrationDraft:null,integrationRequestKey:''});
+  resetBridgeAssignment(state);
+}
 /** Validated single payload row for agenda or campaign. Throws an Arabic reason. */
 function singlePlacementPayload(bridge,idea,placement){
   const label=idea.title||idea.code;
@@ -193,7 +202,7 @@ const groupedName = (category,ideas) => {
 };
 export function newBridgeState() {
  return {stock:[],executors:[],taskTypes:[],formats:[],loading:false,error:'',
-  category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',mode:'single',chosenStocks:[],stockSearch:'',
+  category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',ideaUsageFilter:'all',mode:'single',chosenStocks:[],stockSearch:'',
   formatIdsByKind:{image:[],video:[]},formatIdsByIdea:{},taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},activeAssignmentIdeaCode:'',carSelectionsByIdea:{},carModesByIdea:{},
   remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true,
   planDrafts:[],placementsByIdea:{},lastPlacement:null};
@@ -328,7 +337,10 @@ export function bridgePage(state) {
   const all=ideaRows(plan).filter(row=>eligible(row)&&ideaIsApproved(plan,row.code));
   const selected=selectedIdeas(state).filter(row=>eligible(row)&&sameCategoryGroup(row.marketingCategory,bridge.category));
   const q=String(bridge.ideaSearch||'').trim().toLocaleLowerCase();
+  const usageFilter=bridge.ideaUsageFilter||'all';
+  const isLinked=row=>{const a=taskCodes(plan,row.code).map(c=>plan.assets.find(x=>x.code===c)).filter(Boolean);return a.some(x=>x.marketingTaskId||(x.previousMarketingTasks||[]).length);};
   const visible=all.filter(row=>(!bridge.category||sameCategoryGroup(row.marketingCategory,bridge.category))&&
+    (usageFilter==='all'||(usageFilter==='used'?isLinked(row):!isLinked(row)))&&
     (!q||[row.code,row.title,row.marketingCategory,row.executor,row.marketingExecutorName].join(' ').toLocaleLowerCase().includes(q)));
   const current=selected.find(row=>row.code===bridge.ideaCode)||null;
   const activeAssets=current?taskCodes(plan,current.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean):[];
@@ -383,13 +395,14 @@ export function bridgePage(state) {
       ${plan?`<nav class="bridge-category-tabs bridge-top-categories" aria-label="التصنيفات">${categories}</nav>`:''}
       <div class="ui-page-actions bridge-toolbar-actions"><button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div>
     </div>
-    ${bridge.error?`<div id="bridge-error" role="alert" class="notice warning">${escape(bridge.error)}</div>`:''}
+    ${bridge.error?`<div id="bridge-error" role="alert" class="notice warning">${escape(bridge.error)}${bridge.error.includes('تكليف محفوظ')?` <button type="button" class="btn p-small" data-action="bridge-clear-draft">مسح التكليف المحفوظ</button>`:''}</div>`:''}
     ${!plan?'<div class="notice warning">حمّل خطة المحتوى أولًا.</div>':`
     <div class="bridge-studio">
       <div class="bridge-studio-layout">
         <aside class="bridge-studio-sidebar" id="bridge-approved-ideas">
           <div class="bridge-table-heading"><h2>الأفكار المعتمدة</h2><span class="bridge-summary-count">${visible.length} فكرة</span></div>
           <div class="bridge-table-controls"><label>بحث باسم الفكرة أو كود الفكرة<input id="bridge-idea-search" type="search" value="${escape(bridge.ideaSearch)}" placeholder="بحث في الأفكار المعتمدة"/></label><button type="button" class="btn" data-action="bridge-filter-ideas">بحث</button></div>
+          <div class="bridge-usage-filter"><button type="button" class="bridge-category-tab ${usageFilter==='all'?'active':''}" data-action="bridge-usage-filter" data-filter="all">الكل</button><button type="button" class="bridge-category-tab ${usageFilter==='unused'?'active':''}" data-action="bridge-usage-filter" data-filter="unused">لم تُستخدم</button><button type="button" class="bridge-category-tab ${usageFilter==='used'?'active':''}" data-action="bridge-usage-filter" data-filter="used">مستخدمة</button></div>
           <div class="bridge-approved-list">${ideaCards||'<p>لا توجد أفكار معتمدة مطابقة.</p>'}</div>
           <div class="bridge-selected-summary">تم تحديد <strong>${selected.length}</strong> فكرة للتكليف</div>
         </aside>

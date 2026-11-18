@@ -857,6 +857,8 @@ button,input,select,textarea{font-family:'Tajawal',Tahoma,sans-serif}
 .bridge-category-tab:hover{background:var(--cream);border-color:#b99784}
 .bridge-category-tab.active{background:var(--brown);color:var(--cream);border-color:var(--brown)}
 .bridge-category-tab.active span{background:#764b3e;color:var(--cream)}
+.bridge-usage-filter{display:flex;gap:6px;margin:0 0 12px}
+.bridge-usage-filter .bridge-category-tab{padding:8px 12px;font-size:11px;border-radius:9px}
 .bridge-table-controls{display:flex;gap:10px;align-items:end;margin:12px 0 16px}
 .bridge-table-controls label{display:grid;gap:7px;flex:1;min-width:200px;color:#583025;font-size:12px;font-weight:800}
 .bridge-table-controls input{height:43px;border:1px solid var(--line-strong);border-radius:11px;background:#fffbf5;color:var(--brown);padding:10px 13px;font:inherit;font-weight:500}
