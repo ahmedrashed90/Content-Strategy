@@ -131,12 +131,25 @@ function datetime(value){
   const date=new Date(value);
   return Number.isNaN(date.getTime())?String(value).slice(0,10):new Intl.DateTimeFormat('ar-EG-u-nu-latn',{timeZone:'Asia/Riyadh',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date);
 }
-function entryStatus(row){
-  const title=row.fileNote||statusText[row.fileStatus]||'';
-  const label=row.fileStatus==='waiting_file' && /مرفوع/.test(title) ? 'بانتظار الاعتماد'
-    : row.fileStatus==='waiting_file' && /لا يوجد ملف معتمد يطابق/.test(title) ? 'مقاس غير مطابق'
-    : statusText[row.fileStatus]||row.fileStatus;
-  return `<div class="pub-status-wrap"><span class="pub-status pub-${statusKind[row.fileStatus]||'incomplete'}" title="${esc(title)}">${icon(row.fileStatus==='ready'?'check':row.fileStatus==='waiting_file'?'clock':'alert')} ${esc(label)}</span>${row.fileNote?`<small class="pub-status-note" title="${esc(row.fileNote)}">${esc(row.fileNote)}</small>`:''}</div>`;
+function entryStatus(row,entries=[]){
+  const sourceNote=String(row.fileNote||'');
+  let label=statusText[row.fileStatus]||row.fileStatus||'غير محدد';
+  let note=sourceNote;
+  if(row.fileStatus==='waiting_file'){
+    if(/مرفوع.*اعتماد|لم يحصل على اعتماد/.test(sourceNote)) label='بانتظار اعتماد المقاس';
+    else if(/لا يوجد ملف معتمد يطابق|مقاسات معتمدة متاحة/.test(sourceNote)) label='مقاس غير مطابق';
+    else {
+      const available=entries.filter(e=>e.productId===row.productId&&e.fileStatus==='ready')
+        .flatMap(e=>e.files||[]).map(f=>f.width&&f.height?`${f.width}×${f.height}`:'').filter(Boolean);
+      const sizes=[...new Set(available)];
+      const requested=row.postType?.width&&row.postType?.height?`${row.postType.width}×${row.postType.height}`:'';
+      if(requested&&sizes.length&&!sizes.includes(requested)){
+        label='المقاس المطلوب غير متاح';
+        note=[sourceNote,`مقاسات جاهزة لنفس المطلوب: ${sizes.join('، ')}`].filter(Boolean).join(' — ');
+      }else if(/لم يتم العثور على ملف نهائي مرفوع/.test(sourceNote)) label='لا يوجد ملف مرفوع';
+    }
+  }
+  return `<span class="pub-status pub-${statusKind[row.fileStatus]||'incomplete'}" title="${esc(note||label)}" aria-label="${esc(label)}">${icon(row.fileStatus==='ready'?'check':row.fileStatus==='waiting_file'?'clock':'alert')} ${esc(label)}</span>`;
 }
 function fileActionButtons(row,f){
   return `<button class="pub-icon-btn" data-action="pub-preview" data-entry="${esc(row.id)}" data-file="${esc(f.id)}" title="معاينة الملف" aria-label="معاينة ${esc(f.name)}">${icon('eye')}</button>
@@ -154,40 +167,66 @@ function captionText(row){return `<div class="pub-caption">${row.caption?`<span 
     ${(row.caption||row.hashtags)?`<button class="pub-copy" data-action="pub-copy" data-entry="${esc(row.id)}" title="نسخ الكابشن والهاشتاج">نسخ النص</button>`:''}</div>`;}
 function agendaData(state){return state.detail?.agenda||state.agendas.find(a=>a.id===state.agendaId)?.agenda;}
 function agendaCards(state){
-  if(!state.agendas.length)return `<div class="card pub-empty">${icon('calendar','ic-lg')}<h2>لا توجد أجندات تمت مزامنتها حتى الآن</h2><p>من سيستم التسويق ← النشر ← تجهيز النشر، اضغط «مزامنة الأجندة مع الاستراتيجية». الأجندة ستظهر هنا حتى لو بعض الملفات لم تجهز بعد.</p></div>`;
-  return `<div class="pub-agendas-heading"><div><h2>الأجندات الشهرية</h2><p>افتح أي أجندة لعرض المنشورات والمقاسات والملفات النهائية الخاصة بها فقط.</p></div><span class="pub-agendas-count">${state.agendas.length} أجندة</span></div>
-    <div class="pub-agendas-grid">${state.agendas.map(row=>{
-      const a=row.agenda||{},t=row.totals||{},posts=Number(t.posts||row.entryCount||0),ready=Number(t.ready||0),waiting=Number(t.waiting||0),incomplete=Number(t.incomplete||0);
-      const readyPct=posts?Math.max(0,Math.min(100,Math.round(ready/posts*100))):0;
-      return `<article class="pub-agenda-card card"><div class="pub-agenda-card-title"><span class="pub-agenda-card-icon">${icon('calendar')}</span><div><strong>${esc(a.name||'أجندة بدون اسم')}</strong><small>${esc(a.planNo||'أجندة تسويق')}</small></div></div>
-        <div class="pub-agenda-range"><bdi dir="ltr">${esc(a.publishFrom||'—')}</bdi><span>حتى</span><bdi dir="ltr">${esc(a.publishTo||'—')}</bdi></div>
-        <div class="pub-agenda-stats"><span><b>${posts}</b> منشور</span><span class="pub-okay"><b>${ready}</b> جاهز</span><span class="pub-pending"><b>${waiting}</b> منتظر</span>${incomplete?`<span><b>${incomplete}</b> استكمال</span>`:''}</div>
-        <div class="pub-agenda-progress" role="img" aria-label="${readyPct} بالمئة ملفات جاهزة"><span style="width:${readyPct}%"></span></div>
-        <div class="pub-agenda-foot"><small>آخر مزامنة: ${esc(datetime(row.syncedAt))}</small><button class="btn btn-primary pub-open-btn" data-action="pub-open-agenda" data-agenda="${esc(row.id)}">عرض منشورات الأجندة ${icon('arrow')}</button></div>
-      </article>`;
-    }).join('')}</div>`;
+  if(!state.agendas.length)return `<div class="pub-empty">لا توجد أجندات تمت مزامنتها بعد.</div>`;
+  return `<div class="pub-table-scroll"><table class="pub-agendas-table"><thead><tr><th>الأجندة</th><th>بداية النشر</th><th>نهاية النشر</th><th>المنشورات</th><th>ملفات جاهزة</th><th>بانتظار ملف</th><th>آخر مزامنة</th><th></th></tr></thead><tbody>${state.agendas.map(row=>{
+    const a=row.agenda||{},t=row.totals||{};
+    return `<tr><td><strong>${esc(a.name||'أجندة بدون اسم')}</strong>${a.planNo?`<small dir="ltr">${esc(a.planNo)}</small>`:''}</td><td dir="ltr">${esc(a.publishFrom||'—')}</td><td dir="ltr">${esc(a.publishTo||'—')}</td>
+      <td><b>${Number(t.posts??row.entryCount??0)}</b></td><td class="pub-ready-count">${Number(t.ready||0)}</td><td class="pub-wait-count">${Number(t.waiting||0)}</td><td>${esc(datetime(row.syncedAt))}</td>
+      <td><button class="pub-open-agenda" data-action="pub-open-agenda" data-agenda="${esc(row.id)}">عرض المنشورات ${icon('arrow')}</button></td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
+function dayHeading(value){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value||'')))return String(value||'غير محدد');
+  const date=new Date(`${value}T12:00:00Z`);
+  if(Number.isNaN(date.valueOf()))return value;
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(date);
+}
+function dayGroups(rows){
+  const groups=new Map();
+  for(const row of rows){
+    const date=String(row.scheduledOn||'');
+    if(!groups.has(date))groups.set(date,[]);
+    groups.get(date).push(row);
+  }
+  return [...groups.entries()].sort(([a],[b])=>a.localeCompare(b,'en')).map(([date,posts])=>({date,posts}));
+}
+function postRow(row,all){
+  const kind=row.mediaKind==='video'?'فيديو':row.mediaKind==='image'?'صورة':row.mediaKind||'—';
+  const ideaName=row.ideaName||'—';
+  const requirement=row.requirementNumber?`المطلوب ${row.requirementNumber}`:'المطلوب';
+  const size=row.postType?.width&&row.postType?.height?`${row.postType.width} × ${row.postType.height}`:'—';
+  return `<div class="pub-day-post" role="row" data-entry="${esc(row.id)}">
+    <div role="cell" class="pub-post-request"><bdi dir="ltr">${esc(row.requestNo||row.taskNo||'—')}</bdi></div>
+    <div role="cell" class="pub-post-idea" title="${esc(ideaName)}"><strong>${esc(ideaName)}</strong>${row.ideaCode?`<small dir="ltr">${esc(row.ideaCode)}</small>`:''}</div>
+    <div role="cell" class="pub-post-task" title="${esc(row.taskName||'')}"><strong>${esc(requirement)}</strong><small>${esc(kind)}${row.taskName?` · ${esc(row.taskName)}`:''}</small></div>
+    <div role="cell" class="pub-post-platform"><strong>${esc(row.platform?.name||'غير محدد')}</strong><small>${esc(row.postType?.name||'غير محدد')}</small></div>
+    <div role="cell"><bdi class="pub-dim" dir="ltr">${esc(size)}</bdi></div>
+    <div role="cell">${captionText(row)}</div>
+    <div role="cell" class="pub-file-cell">${fileControls(row)}</div>
+    <div role="cell" class="pub-post-status">${entryStatus(row,all)}</div>
+  </div>`;
 }
 function detailedAgenda(state){
-  const rows=allEntries(state),totals=state.detail?.totals||{posts:0,ready:0,waiting:0,incomplete:0},agenda=agendaData(state);
-  const platforms=[...new Set(rows.map(e=>e.platform?.name).filter(Boolean))];
+  const rows=allEntries(state),agenda=agendaData(state);
+  const platforms=[...new Set(rows.map(e=>e.platform?.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
   const q=state.search.trim().toLocaleLowerCase('ar');
   const filtered=rows.filter(row=>{
     if(state.status!=='all'&&row.fileStatus!==state.status)return false;
     if(state.platform!=='all'&&row.platform?.name!==state.platform)return false;
     if(!q)return true;
-    return [row.requestNo,row.ideaName,row.taskName,row.ideaCode,row.platform?.name,row.postType?.name,row.caption,row.hashtags].some(v=>String(v||'').toLocaleLowerCase('ar').includes(q));
+    return [row.requestNo,row.ideaName,row.taskName,row.ideaCode,row.mediaKind,row.scheduledOn,row.platform?.name,row.postType?.name,row.caption,row.hashtags].some(v=>String(v||'').toLocaleLowerCase('ar').includes(q));
   });
-  return `<div class="pub-crumb"><button class="pub-back" data-action="pub-back">${icon('arrow')} كل الأجندات</button><span>/</span><strong>${esc(agenda?.name||'الأجندة')}</strong></div>
-    <div class="card pub-agenda-panel"><div class="pub-agenda-title"><div><span class="pub-subtle">تفاصيل الأجندة</span><strong>${esc(agenda?.name||'أجندة')}</strong><small>${esc(agenda?.publishFrom||'')} — ${esc(agenda?.publishTo||'')}</small></div>
-      <div class="pub-agenda-detail-actions"><button class="btn" data-action="pub-reload" ${state.loading?'disabled':''}>${icon('refresh')} تحديث البيانات</button>
-      <button class="btn btn-primary" data-action="pub-refresh" ${state.refreshing||state.loading?'disabled':''}>${icon('refresh')} ${state.refreshing?'جارٍ فحص الملفات':'تحديث جاهزية الملفات'}</button></div></div>
-    <div class="pub-kpis"><div class="pub-kpi"><span>إجمالي سجلات النشر</span><strong>${totals.posts||0}</strong></div><div class="pub-kpi pub-kpi-ready"><span>ملفات جاهزة</span><strong>${totals.ready||0}</strong></div><div class="pub-kpi pub-kpi-waiting"><span>بانتظار الملف / الاعتماد</span><strong>${totals.waiting||0}</strong></div><div class="pub-kpi"><span>تحتاج استكمال بيانات</span><strong>${totals.incomplete||0}</strong></div></div>
-    <div class="pub-synced-at">${icon('refresh')} آخر مزامنة: ${esc(datetime(state.detail?.syncedAt))} · حالة كل مقاس مستقلة عن باقي المقاسات</div></div>
-    <div class="card pub-table-panel"><div class="pub-filters"><div><label for="pub-search">بحث داخل الأجندة</label><input id="pub-search" type="search" placeholder="رقم الطلب، الفكرة، المنصة، الكابشن..." value="${esc(state.search)}" /></div><div><label for="pub-platform">المنصة</label><select id="pub-platform"><option value="all">كل المنصات</option>${platforms.map(p=>`<option value="${esc(p)}" ${state.platform===p?'selected':''}>${esc(p)}</option>`).join('')}</select></div><div><label for="pub-status">حالة الملف</label><select id="pub-status"><option value="all">كل الحالات</option>${Object.entries(statusText).map(([k,v])=>`<option value="${k}" ${state.status===k?'selected':''}>${esc(v)}</option>`).join('')}</select></div><div class="pub-results">${filtered.length} من ${rows.length} منشور</div></div>
-      <div class="pub-table-scroll"><table class="pub-table"><thead><tr><th>رقم الطلب / المطلوب</th><th>تاريخ النشر</th><th>المنصة / نوع النشر</th><th>المقاس</th><th>الكابشن والهاشتاج</th><th>الملف النهائي</th><th>الحالة</th></tr></thead><tbody>${filtered.length?filtered.map(row=>`<tr><td><bdi class="pub-request" dir="ltr">${esc(row.requestNo||row.taskNo||'—')}</bdi><strong class="pub-requirement">${esc(row.ideaName||row.taskName||'مطلوب')}</strong><small>${esc(row.mediaKind==='video'?'فيديو':row.mediaKind==='image'?'صورة':row.mediaKind||'')} ${row.ideaCode?`· ${esc(row.ideaCode)}`:''}</small></td>
-        <td><bdi dir="ltr">${esc(row.scheduledOn)}</bdi></td><td><strong>${esc(row.platform?.name||'غير محدد')}</strong><small>${esc(row.postType?.name||'نوع النشر غير محدد')}</small></td>
-        <td><bdi class="pub-dim" dir="ltr">${row.postType?.width&&row.postType?.height?`${row.postType.width} × ${row.postType.height}`:'—'}</bdi></td>
-        <td>${captionText(row)}</td><td class="pub-file-cell">${fileControls(row)}</td><td>${entryStatus(row)}</td></tr>`).join(''):`<tr><td colspan="7" class="pub-no-results">لا توجد منشورات مطابقة للبحث أو الفلاتر</td></tr>`}</tbody></table></div></div>`;
+  const dates=dayGroups(filtered);
+  return `<div class="pub-toolbar"><div class="pub-toolbar-identity"><button class="pub-back" data-action="pub-back">${icon('arrow')} كل الأجندات</button><strong title="${esc(agenda?.name||'')}">${esc(agenda?.name||'أجندة')}</strong><span class="pub-toolbar-range" dir="ltr">${esc(agenda?.publishFrom||'')} — ${esc(agenda?.publishTo||'')}</span><span class="pub-toolbar-count">${rows.length} منشور</span></div>
+      <div class="pub-toolbar-actions"><button class="btn" data-action="pub-reload" ${state.loading?'disabled':''}>${icon('refresh')} تحديث البيانات</button>
+      <button class="btn btn-primary" data-action="pub-refresh" ${state.refreshing||state.loading?'disabled':''}>${icon('refresh')} ${state.refreshing?'جارٍ التحديث':'تحديث جاهزية الملفات'}</button></div></div>
+    <div class="pub-filters"><input id="pub-search" type="search" aria-label="بحث في المنشورات" placeholder="بحث برقم الطلب أو اسم الفكرة أو المنصة أو المحتوى" value="${esc(state.search)}" />
+      <select id="pub-platform" aria-label="فلتر المنصة"><option value="all">كل المنصات</option>${platforms.map(p=>`<option value="${esc(p)}" ${state.platform===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
+      <select id="pub-status" aria-label="فلتر حالة الملف"><option value="all">كل الحالات</option>${Object.entries(statusText).map(([k,v])=>`<option value="${k}" ${state.status===k?'selected':''}>${esc(v)}</option>`).join('')}</select>
+      <span class="pub-results">${filtered.length} من ${rows.length} منشور · ${dates.length} يوم</span></div>
+    <div class="pub-table-scroll"><table class="pub-day-table"><thead><tr><th class="pub-date-heading">اليوم</th><th><div class="pub-post-head" role="row"><span>رقم الطلب</span><span>اسم الفكرة</span><span>المطلوب</span><span>المنصة / النوع</span><span>المقاس</span><span>الكابشن والهاشتاج</span><span>الملف النهائي</span><span>الحالة</span></div></th></tr></thead>
+    <tbody>${dates.length?dates.map(({date,posts})=>`<tr class="pub-day-row"><td class="pub-day-date"><strong>${esc(dayHeading(date))}</strong><small dir="ltr">${esc(date)}</small><span>${posts.length} منشور</span></td><td class="pub-day-cell"><div class="pub-day-posts" role="rowgroup">${posts.map(row=>postRow(row,rows)).join('')}</div></td></tr>`).join(''):
+      '<tr><td colspan="2" class="pub-no-results">لا توجد منشورات مطابقة للبحث أو الفلاتر</td></tr>'}</tbody></table></div>`;
 }
 function publicationFilesModal(state){
   if(!state.fileListEntryId)return '';
@@ -200,11 +239,11 @@ function publicationFilesModal(state){
 }
 export function publicationPage(state){
   const detail=state.agendaView==='detail' && state.agendaId;
-  return `<section class="pub-page"><div class="page-header pub-header"><div><div class="page-eyebrow">${icon('file')} محتوى النشر المستلم من سيستم التسويق</div><h1 class="page-title">النشر</h1></div>
-    ${!detail?`<button class="btn" data-action="pub-reload" ${state.loading?'disabled':''}>${icon('refresh')} ${state.loading?'جارٍ التحميل':'تحديث الأجندات'}</button>`:''}</div>
+  return `<section class="pub-page">
+    ${!detail?`<div class="pub-toolbar"><div class="pub-toolbar-identity"><strong>الأجندات</strong><span class="pub-toolbar-count">${state.agendas.length} أجندة</span></div><button class="btn" data-action="pub-reload" ${state.loading?'disabled':''}>${icon('refresh')} تحديث الأجندات</button></div>`:''}
     ${state.error?`<div class="pub-error" role="alert">${icon('alert')} ${esc(state.error)}</div>`:''}
     ${detail?detailedAgenda(state):agendaCards(state)}
-    ${state.loading?`<div class="pub-loading">${icon('refresh')} جارٍ تحميل بيانات الأجندة...</div>`:''}
+    ${state.loading?`<div class="pub-loading">${icon('refresh')} جارٍ التحميل...</div>`:''}
     ${publicationFilesModal(state)}${publicationMediaModal(state)}
   </section>`;
 }
