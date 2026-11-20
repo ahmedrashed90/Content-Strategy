@@ -21,9 +21,11 @@ assert.equal(JSON.stringify(normalized).includes('downloadPath'),false,'Never st
 const revision=publicationRevision(normalized);
 assert.equal(revision,publicationRevision(normalizePublicationSnapshot(snapshot)),'Idempotent same-snapshot revision');
 const waiting=structuredClone(snapshot);waiting.entries[0].fileStatus='waiting_file';waiting.entries[0].files=[];
+waiting.entries[0].fileNote='الملف النهائي مرفوع لهذا المقاس، لكنه لم يحصل على اعتماد المقاس بعد.';
 normalized=normalizePublicationSnapshot(waiting);
 assert.equal(normalized.entries[0].files.length,0);
 assert.equal(normalized.totals.waiting,1);
+assert.match(normalized.entries[0].fileNote,/مرفوع/,'preserve the real reason rather than calling every size missing');
 assert.notEqual(publicationRevision(normalized),revision,'Newly approved media changes revision');
 const incomplete=structuredClone(waiting);incomplete.entries[0].platform=null;incomplete.entries[0].fileStatus='needs_publish_type';
 assert.equal(normalizePublicationSnapshot(incomplete).totals.incomplete,1,'A post type may exist without a platform in the draft');

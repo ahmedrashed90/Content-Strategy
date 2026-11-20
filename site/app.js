@@ -8,7 +8,7 @@ import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import
 import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
-import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry } from './publication.js';
+import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry } from './publication.js';
 
 // Remember the last opened screen locally; production data and API routes are untouched.
 const NAV_STORAGE_KEY = 'mzj.contentStrategy.lastScreen.v1';
@@ -1418,6 +1418,22 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action?.startsWith('pub-')){
     const action=control.dataset.action;
     const pub=state.publishing;
+    if(action==='pub-open-agenda'){
+      resetPublicationMedia(pub);
+      pub.search='';pub.platform='all';pub.status='all';
+      await loadPublicationAgenda(pub,control.dataset.agenda||'');
+      render();window.scrollTo({top:0,behavior:'instant'});return;
+    }
+    if(action==='pub-back'){
+      closePublicationAgenda(pub);render();window.scrollTo({top:0,behavior:'instant'});return;
+    }
+    if(action==='pub-files-open'){
+      pub.fileListEntryId=control.dataset.entry||'';render();return;
+    }
+    if(action==='pub-files-close'){
+      if(control.classList.contains('pub-modal-overlay')&&event.target.closest('.pub-modal'))return;
+      pub.fileListEntryId='';render();return;
+    }
     if(action==='pub-close-media'){
       // An overlay click should close only when it is outside the dialog.
       if(event.target.closest('.pub-modal') && action==='pub-close-media' && control.classList.contains('pub-modal-overlay'))return;
@@ -1439,6 +1455,7 @@ app.addEventListener('click', async event => {
     if(['pub-preview','pub-download','pub-use'].includes(action)){
       const entryId=control.dataset.entry||'',fileId=control.dataset.file||'';
       if(action==='pub-preview'){
+        pub.fileListEntryId='';
         void previewPublicationMedia(pub,entryId,fileId).then(render).catch(err=>{pub.mediaError=err.message;render();});render();return;
       }
       try{const msg=await downloadPublicationMedia(pub,entryId,fileId,action==='pub-use');toast(msg);}
@@ -1734,6 +1751,7 @@ window.addEventListener('keydown', event => {
   if(event.key!=='Escape')return;
   if(state.modal){state.modal=null;render();return;}
   if(state.view==='publishing'&&state.publishing.media){resetPublicationMedia(state.publishing);render();return;}
+  if(state.view==='publishing'&&state.publishing.fileListEntryId){state.publishing.fileListEntryId='';render();return;}
   if(state.view!=='asset')return;
   // Escape is an explicit back action; do not discard uncommitted review fields.
   if(!canLeaveBrief())return;
