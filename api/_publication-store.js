@@ -75,8 +75,35 @@ export async function agendaDetails(id){
   if(docs.some(row=>!row.exists||!Array.isArray(row.data()?.entries)))throw new PublicationError(500,'أحد أجزاء الأجندة غير متاح');
   const entries=docs.flatMap(d=>d.data().entries);
   if(entries.length!==data.entryCount)throw new PublicationError(500,'عدد سجلات الأجندة غير متطابق');
-  return {id:ref.id,agenda:data.agenda,totals:data.totals,entries,
+  // Owner-edited publication copy belongs exclusively to Strategy. Keep it in
+  // separate documents so every Marketing sync stays immutable and cannot erase
+  // the owner's caption/hashtag edits.
+  const edits=await ref.collection('postCopyOverrides').get();
+  const copyById=new Map(edits.docs.map(d=>[d.id,d.data()]));
+  const displayEntries=entries.map(entry=>{
+    const copy=copyById.get(entry.id);
+    if(!copy||typeof copy.caption!=='string'||typeof copy.hashtags!=='string')return entry;
+    return {...entry,caption:copy.caption,hashtags:copy.hashtags,strategyCopyEdited:true};
+  });
+  return {id:ref.id,agenda:data.agenda,totals:data.totals,entries:displayEntries,
     syncedAt:data.syncedAt?.toDate?.()?.toISOString?.()||null,version:data.version};
+}
+
+/** Save caption/hashtags for one verified posting slot, never into Marketing. */
+export async function savePublicationCopy(agendaId,entryId,caption,hashtags){
+  if(!uuid(agendaId)||typeof entryId!=='string'||
+      !new RegExp(`^${UUID.source.slice(1,-1)}:(?:${UUID.source.slice(1,-1)}|unassigned)$`,'i').test(entryId))
+    throw new PublicationError(400,'معرّف المنشور غير صالح');
+  if(typeof caption!=='string'||caption.length>60000||typeof hashtags!=='string'||hashtags.length>30000)
+    throw new PublicationError(400,'الكابشن أو الهاشتاج أكبر من الحد المسموح');
+  const detail=await agendaDetails(agendaId);
+  if(!detail.entries.some(entry=>entry.id===entryId))
+    throw new PublicationError(404,'المنشور غير موجود في الأجندة المحددة');
+  const ref=agendaRef(agendaId).collection('postCopyOverrides').doc(entryId);
+  const batch=services().db.batch();
+  batch.set(ref,{caption,hashtags,updatedAt:FieldValue.serverTimestamp()});
+  await batch.commit();
+  return {ok:true,entryId,caption,hashtags,strategyCopyEdited:true};
 }
 export function marketingOrigin(){
   const raw=env('MZJ_MARKETING_API_BASE_URL');

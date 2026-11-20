@@ -10,7 +10,7 @@ export function newPublicationState(){return {
   agendas:[], agendaId:'', agendaView:'list', detail:null, loadState:'idle', loading:false, refreshing:false,
   error:'', mediaError:'', search:'', platform:'all', status:'all',
   media:null, mediaUrl:'', mediaBlob:null, mediaBusy:false, downloadingFileId:'',
-  lastRefreshAt:null, fileListEntryId:'',
+  lastRefreshAt:null, fileListEntryId:'', copyEditor:null,
 };}
 
 async function publicationRequest(path,options={}) {
@@ -46,7 +46,7 @@ export async function loadPublicationAgendas(state,selectId=''){
 
 export async function loadPublicationAgenda(state,id){
   if(!id)return;
-  state.agendaId=id;state.agendaView='detail';state.fileListEntryId='';state.error='';
+  state.agendaId=id;state.agendaView='detail';state.fileListEntryId='';state.copyEditor=null;state.error='';
   try{
     const detail=await publicationRequest(`/api/publication-agendas?agendaId=${encodeURIComponent(id)}`);
     if(state.agendaId===id)state.detail=detail;
@@ -55,7 +55,7 @@ export async function loadPublicationAgenda(state,id){
 
 export function closePublicationAgenda(state){
   resetPublicationMedia(state);
-  state.agendaId='';state.agendaView='list';state.detail=null;state.fileListEntryId='';
+  state.agendaId='';state.agendaView='list';state.detail=null;state.fileListEntryId='';state.copyEditor=null;
   state.search='';state.platform='all';state.status='all';state.error='';
 }
 
@@ -83,6 +83,30 @@ export function resetPublicationMedia(state){
 function allEntries(state){return Array.isArray(state.detail?.entries)?state.detail.entries:[];}
 export function publicationEntry(state,id){return allEntries(state).find(e=>e.id===id);}
 export function publicationFile(state,entryId,fileId){return publicationEntry(state,entryId)?.files?.find(f=>f.id===fileId);}
+
+export function openPublicationCopyEditor(state,entryId){
+  const entry=publicationEntry(state,entryId);
+  if(!entry)return false;
+  state.copyEditor={entryId,caption:entry.caption||'',hashtags:entry.hashtags||'',saving:false,error:''};
+  return true;
+}
+export function closePublicationCopyEditor(state){state.copyEditor=null;}
+
+export async function savePublicationCopyEditor(state,caption,hashtags){
+  const editor=state.copyEditor;
+  if(!editor||editor.saving||!state.agendaId)return false;
+  editor.saving=true;editor.error='';
+  try{
+    const response=await publicationRequest('/api/publication-agendas',{method:'POST',body:{
+      action:'save-copy',agendaId:state.agendaId,entryId:editor.entryId,caption,hashtags,
+    }});
+    const row=publicationEntry(state,editor.entryId);
+    if(row){row.caption=response.caption;row.hashtags=response.hashtags;row.strategyCopyEdited=true;}
+    state.copyEditor=null;
+    return true;
+  }catch(error){editor.error=error?.message||'تعذر حفظ الكابشن والهاشتاج';return false;}
+  finally{editor.saving=false;}
+}
 export async function actualPublicationBlob(state,entryId,fileId){
   if(!state.agendaId||!publicationFile(state,entryId,fileId))throw Error('الملف غير موجود ضمن هذه الأجندة');
   return publicationRequest(`/api/publication-media?agendaId=${encodeURIComponent(state.agendaId)}&fileId=${encodeURIComponent(fileId)}`,{binary:true});
@@ -163,8 +187,10 @@ function fileControls(row){
   return `<div class="pub-file-compact"><span class="pub-file-name" title="${esc(f.name)}">${icon('file')} <bdi dir="ltr">${esc(f.name)}</bdi></span>
     <div class="pub-file-buttons">${fileActionButtons(row,f)}</div></div>`;
 }
-function captionText(row){return `<div class="pub-caption">${row.caption?`<span title="${esc(row.caption)}">${esc(row.caption)}</span>`:''}${row.hashtags?`<small title="${esc(row.hashtags)}">${esc(row.hashtags)}</small>`:''}${(!row.caption&&!row.hashtags)?'<small>لا يوجد نص</small>':''}
-    ${(row.caption||row.hashtags)?`<button class="pub-copy" data-action="pub-copy" data-entry="${esc(row.id)}" title="نسخ الكابشن والهاشتاج">نسخ النص</button>`:''}</div>`;}
+function captionText(row){return `<div class="pub-caption"><button type="button" class="pub-caption-open" data-action="pub-copy-open" data-entry="${esc(row.id)}" title="فتح وتعديل الكابشن والهاشتاج">
+    ${row.caption?`<span title="${esc(row.caption)}">${esc(row.caption)}</span>`:''}${row.hashtags?`<small title="${esc(row.hashtags)}">${esc(row.hashtags)}</small>`:''}${(!row.caption&&!row.hashtags)?'<small>اكتب الكابشن والهاشتاج</small>':''}
+    <span class="pub-caption-edit-label">${icon('file')} ${row.strategyCopyEdited?'تعديل النص المحفوظ':'تعديل / كتابة'}</span></button>
+    ${(row.caption||row.hashtags)?`<button type="button" class="pub-copy" data-action="pub-copy" data-entry="${esc(row.id)}" title="نسخ الكابشن والهاشتاج">نسخ النص</button>`:''}</div>`;}
 function agendaData(state){return state.detail?.agenda||state.agendas.find(a=>a.id===state.agendaId)?.agenda;}
 function agendaCards(state){
   if(!state.agendas.length)return `<div class="pub-empty">لا توجد أجندات تمت مزامنتها بعد.</div>`;
@@ -190,9 +216,37 @@ function dayGroups(rows){
   }
   return [...groups.entries()].sort(([a],[b])=>a.localeCompare(b,'en')).map(([date,posts])=>({date,posts}));
 }
-function postRow(row,all){
+function dayTone(date,index){
+  const day=Number(String(date).slice(-2));
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(date))&&day>=1&&day<=31?(day-1):index%31;
+}
+/** The required item's idea is identified by its Strategy code / linked item ID.
+ * The Marketing task/category heading is NOT a reliable idea title. */
+export function requirementIdeaTitle(row,plan){
+  const assets=Array.isArray(plan?.assets)?plan.assets:[];
+  const carousels=Array.isArray(plan?.carousels)?plan.carousels:[];
+  const code=String(row.ideaCode||'').trim();
+  const taskId=String(row.taskId||'').toLowerCase();
+  const productId=String(row.productId||'').toLowerCase();
+  const matchingCode=code && [...assets,...carousels].find(idea=>idea.code===code);
+  // Some historical records have no ideaCode; the one-to-one assigned item ID
+  // still identifies the correct required idea (not another item of its task).
+  const linkedAssets=productId?assets.filter(idea=>
+    String(idea.marketingItemId||'').toLowerCase()===productId &&
+    (!taskId||String(idea.marketingTaskId||'').toLowerCase()===taskId)):[];
+  if(linkedAssets.length){
+    if(matchingCode?.title && (linkedAssets.some(a=>a.code===code)||
+      matchingCode.slideCodes?.some(slideCode=>linkedAssets.some(a=>a.code===slideCode))))return String(matchingCode.title);
+    const parentCarousel=carousels.find(c=>c.slideCodes?.some(slideCode=>linkedAssets.some(a=>a.code===slideCode)));
+    if(parentCarousel?.title)return String(parentCarousel.title);
+    if(linkedAssets[0].title)return String(linkedAssets[0].title);
+  }
+  if(matchingCode?.title)return String(matchingCode.title);
+  return String(row.ideaName||'').trim()||'—';
+}
+function postRow(row,all,plan){
   const kind=row.mediaKind==='video'?'فيديو':row.mediaKind==='image'?'صورة':row.mediaKind||'—';
-  const ideaName=row.ideaName||'—';
+  const ideaName=requirementIdeaTitle(row,plan);
   const requirement=row.requirementNumber?`المطلوب ${row.requirementNumber}`:'المطلوب';
   const size=row.postType?.width&&row.postType?.height?`${row.postType.width} × ${row.postType.height}`:'—';
   return `<div class="pub-day-post" role="row" data-entry="${esc(row.id)}">
@@ -206,7 +260,7 @@ function postRow(row,all){
     <div role="cell" class="pub-post-status">${entryStatus(row,all)}</div>
   </div>`;
 }
-function detailedAgenda(state){
+function detailedAgenda(state,plan){
   const rows=allEntries(state),agenda=agendaData(state);
   const platforms=[...new Set(rows.map(e=>e.platform?.name).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
   const q=state.search.trim().toLocaleLowerCase('ar');
@@ -214,7 +268,7 @@ function detailedAgenda(state){
     if(state.status!=='all'&&row.fileStatus!==state.status)return false;
     if(state.platform!=='all'&&row.platform?.name!==state.platform)return false;
     if(!q)return true;
-    return [row.requestNo,row.ideaName,row.taskName,row.ideaCode,row.mediaKind,row.scheduledOn,row.platform?.name,row.postType?.name,row.caption,row.hashtags].some(v=>String(v||'').toLocaleLowerCase('ar').includes(q));
+    return [row.requestNo,requirementIdeaTitle(row,plan),row.taskName,row.ideaCode,row.mediaKind,row.scheduledOn,row.platform?.name,row.postType?.name,row.caption,row.hashtags].some(v=>String(v||'').toLocaleLowerCase('ar').includes(q));
   });
   const dates=dayGroups(filtered);
   return `<div class="pub-toolbar"><div class="pub-toolbar-identity"><button class="pub-back" data-action="pub-back">${icon('arrow')} كل الأجندات</button><strong title="${esc(agenda?.name||'')}">${esc(agenda?.name||'أجندة')}</strong><span class="pub-toolbar-range" dir="ltr">${esc(agenda?.publishFrom||'')} — ${esc(agenda?.publishTo||'')}</span><span class="pub-toolbar-count">${rows.length} منشور</span></div>
@@ -224,27 +278,41 @@ function detailedAgenda(state){
       <select id="pub-platform" aria-label="فلتر المنصة"><option value="all">كل المنصات</option>${platforms.map(p=>`<option value="${esc(p)}" ${state.platform===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
       <select id="pub-status" aria-label="فلتر حالة الملف"><option value="all">كل الحالات</option>${Object.entries(statusText).map(([k,v])=>`<option value="${k}" ${state.status===k?'selected':''}>${esc(v)}</option>`).join('')}</select>
       <span class="pub-results">${filtered.length} من ${rows.length} منشور · ${dates.length} يوم</span></div>
-    <div class="pub-table-scroll"><table class="pub-day-table"><thead><tr><th class="pub-date-heading">اليوم</th><th><div class="pub-post-head" role="row"><span>رقم الطلب</span><span>اسم الفكرة</span><span>المطلوب</span><span>المنصة / النوع</span><span>المقاس</span><span>الكابشن والهاشتاج</span><span>الملف النهائي</span><span>الحالة</span></div></th></tr></thead>
-    <tbody>${dates.length?dates.map(({date,posts})=>`<tr class="pub-day-row"><td class="pub-day-date"><strong>${esc(dayHeading(date))}</strong><small dir="ltr">${esc(date)}</small><span>${posts.length} منشور</span></td><td class="pub-day-cell"><div class="pub-day-posts" role="rowgroup">${posts.map(row=>postRow(row,rows)).join('')}</div></td></tr>`).join(''):
+    <div class="pub-table-scroll"><table class="pub-day-table"><thead><tr><th class="pub-date-heading">اليوم</th><th><div class="pub-post-head" role="row"><span>رقم الطلب</span><span>الفكرة (فكرة المطلوب)</span><span>المطلوب</span><span>المنصة / النوع</span><span>المقاس</span><span>الكابشن والهاشتاج</span><span>الملف النهائي</span><span>الحالة</span></div></th></tr></thead>
+    <tbody>${dates.length?dates.map(({date,posts},index)=>`<tr class="pub-day-row pub-day-tone-${dayTone(date,index)}"><td class="pub-day-date"><strong>${esc(dayHeading(date))}</strong><small dir="ltr">${esc(date)}</small><span>${posts.length} منشور</span></td><td class="pub-day-cell"><div class="pub-day-posts" role="rowgroup">${posts.map(row=>postRow(row,rows,plan)).join('')}</div></td></tr>`).join(''):
       '<tr><td colspan="2" class="pub-no-results">لا توجد منشورات مطابقة للبحث أو الفلاتر</td></tr>'}</tbody></table></div>`;
 }
 function publicationFilesModal(state){
   if(!state.fileListEntryId)return '';
   const row=publicationEntry(state,state.fileListEntryId);
   if(!row?.files?.length)return '';
-  return `<div class="pub-modal-overlay" data-action="pub-files-close"><div class="pub-modal pub-files-modal" role="dialog" aria-modal="true" aria-label="ملفات المنشور النهائية">
+  return `<dialog class="pub-native-dialog pub-files-dialog" id="pub-files-dialog" data-action="pub-files-close" aria-label="ملفات المنشور النهائية"><div class="pub-modal pub-files-modal">
     <div class="pub-modal-top"><div><strong>ملفات المنشور النهائية</strong><small>${esc(row.requestNo||row.ideaName||'')} · ${row.files.length} ملفات</small></div><button class="pub-icon-btn" data-action="pub-files-close" aria-label="إغلاق">✕</button></div>
     <div class="pub-files-list">${row.files.map(f=>`<div class="pub-files-list-row"><span class="pub-file-name" title="${esc(f.name)}">${icon('file')} <bdi dir="ltr">${esc(f.name)}</bdi></span><div class="pub-file-buttons">${fileActionButtons(row,f)}</div></div>`).join('')}</div>
-    <div class="pub-modal-actions"><button class="btn" data-action="pub-files-close">إغلاق</button></div></div></div>`;
+    <div class="pub-modal-actions"><button class="btn" data-action="pub-files-close">إغلاق</button></div></div></dialog>`;
 }
-export function publicationPage(state){
+function publicationCopyModal(state){
+  const editor=state.copyEditor;
+  if(!editor)return '';
+  const row=publicationEntry(state,editor.entryId);
+  if(!row)return '';
+  return `<dialog class="pub-native-dialog pub-copy-dialog" id="pub-copy-dialog" data-action="pub-copy-close" aria-label="تعديل الكابشن والهاشتاج"><div class="pub-modal pub-copy-modal">
+    <div class="pub-modal-top"><div><strong>تعديل الكابشن والهاشتاج</strong><small>${esc(row.requestNo||'')} · ${esc(row.platform?.name||'')} · ${esc(row.postType?.name||'')}</small></div><button type="button" class="pub-icon-btn" data-action="pub-copy-close" aria-label="إغلاق">✕</button></div>
+    <form id="pub-copy-form" class="pub-copy-form" autocomplete="off">
+      <label for="pub-caption-field">الكابشن</label><textarea id="pub-caption-field" name="caption" maxlength="60000" rows="7" placeholder="اكتب كابشن المنشور هنا" ${editor.saving?'disabled':''}>${esc(editor.caption)}</textarea>
+      <label for="pub-hashtags-field">الهاشتاج</label><textarea id="pub-hashtags-field" name="hashtags" maxlength="30000" rows="4" placeholder="#MZJ #سيارات" ${editor.saving?'disabled':''}>${esc(editor.hashtags)}</textarea>
+      ${editor.error?`<p class="pub-copy-error" role="alert">${icon('alert')} ${esc(editor.error)}</p>`:''}
+      <div class="pub-modal-actions"><button type="button" class="btn" data-action="pub-copy-close" ${editor.saving?'disabled':''}>إلغاء</button><button type="submit" class="btn btn-primary" ${editor.saving?'disabled':''}>${editor.saving?'جارٍ الحفظ...':'حفظ التعديلات'}</button></div>
+    </form></div></dialog>`;
+}
+export function publicationPage(state,plan=null){
   const detail=state.agendaView==='detail' && state.agendaId;
   return `<section class="pub-page">
     ${!detail?`<div class="pub-toolbar"><div class="pub-toolbar-identity"><strong>الأجندات</strong><span class="pub-toolbar-count">${state.agendas.length} أجندة</span></div><button class="btn" data-action="pub-reload" ${state.loading?'disabled':''}>${icon('refresh')} تحديث الأجندات</button></div>`:''}
     ${state.error?`<div class="pub-error" role="alert">${icon('alert')} ${esc(state.error)}</div>`:''}
-    ${detail?detailedAgenda(state):agendaCards(state)}
+    ${detail?detailedAgenda(state,plan):agendaCards(state)}
     ${state.loading?`<div class="pub-loading">${icon('refresh')} جارٍ التحميل...</div>`:''}
-    ${publicationFilesModal(state)}${publicationMediaModal(state)}
+    ${publicationFilesModal(state)}${publicationMediaModal(state)}${publicationCopyModal(state)}
   </section>`;
 }
 export function publicationMediaModal(state){
@@ -252,7 +320,7 @@ export function publicationMediaModal(state){
   if(!f)return '';
   const body=state.mediaError?`<div class="pub-error">${esc(state.mediaError)}</div>`:state.mediaBusy?'<div class="pub-modal-placeholder">جارٍ استلام بايتات الملف من Google Drive عبر سيرفر التسويق...</div>':
     state.mediaUrl?(f.mimeType.startsWith('video/')?`<video controls playsinline preload="metadata" src="${esc(state.mediaUrl)}"></video>`:f.mimeType.startsWith('image/')?`<img src="${esc(state.mediaUrl)}" alt="معاينة ${esc(f.name)}" />`:'<p>الملف متاح للتحميل.</p>'):'<p>الملف غير متاح للمعاينة.</p>';
-  return `<div class="pub-modal-overlay" data-action="pub-close-media"><div class="pub-modal" role="dialog" aria-modal="true" aria-label="معاينة الملف النهائي">
+  return `<dialog class="pub-native-dialog pub-media-dialog" id="pub-media-dialog" data-action="pub-close-media" aria-label="معاينة الملف النهائي"><div class="pub-modal">
     <div class="pub-modal-top"><div><strong>الملف النهائي الفعلي</strong><small dir="ltr">${esc(f.name)}</small></div><button class="pub-icon-btn" data-action="pub-close-media" aria-label="إغلاق">✕</button></div>
-    <div class="pub-modal-body">${body}</div><div class="pub-modal-actions"><button class="btn" data-action="pub-close-media">إغلاق</button><button class="btn btn-primary" data-action="pub-download" data-entry="${esc(f.entryId)}" data-file="${esc(f.fileId)}" ${state.mediaBusy?'disabled':''}>${icon('download')} تحميل الملف</button></div></div></div>`;
+    <div class="pub-modal-body">${body}</div><div class="pub-modal-actions"><button class="btn" data-action="pub-close-media">إغلاق</button><button class="btn btn-primary" data-action="pub-download" data-entry="${esc(f.entryId)}" data-file="${esc(f.fileId)}" ${state.mediaBusy?'disabled':''}>${icon('download')} تحميل الملف</button></div></div></dialog>`;
 }

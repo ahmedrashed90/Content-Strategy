@@ -8,7 +8,7 @@ import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import
 import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
-import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry } from './publication.js';
+import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor } from './publication.js';
 
 // Remember the last opened screen locally; production data and API routes are untouched.
 const NAV_STORAGE_KEY = 'mzj.contentStrategy.lastScreen.v1';
@@ -626,8 +626,22 @@ function render() {
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
   if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals','inspirations','publishing'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state), inspirations: ()=>inspirationsPage(state), publishing: ()=>publicationPage(state.publishing) };
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state), inspirations: ()=>inspirationsPage(state), publishing: ()=>publicationPage(state.publishing,state.plan) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>${manualIdeaModal(state.manualIdeaDraft,state.planSaving,state.manualIdeaError)}`;
+  if(state.view==='publishing'){
+    // Native showModal() enters the browser top layer. Existing content motion
+    // transforms no longer shift publication dialogs when the user scrolls.
+    app.querySelectorAll('dialog.pub-native-dialog').forEach(dialog=>{
+      dialog.addEventListener('cancel',event=>{
+        event.preventDefault();
+        if(dialog.id==='pub-files-dialog')state.publishing.fileListEntryId='';
+        if(dialog.id==='pub-media-dialog')resetPublicationMedia(state.publishing);
+        if(dialog.id==='pub-copy-dialog'&&!state.publishing.copyEditor?.saving)closePublicationCopyEditor(state.publishing);
+        render();
+      },{once:true});
+      dialog.showModal();
+    });
+  }
 }
 
 async function boot() {
@@ -1170,6 +1184,22 @@ async function submitBridgeAssignment(form) {
 }
 
 app.addEventListener('submit', event => {
+  if(event.target.id==='pub-copy-form' && state.view==='publishing'){
+    event.preventDefault();
+    const form=event.target;
+    const caption=form.elements.namedItem('caption')?.value??'';
+    const hashtags=form.elements.namedItem('hashtags')?.value??'';
+    if(state.publishing.copyEditor){
+      state.publishing.copyEditor.caption=caption;
+      state.publishing.copyEditor.hashtags=hashtags;
+    }
+    void (async()=>{
+      const success=await savePublicationCopyEditor(state.publishing,caption,hashtags);
+      render();
+      if(success)toast('تم حفظ الكابشن والهاشتاج في الاستراتيجية');
+    })();
+    render();return;
+  }
   if(event.target.id==='login-form'){
     event.preventDefault();handleLogin(event.target);return;
   }
@@ -1431,13 +1461,22 @@ app.addEventListener('click', async event => {
       pub.fileListEntryId=control.dataset.entry||'';render();return;
     }
     if(action==='pub-files-close'){
-      if(control.classList.contains('pub-modal-overlay')&&event.target.closest('.pub-modal'))return;
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
       pub.fileListEntryId='';render();return;
     }
     if(action==='pub-close-media'){
       // An overlay click should close only when it is outside the dialog.
-      if(event.target.closest('.pub-modal') && action==='pub-close-media' && control.classList.contains('pub-modal-overlay'))return;
+      if(event.target.closest('.pub-modal') && control.classList.contains('pub-native-dialog'))return;
       resetPublicationMedia(pub);render();return;
+    }
+    if(action==='pub-copy-open'){
+      if(openPublicationCopyEditor(pub,control.dataset.entry||''))render();
+      return;
+    }
+    if(action==='pub-copy-close'){
+      if(pub.copyEditor?.saving)return;
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
+      closePublicationCopyEditor(pub);render();return;
     }
     if(action==='pub-reload'){
       await loadPublicationAgendas(pub);render();return;
@@ -1743,13 +1782,17 @@ app.addEventListener('click', async event => {
 // Read-only against Marketing: refresh active synced agenda while this owner tab is open.
 // Never schedules automatic publication or touches the existing posts collection.
 if (typeof window.setInterval==='function') window.setInterval(async()=>{
-  if(document.hidden||state.view!=='publishing'||!state.user||isLocalPreview||state.publishing.refreshing||state.publishing.loading||!state.publishing.agendaId)return;
+  if(document.hidden||state.view!=='publishing'||!state.user||isLocalPreview||state.publishing.refreshing||state.publishing.loading||!state.publishing.agendaId||state.publishing.copyEditor||state.publishing.media||state.publishing.fileListEntryId)return;
   await refreshPublicationAgenda(state.publishing);if(state.view==='publishing')render();
 },120000);
 
 window.addEventListener('keydown', event => {
   if(event.key!=='Escape')return;
   if(state.modal){state.modal=null;render();return;}
+  if(state.view==='publishing'&&state.publishing.copyEditor){
+    if(!state.publishing.copyEditor.saving){closePublicationCopyEditor(state.publishing);render();}
+    return;
+  }
   if(state.view==='publishing'&&state.publishing.media){resetPublicationMedia(state.publishing);render();return;}
   if(state.view==='publishing'&&state.publishing.fileListEntryId){state.publishing.fileListEntryId='';render();return;}
   if(state.view!=='asset')return;

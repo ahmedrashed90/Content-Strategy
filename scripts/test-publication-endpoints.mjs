@@ -63,6 +63,23 @@ result=await request(agendas,{authorization:'Bearer invalid'});assert.equal(resu
 result=await request(agendas,{authorization:owner});assert.equal(result.httpCode,200);assert.equal(result.content.agendas.length,1);
 result=await request(agendas,{query:{agendaId:planId},authorization:owner});
 assert.equal(result.content.entries.length,2);assert.equal(result.content.totals.waiting,1);
+// Copy is editable only by the owner, in Strategy storage, and belongs to one
+// existing posting slot. It survives a later Marketing snapshot refresh.
+const copy={action:'save-copy',agendaId:planId,entryId:payload.entries[0].id,
+  caption:'كابشن معدل في الاستراتيجية فقط',hashtags:'#MZJ #نشر'};
+result=await request(agendas,{method:'POST',authorization:key,body:copy});
+assert.equal(result.httpCode,401,'the Marketing integration key cannot edit publication copy');
+result=await request(agendas,{method:'POST',authorization:owner,body:{...copy,entryId:`${uuid(777)}:${typeId}`}});
+assert.equal(result.httpCode,404,'unknown posts cannot be edited');
+result=await request(agendas,{method:'POST',authorization:owner,body:{...copy,caption:'A'.repeat(60001)}});
+assert.equal(result.httpCode,400,'copy limits are enforced');
+result=await request(agendas,{method:'POST',authorization:owner,body:copy});
+assert.equal(result.httpCode,200);assert.equal(result.content.caption,copy.caption);
+result=await request(agendas,{query:{agendaId:planId},authorization:owner});
+assert.equal(result.content.entries[0].caption,copy.caption);
+assert.equal(result.content.entries[0].hashtags,copy.hashtags);
+assert.equal(result.content.entries[0].strategyCopyEdited,true);
+assert.equal(result.content.entries[1].caption,'إعلان الشهر','other posts stay untouched');
 const originalFetch=globalThis.fetch;
 const callLog=[];
 globalThis.fetch=async(url,opts)=>{
@@ -76,6 +93,8 @@ try{
   assert.equal(result.httpCode,200);assert.equal(result.content.received,2);
   result=await request(agendas,{query:{agendaId:planId},authorization:owner});
   assert.equal(result.content.totals.ready,2);assert.equal(result.content.totals.waiting,0);
+  assert.equal(result.content.entries[0].caption,copy.caption,'Strategy copy remains after fresh Marketing revision');
+  assert.equal(result.content.entries[0].hashtags,copy.hashtags);
   result=await request(media,{query:{agendaId:planId,fileId},authorization:'Bearer invalid'});assert.equal(result.httpCode,401);
   result=await request(media,{query:{agendaId:planId,fileId:uuid(99)},authorization:owner});assert.equal(result.httpCode,404);
   result=await request(media,{query:{agendaId:planId,fileId},authorization:owner});
