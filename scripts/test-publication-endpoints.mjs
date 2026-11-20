@@ -80,6 +80,21 @@ assert.equal(result.content.entries[0].caption,copy.caption);
 assert.equal(result.content.entries[0].hashtags,copy.hashtags);
 assert.equal(result.content.entries[0].strategyCopyEdited,true);
 assert.equal(result.content.entries[1].caption,'إعلان الشهر','other posts stay untouched');
+// True Marketing work_items.idea text is not present in v1 snapshots.
+// Owner can correct it once per product in Strategy; never writes to Marketing.
+const correctIdea={action:'save-idea',agendaId:planId,productId:payload.entries[0].productId,
+  title:'عملية التمويل: حاسبة التقسيط'};
+result=await request(agendas,{method:'POST',authorization:key,body:correctIdea});
+assert.equal(result.httpCode,401,'Marketing secret cannot change Strategy idea names');
+result=await request(agendas,{method:'POST',authorization:owner,body:{...correctIdea,productId:uuid(999)}});
+assert.equal(result.httpCode,404,'unlinked product cannot be renamed');
+result=await request(agendas,{method:'POST',authorization:owner,body:{...correctIdea,title:'  '}});
+assert.equal(result.httpCode,400,'empty idea name rejected');
+result=await request(agendas,{method:'POST',authorization:owner,body:correctIdea});
+assert.equal(result.httpCode,200);
+result=await request(agendas,{query:{agendaId:planId},authorization:owner});
+assert.equal(result.content.entries[0].strategyIdeaTitle,correctIdea.title);
+assert.equal(result.content.entries[1].strategyIdeaTitle,undefined,'other products retain their own idea title');
 const originalFetch=globalThis.fetch;
 const callLog=[];
 globalThis.fetch=async(url,opts)=>{
@@ -95,6 +110,7 @@ try{
   assert.equal(result.content.totals.ready,2);assert.equal(result.content.totals.waiting,0);
   assert.equal(result.content.entries[0].caption,copy.caption,'Strategy copy remains after fresh Marketing revision');
   assert.equal(result.content.entries[0].hashtags,copy.hashtags);
+  assert.equal(result.content.entries[0].strategyIdeaTitle,correctIdea.title,'strategy idea corrections persist after Marketing refresh');
   result=await request(media,{query:{agendaId:planId,fileId},authorization:'Bearer invalid'});assert.equal(result.httpCode,401);
   result=await request(media,{query:{agendaId:planId,fileId:uuid(99)},authorization:owner});assert.equal(result.httpCode,404);
   result=await request(media,{query:{agendaId:planId,fileId},authorization:owner});

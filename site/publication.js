@@ -10,7 +10,7 @@ export function newPublicationState(){return {
   agendas:[], agendaId:'', agendaView:'list', detail:null, loadState:'idle', loading:false, refreshing:false,
   error:'', mediaError:'', search:'', platform:'all', status:'all',
   media:null, mediaUrl:'', mediaBlob:null, mediaBusy:false, downloadingFileId:'',
-  lastRefreshAt:null, fileListEntryId:'', copyEditor:null,
+  lastRefreshAt:null, fileListEntryId:'', copyEditor:null, ideaEditor:null,
 };}
 
 async function publicationRequest(path,options={}) {
@@ -46,7 +46,7 @@ export async function loadPublicationAgendas(state,selectId=''){
 
 export async function loadPublicationAgenda(state,id){
   if(!id)return;
-  state.agendaId=id;state.agendaView='detail';state.fileListEntryId='';state.copyEditor=null;state.error='';
+  state.agendaId=id;state.agendaView='detail';state.fileListEntryId='';state.copyEditor=null;state.ideaEditor=null;state.error='';
   try{
     const detail=await publicationRequest(`/api/publication-agendas?agendaId=${encodeURIComponent(id)}`);
     if(state.agendaId===id)state.detail=detail;
@@ -55,7 +55,7 @@ export async function loadPublicationAgenda(state,id){
 
 export function closePublicationAgenda(state){
   resetPublicationMedia(state);
-  state.agendaId='';state.agendaView='list';state.detail=null;state.fileListEntryId='';state.copyEditor=null;
+  state.agendaId='';state.agendaView='list';state.detail=null;state.fileListEntryId='';state.copyEditor=null;state.ideaEditor=null;
   state.search='';state.platform='all';state.status='all';state.error='';
 }
 
@@ -91,6 +91,29 @@ export function openPublicationCopyEditor(state,entryId){
   return true;
 }
 export function closePublicationCopyEditor(state){state.copyEditor=null;}
+
+/** All platforms of the same work item share one editable idea title. */
+export function openPublicationIdeaEditor(state,entryId){
+  const row=publicationEntry(state,entryId);
+  if(!row||!row.productId)return false;
+  state.ideaEditor={entryId,productId:row.productId,title:String(row.strategyIdeaTitle||row.productIdea||'').trim(),saving:false,error:''};
+  return true;
+}
+export function closePublicationIdeaEditor(state){state.ideaEditor=null;}
+export async function savePublicationIdeaEditor(state,title){
+  const editor=state.ideaEditor;
+  if(!editor||editor.saving||!state.agendaId)return false;
+  editor.saving=true;editor.error='';
+  try{
+    const data=await publicationRequest('/api/publication-agendas',{method:'POST',body:{
+      action:'save-idea',agendaId:state.agendaId,productId:editor.productId,title,
+    }});
+    for(const row of allEntries(state))if(row.productId===editor.productId){row.strategyIdeaTitle=data.title;row.strategyIdeaEdited=true;}
+    state.ideaEditor=null;
+    return true;
+  }catch(error){editor.error=error?.message||'تعذر حفظ اسم الفكرة';return false;}
+  finally{editor.saving=false;}
+}
 
 export async function savePublicationCopyEditor(state,caption,hashtags){
   const editor=state.copyEditor;
@@ -220,39 +243,19 @@ function dayTone(date,index){
   const day=Number(String(date).slice(-2));
   return /^\d{4}-\d{2}-\d{2}$/.test(String(date))&&day>=1&&day<=31?(day-1):index%31;
 }
-/** The required item's idea is identified by its Strategy code / linked item ID.
- * The Marketing task/category heading is NOT a reliable idea title. */
-export function requirementIdeaTitle(row,plan){
-  const assets=Array.isArray(plan?.assets)?plan.assets:[];
-  const carousels=Array.isArray(plan?.carousels)?plan.carousels:[];
-  const code=String(row.ideaCode||'').trim();
-  const taskId=String(row.taskId||'').toLowerCase();
-  const productId=String(row.productId||'').toLowerCase();
-  const matchingCode=code && [...assets,...carousels].find(idea=>idea.code===code);
-  // Some historical records have no ideaCode; the one-to-one assigned item ID
-  // still identifies the correct required idea (not another item of its task).
-  const linkedAssets=productId?assets.filter(idea=>
-    String(idea.marketingItemId||'').toLowerCase()===productId &&
-    (!taskId||String(idea.marketingTaskId||'').toLowerCase()===taskId)):[];
-  if(linkedAssets.length){
-    if(matchingCode?.title && (linkedAssets.some(a=>a.code===code)||
-      matchingCode.slideCodes?.some(slideCode=>linkedAssets.some(a=>a.code===slideCode))))return String(matchingCode.title);
-    const parentCarousel=carousels.find(c=>c.slideCodes?.some(slideCode=>linkedAssets.some(a=>a.code===slideCode)));
-    if(parentCarousel?.title)return String(parentCarousel.title);
-    if(linkedAssets[0].title)return String(linkedAssets[0].title);
-  }
-  if(matchingCode?.title)return String(matchingCode.title);
-  return String(row.ideaName||'').trim()||'—';
+/** Never pretend the product/category name is the required item's idea.
+ * In Marketing, the "الفكرة (فكرة المطلوب)" column reads product_idea,
+ * whereas the existing publication sync v1 sends only ideaName (product title).
+ * Use the exact source when present, or an owner correction stored in Strategy. */
+export function requirementIdeaTitle(row,_plan){
+  return String(row?.strategyIdeaTitle||row?.productIdea||'').trim()||'فكرة المطلوب غير متاحة من المزامنة';
 }
 function postRow(row,all,plan){
-  const kind=row.mediaKind==='video'?'فيديو':row.mediaKind==='image'?'صورة':row.mediaKind||'—';
   const ideaName=requirementIdeaTitle(row,plan);
-  const requirement=row.requirementNumber?`المطلوب ${row.requirementNumber}`:'المطلوب';
   const size=row.postType?.width&&row.postType?.height?`${row.postType.width} × ${row.postType.height}`:'—';
   return `<div class="pub-day-post" role="row" data-entry="${esc(row.id)}">
     <div role="cell" class="pub-post-request"><bdi dir="ltr">${esc(row.requestNo||row.taskNo||'—')}</bdi></div>
-    <div role="cell" class="pub-post-idea" title="${esc(ideaName)}"><strong>${esc(ideaName)}</strong>${row.ideaCode?`<small dir="ltr">${esc(row.ideaCode)}</small>`:''}</div>
-    <div role="cell" class="pub-post-task" title="${esc(row.taskName||'')}"><strong>${esc(requirement)}</strong><small>${esc(kind)}${row.taskName?` · ${esc(row.taskName)}`:''}</small></div>
+    <div role="cell" class="pub-post-idea" title="${esc(ideaName)}"><button type="button" class="pub-idea-open" data-action="pub-idea-open" data-entry="${esc(row.id)}" title="تعديل اسم فكرة المطلوب داخل الاستراتيجية"><strong>${esc(ideaName)}</strong><span class="pub-idea-pencil" aria-hidden="true">✎</span></button></div>
     <div role="cell" class="pub-post-platform"><strong>${esc(row.platform?.name||'غير محدد')}</strong><small>${esc(row.postType?.name||'غير محدد')}</small></div>
     <div role="cell"><bdi class="pub-dim" dir="ltr">${esc(size)}</bdi></div>
     <div role="cell">${captionText(row)}</div>
@@ -278,7 +281,7 @@ function detailedAgenda(state,plan){
       <select id="pub-platform" aria-label="فلتر المنصة"><option value="all">كل المنصات</option>${platforms.map(p=>`<option value="${esc(p)}" ${state.platform===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
       <select id="pub-status" aria-label="فلتر حالة الملف"><option value="all">كل الحالات</option>${Object.entries(statusText).map(([k,v])=>`<option value="${k}" ${state.status===k?'selected':''}>${esc(v)}</option>`).join('')}</select>
       <span class="pub-results">${filtered.length} من ${rows.length} منشور · ${dates.length} يوم</span></div>
-    <div class="pub-table-scroll"><table class="pub-day-table"><thead><tr><th class="pub-date-heading">اليوم</th><th><div class="pub-post-head" role="row"><span>رقم الطلب</span><span>الفكرة (فكرة المطلوب)</span><span>المطلوب</span><span>المنصة / النوع</span><span>المقاس</span><span>الكابشن والهاشتاج</span><span>الملف النهائي</span><span>الحالة</span></div></th></tr></thead>
+    <div class="pub-table-scroll"><table class="pub-day-table"><thead><tr><th class="pub-date-heading">اليوم</th><th><div class="pub-post-head" role="row"><span>رقم الطلب</span><span>اسم الفكرة</span><span>المنصة / النوع</span><span>المقاس</span><span>الكابشن والهاشتاج</span><span>الملف النهائي</span><span>الحالة</span></div></th></tr></thead>
     <tbody>${dates.length?dates.map(({date,posts},index)=>`<tr class="pub-day-row pub-day-tone-${dayTone(date,index)}"><td class="pub-day-date"><strong>${esc(dayHeading(date))}</strong><small dir="ltr">${esc(date)}</small><span>${posts.length} منشور</span></td><td class="pub-day-cell"><div class="pub-day-posts" role="rowgroup">${posts.map(row=>postRow(row,rows,plan)).join('')}</div></td></tr>`).join(''):
       '<tr><td colspan="2" class="pub-no-results">لا توجد منشورات مطابقة للبحث أو الفلاتر</td></tr>'}</tbody></table></div>`;
 }
@@ -290,6 +293,20 @@ function publicationFilesModal(state){
     <div class="pub-modal-top"><div><strong>ملفات المنشور النهائية</strong><small>${esc(row.requestNo||row.ideaName||'')} · ${row.files.length} ملفات</small></div><button class="pub-icon-btn" data-action="pub-files-close" aria-label="إغلاق">✕</button></div>
     <div class="pub-files-list">${row.files.map(f=>`<div class="pub-files-list-row"><span class="pub-file-name" title="${esc(f.name)}">${icon('file')} <bdi dir="ltr">${esc(f.name)}</bdi></span><div class="pub-file-buttons">${fileActionButtons(row,f)}</div></div>`).join('')}</div>
     <div class="pub-modal-actions"><button class="btn" data-action="pub-files-close">إغلاق</button></div></div></dialog>`;
+}
+function publicationIdeaModal(state){
+  const editor=state.ideaEditor;
+  if(!editor)return '';
+  const row=publicationEntry(state,editor.entryId);
+  if(!row)return '';
+  return `<dialog class="pub-native-dialog pub-idea-dialog" id="pub-idea-dialog" data-action="pub-idea-close" aria-label="تصحيح اسم فكرة المطلوب"><div class="pub-modal pub-copy-modal">
+    <div class="pub-modal-top"><div><strong>اسم الفكرة</strong><small>${esc(row.requestNo||'')} · يظهر لكل منصات نفس المطلوب</small></div><button type="button" class="pub-icon-btn" data-action="pub-idea-close" aria-label="إغلاق">✕</button></div>
+    <form id="pub-idea-form" class="pub-idea-form" autocomplete="off">
+      <label for="pub-idea-field">اسم فكرة المطلوب كما هو في سيستم التسويق</label>
+      <input id="pub-idea-field" name="ideaTitle" required maxlength="400" value="${esc(editor.title)}" placeholder="مثال: عملية التمويل: حاسبة التقسيط" ${editor.saving?'disabled':''}/>
+      ${editor.error?`<p class="pub-copy-error" role="alert">${icon('alert')} ${esc(editor.error)}</p>`:''}
+      <div class="pub-modal-actions"><button type="button" class="btn" data-action="pub-idea-close" ${editor.saving?'disabled':''}>إلغاء</button><button type="submit" class="btn btn-primary" ${editor.saving?'disabled':''}>${editor.saving?'جارٍ الحفظ...':'حفظ اسم الفكرة'}</button></div>
+    </form></div></dialog>`;
 }
 function publicationCopyModal(state){
   const editor=state.copyEditor;
@@ -312,7 +329,7 @@ export function publicationPage(state,plan=null){
     ${state.error?`<div class="pub-error" role="alert">${icon('alert')} ${esc(state.error)}</div>`:''}
     ${detail?detailedAgenda(state,plan):agendaCards(state)}
     ${state.loading?`<div class="pub-loading">${icon('refresh')} جارٍ التحميل...</div>`:''}
-    ${publicationFilesModal(state)}${publicationMediaModal(state)}${publicationCopyModal(state)}
+    ${publicationFilesModal(state)}${publicationMediaModal(state)}${publicationCopyModal(state)}${publicationIdeaModal(state)}
   </section>`;
 }
 export function publicationMediaModal(state){

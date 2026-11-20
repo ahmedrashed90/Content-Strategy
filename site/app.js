@@ -8,7 +8,7 @@ import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import
 import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
-import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor } from './publication.js';
+import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor, openPublicationIdeaEditor, closePublicationIdeaEditor, savePublicationIdeaEditor } from './publication.js';
 
 // Remember the last opened screen locally; production data and API routes are untouched.
 const NAV_STORAGE_KEY = 'mzj.contentStrategy.lastScreen.v1';
@@ -637,6 +637,7 @@ function render() {
         if(dialog.id==='pub-files-dialog')state.publishing.fileListEntryId='';
         if(dialog.id==='pub-media-dialog')resetPublicationMedia(state.publishing);
         if(dialog.id==='pub-copy-dialog'&&!state.publishing.copyEditor?.saving)closePublicationCopyEditor(state.publishing);
+        if(dialog.id==='pub-idea-dialog'&&!state.publishing.ideaEditor?.saving)closePublicationIdeaEditor(state.publishing);
         render();
       },{once:true});
       dialog.showModal();
@@ -1184,6 +1185,16 @@ async function submitBridgeAssignment(form) {
 }
 
 app.addEventListener('submit', event => {
+  if(event.target.id==='pub-idea-form' && state.view==='publishing'){
+    event.preventDefault();
+    const title=String(event.target.elements.namedItem('ideaTitle')?.value||'');
+    if(state.publishing.ideaEditor)state.publishing.ideaEditor.title=title;
+    void (async()=>{
+      const success=await savePublicationIdeaEditor(state.publishing,title);
+      render();if(success)toast('تم حفظ اسم الفكرة في الاستراتيجية لكل منشورات المطلوب');
+    })();
+    render();return;
+  }
   if(event.target.id==='pub-copy-form' && state.view==='publishing'){
     event.preventDefault();
     const form=event.target;
@@ -1468,6 +1479,15 @@ app.addEventListener('click', async event => {
       // An overlay click should close only when it is outside the dialog.
       if(event.target.closest('.pub-modal') && control.classList.contains('pub-native-dialog'))return;
       resetPublicationMedia(pub);render();return;
+    }
+    if(action==='pub-idea-open'){
+      if(openPublicationIdeaEditor(pub,control.dataset.entry||''))render();
+      return;
+    }
+    if(action==='pub-idea-close'){
+      if(pub.ideaEditor?.saving)return;
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
+      closePublicationIdeaEditor(pub);render();return;
     }
     if(action==='pub-copy-open'){
       if(openPublicationCopyEditor(pub,control.dataset.entry||''))render();
@@ -1782,7 +1802,7 @@ app.addEventListener('click', async event => {
 // Read-only against Marketing: refresh active synced agenda while this owner tab is open.
 // Never schedules automatic publication or touches the existing posts collection.
 if (typeof window.setInterval==='function') window.setInterval(async()=>{
-  if(document.hidden||state.view!=='publishing'||!state.user||isLocalPreview||state.publishing.refreshing||state.publishing.loading||!state.publishing.agendaId||state.publishing.copyEditor||state.publishing.media||state.publishing.fileListEntryId)return;
+  if(document.hidden||state.view!=='publishing'||!state.user||isLocalPreview||state.publishing.refreshing||state.publishing.loading||!state.publishing.agendaId||state.publishing.copyEditor||state.publishing.ideaEditor||state.publishing.media||state.publishing.fileListEntryId)return;
   await refreshPublicationAgenda(state.publishing);if(state.view==='publishing')render();
 },120000);
 
@@ -1791,6 +1811,10 @@ window.addEventListener('keydown', event => {
   if(state.modal){state.modal=null;render();return;}
   if(state.view==='publishing'&&state.publishing.copyEditor){
     if(!state.publishing.copyEditor.saving){closePublicationCopyEditor(state.publishing);render();}
+    return;
+  }
+  if(state.view==='publishing'&&state.publishing.ideaEditor){
+    if(!state.publishing.ideaEditor.saving){closePublicationIdeaEditor(state.publishing);render();}
     return;
   }
   if(state.view==='publishing'&&state.publishing.media){resetPublicationMedia(state.publishing);render();return;}

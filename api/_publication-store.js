@@ -80,13 +80,36 @@ export async function agendaDetails(id){
   // the owner's caption/hashtag edits.
   const edits=await ref.collection('postCopyOverrides').get();
   const copyById=new Map(edits.docs.map(d=>[d.id,d.data()]));
+  const ideaEdits=await ref.collection('productIdeaOverrides').get();
+  const ideaByProduct=new Map(ideaEdits.docs.map(d=>[d.id,d.data()]));
   const displayEntries=entries.map(entry=>{
-    const copy=copyById.get(entry.id);
-    if(!copy||typeof copy.caption!=='string'||typeof copy.hashtags!=='string')return entry;
-    return {...entry,caption:copy.caption,hashtags:copy.hashtags,strategyCopyEdited:true};
+    const copy=copyById.get(entry.id), idea=ideaByProduct.get(entry.productId);
+    const copyFields=copy&&typeof copy.caption==='string'&&typeof copy.hashtags==='string'
+      ?{caption:copy.caption,hashtags:copy.hashtags,strategyCopyEdited:true}:{};
+    const ideaFields=idea&&typeof idea.title==='string'&&idea.title.trim()
+      ?{strategyIdeaTitle:idea.title,strategyIdeaEdited:true}:{};
+    return {...entry,...copyFields,...ideaFields};
   });
   return {id:ref.id,agenda:data.agenda,totals:data.totals,entries:displayEntries,
     syncedAt:data.syncedAt?.toDate?.()?.toISOString?.()||null,version:data.version};
+}
+
+/** Owner-only, per-product idea title correction for the publishing page.
+ * The existing Marketing sync does not send work_items.idea (product_idea).
+ * This independent override corrects the display without touching Marketing. */
+export async function savePublicationIdeaTitle(agendaId,productId,title){
+  if(!uuid(agendaId)||!uuid(productId))throw new PublicationError(400,'معرّف الأجندة أو الفكرة غير صالح');
+  if(typeof title!=='string'||!title.trim()||title.trim().length>400)
+    throw new PublicationError(400,'اكتب اسم فكرة المطلوب الصحيح (حتى 400 حرف)');
+  const detail=await agendaDetails(agendaId);
+  if(!detail.entries.some(row=>row.productId===productId))
+    throw new PublicationError(404,'الفكرة غير موجودة داخل هذه الأجندة');
+  const normalizedTitle=title.trim();
+  const target=agendaRef(agendaId).collection('productIdeaOverrides').doc(productId.toLowerCase());
+  const batch=services().db.batch();
+  batch.set(target,{title:normalizedTitle,updatedAt:FieldValue.serverTimestamp()});
+  await batch.commit();
+  return {ok:true,productId:productId.toLowerCase(),title:normalizedTitle};
 }
 
 /** Save caption/hashtags for one verified posting slot, never into Marketing. */
