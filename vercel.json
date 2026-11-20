@@ -26,6 +26,15 @@
     },
     "api/inspirations.js": {
       "maxDuration": 30
+    },
+    "api/marketing-agenda-sync.js": {
+      "maxDuration": 30
+    },
+    "api/publication-agendas.js": {
+      "maxDuration": 30
+    },
+    "api/publication-media.js": {
+      "maxDuration": 60
     }
   }
 }
