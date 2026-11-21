@@ -35,6 +35,9 @@
     },
     "api/publication-media.js": {
       "maxDuration": 60
+    },
+    "api/publication-schedule.js": {
+      "maxDuration": 300
     }
   }
 }
