@@ -33,6 +33,7 @@ function render(msg = '') {
   ${rows.map(e => `<tr><td><input type="checkbox" data-e="${esc(e.id)}"></td><td>${esc(e.scheduledOn)}</td><td>${esc(e.platform?.name)} / ${esc(e.postType?.name)}</td><td>${esc(e.strategyIdeaTitle || e.ideaName)}</td><td>${e.caption ? '✓' : '<span class="bad">فارغ</span>'}</td><td><input type="datetime-local" data-t="${esc(e.id)}" value="${esc(e.scheduledOn)}T14:00"></td></tr>`).join('') || '<tr><td colspan="6" class="muted">لا منشورات مدعومة وجاهزة بتاريخ قادم</td></tr>'}</table>
   <p><button id="preview">معاينة (بدون إرسال)</button> <button id="go" class="alt">جدولة فعلية</button></p>` : ''}
   <pre id="out">${esc(msg)}</pre>`;
+  try { if (!$('ig').value) $('ig').value = localStorage.getItem('mzj-auto-ig') || ''; if (!$('tt').value) $('tt').value = localStorage.getItem('mzj-auto-tt') || ''; } catch { /* optional */ }
   $('load').onclick = loadAgenda; $('accounts').onclick = accounts;
   if (detail) { $('preview').onclick = () => run(false); $('go').onclick = () => { if (confirm('سيتم إرسال المنشورات المحددة إلى Storrito للنشر في مواعيدها. متأكد؟')) run(true); }; }
 }
@@ -44,13 +45,26 @@ function selected() {
 }
 async function run(confirmed) {
   const items = selected();
+  const ig = $('ig').value.trim(), tt = $('tt').value.trim();
+  try { localStorage.setItem('mzj-auto-ig', ig); localStorage.setItem('mzj-auto-tt', tt); } catch { /* optional */ }
   if (!items.length) return render('اختر منشورًا واحدًا على الأقل (حتى 10).');
+  const kept = items.map(i => i.entryId), keptTimes = Object.fromEntries(items.map(i => [i.entryId, i.publishAt]));
   render('جارٍ التنفيذ... قد يستغرق دقائق للفيديو.');
+  restore(ig, tt, kept, keptTimes);
   try {
-    const r = await api('/api/publication-schedule', { action: 'schedule', agendaId: detail.id, items, confirm: confirmed, instagramUsername: $('ig')?.value, tiktokAccountId: $('tt')?.value });
+    const r = await api('/api/publication-schedule', { action: 'schedule', agendaId: detail.id, items, confirm: confirmed, instagramUsername: ig, tiktokAccountId: tt });
     const list = r.plans || r.results;
+    const keep = () => restore(ig, tt, kept, keptTimes);
     render((r.dryRun ? 'معاينة فقط، لم يُرسل شيء\n\n' : 'تم التنفيذ\n\n') + list.map(p => `${p.state.toUpperCase()}  ${p.platform || ''} ${p.postType || ''}  ${p.publishAt || ''}\n  ${p.reason || ''}${p.file ? `الملف: ${p.file.name}${p.file.matchesSize ? '' : ' (تنبيه: المقاس لا يطابق)'}` : ''}`).join('\n'));
+    keep();
   } catch (e) { render('خطأ: ' + e.message); }
+}
+function restore(ig, tt, kept = [], times = {}) {
+  if ($('ig')) $('ig').value = ig; if ($('tt')) $('tt').value = tt;
+  for (const id of kept) {
+    const c = document.querySelector(`input[data-e="${CSS.escape(id)}"]`); if (c) c.checked = true;
+    const t = document.querySelector(`input[data-t="${CSS.escape(id)}"]`); if (t && times[id]) t.value = times[id].replace(/:00\+03:00$/, '');
+  }
 }
 async function loadAgenda() {
   try { detail = await api(`/api/publication-agendas?agendaId=${encodeURIComponent($('agenda').value)}`); render(); } catch (e) { render('خطأ: ' + e.message); }
