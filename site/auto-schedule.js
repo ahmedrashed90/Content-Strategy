@@ -61,7 +61,7 @@ async function run(confirmed) {
     const r = await api('/api/publication-schedule', { action: 'schedule', agendaId: detail.id, items, confirm: confirmed, instagramUsername: ig, tiktokAccountId: tt });
     const list = r.plans || r.results;
     const keep = () => restore(ig, tt, kept, keptTimes);
-    render((r.dryRun ? 'معاينة فقط، لم يُرسل شيء\n\n' : 'تم التنفيذ\n\n') + list.map(p => `${p.state.toUpperCase()}  ${p.platform || ''} ${p.postType || ''}  ${p.publishAt || ''}\n  ${p.reason || ''}${p.target ? `الحساب: ${p.target.label} ` : ''}${p.file ? `الملف: ${p.file.name}${p.file.matchesSize ? '' : ' (تنبيه: المقاس لا يطابق)'}` : ''}`).join('\n'));
+    render((r.dryRun ? 'معاينة فقط، لم يُرسل شيء\n\n' : 'تم التنفيذ\n\n') + list.map(p => `${p.state.toUpperCase()}  ${p.platform || ''} ${p.postType || ''}  ${p.publishAt || ''}\n  ${p.reason || ''}${p.note ? `ملاحظة: ${p.note}\n  ` : ''}${p.target ? `الحساب: ${p.target.label} ` : ''}${p.file ? `الملف: ${p.file.name}${p.file.matchesSize ? '' : ' (تنبيه: المقاس لا يطابق)'}` : ''}`).join('\n'));
     keep();
   } catch (e) { render('خطأ: ' + e.message); }
 }

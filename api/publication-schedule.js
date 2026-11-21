@@ -1,7 +1,7 @@
 /** Owner-only automatic scheduling through Storrito. Default is a dry run: nothing is sent unless confirm===true. */
 import { FieldValue } from 'firebase-admin/firestore';
 import { requireOwner, json, PublicationError, uuid, agendaDetails, agendaRef, marketingOrigin, marketingKey } from './_publication-store.js';
-import { StorritoError, storritoConfig, storritoCall, uploadTempBlob, deterministicUuid, classifyEntry, pickFile, buildCaption, validatePublishAt, buildStoryHtml, resolveSocialTarget } from '../lib/storrito.js';
+import { StorritoError, storritoConfig, storritoCall, uploadTempBlob, deterministicUuid, classifyEntry, pickFile, buildCaption, validatePublishAt, buildStoryHtml, resolveSocialTarget, resolveTikTok } from '../lib/storrito.js';
 
 const MAX_ITEMS = 10;
 const ENTRY_ID = /^[0-9a-f-]{36}:(?:[0-9a-f-]{36}|unassigned)$/i;
@@ -33,15 +33,19 @@ function planItem(entry, item, targets, now, social) {
   if (!caption) return { ...base, state: 'blocked', reason: 'الكابشن فارغ، اكتبه واعتمده قبل الجدولة' };
   let publishAt;
   try { publishAt = validatePublishAt(item.publishAt, now); } catch (e) { return { ...base, state: 'blocked', reason: e.message }; }
-  if (kind.kind.startsWith('instagram') && !targets.instagramUsername) return { ...base, state: 'blocked', reason: 'instagramUsername غير محدد' };
-  if (kind.kind === 'tiktok-post' && !targets.tiktokAccountId) return { ...base, state: 'blocked', reason: 'tiktokAccountId غير محدد' };
+  const tiktokId = targets.tiktokAccountId || (social ? resolveTikTok(social) : null);
+  if (kind.kind === 'tiktok-post' && !tiktokId) return { ...base, state: 'blocked', reason: 'لم يُعثر على حساب تيك توك متصل في Storrito' };
   let target = null;
   if (kind.kind === 'social-post') {
     target = social ? resolveSocialTarget(social, kind.network, kind.typeWord) : null;
     if (!target) return { ...base, state: 'blocked', reason: `لم يُعثر على حساب ${kind.network} أو نوع النشر ${kind.typeWord} في Storrito (تحقق من ربط الحساب)` };
+    const mediaKind = String(file.mimeType).startsWith('video/') ? 'video' : 'image';
+    if (target.media.length && !target.media.includes(mediaKind)) return { ...base, state: 'blocked', reason: `هذا النوع (${target.label}) لا يقبل ${mediaKind === 'video' ? 'فيديو' : 'صورة'}، يقبل: ${target.media.join('/')}` };
+    if (!target.captionPublished && caption) base.note = 'هذا النوع لا ينشر كابشن';
+    if (target.maxCaptionLength && caption.length > target.maxCaptionLength) base.note = `الكابشن ${caption.length} حرف وسيُقصّ إلى ${target.maxCaptionLength}`;
   }
   return { ...base, state: 'ready', kind: kind.kind, publishAt, caption, file: { id: file.id, name: file.name, mimeType: file.mimeType, fileSize: file.fileSize, matchesSize: !!(entry.postType?.width && file.width === entry.postType.width && file.height === entry.postType.height) },
-    storritoUuid: deterministicUuid(entry.id, file.id, publishAt, kind.kind), target };
+    storritoUuid: deterministicUuid(entry.id, file.id, publishAt, kind.kind), target, tiktokAccountId: tiktokId, note: base.note };
 }
 
 async function execute(agendaId, entry, plan, targets, config) {
@@ -49,10 +53,8 @@ async function execute(agendaId, entry, plan, targets, config) {
   const mediaUrl = await uploadTempBlob(bytes, plan.file.mimeType, { config, tempBlobUuid: deterministicUuid('blob', plan.storritoUuid) });
   const html = buildStoryHtml(mediaUrl, plan.file.mimeType);
   let procedure, body;
-  if (plan.kind === 'instagram-reel') { procedure = 'schedule-instagram-reel'; body = { html, instagramUsername: targets.instagramUsername, reelPostUuid: plan.storritoUuid, caption: plan.caption, date: plan.publishAt }; }
-  else if (plan.kind === 'instagram-story') { procedure = 'schedule-instagram-story'; body = { html, instagramUsername: targets.instagramUsername, storyPostUuid: plan.storritoUuid, date: plan.publishAt }; }
-  else if (plan.kind === 'social-post') { procedure = 'schedule-social-post'; body = { html, socialAccountId: plan.target.socialAccountId, postType: plan.target.postType, socialPostUuid: plan.storritoUuid, text: plan.caption, date: plan.publishAt }; }
-  else { procedure = 'schedule-tiktok-post'; body = { html, tiktokAccountId: targets.tiktokAccountId, tiktokPostUuid: plan.storritoUuid, date: plan.publishAt, title: plan.caption.slice(0, 90), description: plan.caption }; }
+  if (plan.kind === 'social-post') { procedure = 'schedule-social-post'; body = { html, socialAccountId: plan.target.socialAccountId, postType: plan.target.postType, socialPostUuid: plan.storritoUuid, text: plan.caption, date: plan.publishAt }; }
+  else { procedure = 'schedule-tiktok-post'; body = { html, tiktokAccountId: plan.tiktokAccountId, tiktokPostUuid: plan.storritoUuid, date: plan.publishAt, title: plan.caption.slice(0, 90), description: plan.caption }; }
   const result = await storritoCall(procedure, body, { config, timeoutMs: 150000 });
   return { procedure, warnings: Array.isArray(result?.warnings) ? result.warnings.slice(0, 10) : [] };
 }
