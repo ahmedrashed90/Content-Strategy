@@ -57,6 +57,16 @@ export async function storeSnapshot(raw){
   await batch.commit();
   return {ok:true,agendaId:normalized.agenda.id,received:normalized.entries.length,unchanged:false};
 }
+/** Remove only the synced publishing copy and all nested revisions/owner overrides.
+ * This intentionally never deletes an agenda, task, media or plan in Marketing
+ * (or any other Strategy collection). A new explicit sync can restore it.
+ */
+export async function deletePublicationAgenda(id){
+  const ref=agendaRef(id);
+  if(!(await ref.get()).exists)throw new PublicationError(404,'الأجندة غير موجودة في صفحة النشر');
+  await services().db.recursiveDelete(ref);
+  return {ok:true,agendaId:ref.id,deleted:true};
+}
 export async function listAgendas(){
   const rows=await services().db.collection('contentPlans').doc(PLAN_ID).collection('marketingPublishingAgendas')
     .orderBy('syncedAt','desc').limit(150).get();

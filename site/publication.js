@@ -10,7 +10,7 @@ export function newPublicationState(){return {
   agendas:[], agendaId:'', agendaView:'list', detail:null, loadState:'idle', loading:false, refreshing:false,
   error:'', mediaError:'', search:'', platform:'all', status:'all',
   media:null, mediaUrl:'', mediaBlob:null, mediaBusy:false, downloadingFileId:'',
-  lastRefreshAt:null, fileListEntryId:'', copyEditor:null, ideaEditor:null,
+  lastRefreshAt:null, fileListEntryId:'', copyEditor:null, ideaEditor:null, deleteConfirmation:null,
 };}
 
 async function publicationRequest(path,options={}) {
@@ -74,6 +74,34 @@ export async function refreshPublicationAgenda(state){
     return true;
   }catch(e){state.error=e?.message||'تعذر تحديث الملفات النهائية';return false;}
   finally{state.refreshing=false;}
+}
+
+/** A deliberate owner action: delete only this agenda's copy in Strategy. */
+export function openPublicationDeleteConfirmation(state,id){
+  const record=state.agendas.find(a=>a.id===id)||(state.agendaId===id?state.detail:null);
+  if(!record||state.loading||state.refreshing)return false;
+  state.deleteConfirmation={agendaId:id,name:record.agenda?.name||'الأجندة',deleting:false,error:''};
+  return true;
+}
+export function closePublicationDeleteConfirmation(state){
+  if(state.deleteConfirmation?.deleting)return false;
+  state.deleteConfirmation=null;
+  return true;
+}
+export async function deletePublicationAgenda(state){
+  const confirmation=state.deleteConfirmation;
+  if(!confirmation||confirmation.deleting||state.loading||state.refreshing)return false;
+  confirmation.deleting=true;confirmation.error='';
+  try{
+    await publicationRequest(`/api/publication-agendas?agendaId=${encodeURIComponent(confirmation.agendaId)}`,{method:'DELETE'});
+    const removedId=confirmation.agendaId;
+    if(state.agendaId===removedId)closePublicationAgenda(state);
+    state.agendas=state.agendas.filter(row=>row.id!==removedId);
+    state.deleteConfirmation=null;
+    await loadPublicationAgendas(state);
+    return true;
+  }catch(error){confirmation.error=error?.message||'تعذر حذف الأجندة من الاستراتيجية';return false;}
+  finally{confirmation.deleting=false;}
 }
 
 export function resetPublicationMedia(state){
@@ -221,7 +249,7 @@ function agendaCards(state){
     const a=row.agenda||{},t=row.totals||{};
     return `<tr><td><strong>${esc(a.name||'أجندة بدون اسم')}</strong>${a.planNo?`<small dir="ltr">${esc(a.planNo)}</small>`:''}</td><td dir="ltr">${esc(a.publishFrom||'—')}</td><td dir="ltr">${esc(a.publishTo||'—')}</td>
       <td><b>${Number(t.posts??row.entryCount??0)}</b></td><td class="pub-ready-count">${Number(t.ready||0)}</td><td class="pub-wait-count">${Number(t.waiting||0)}</td><td>${esc(datetime(row.syncedAt))}</td>
-      <td><button class="pub-open-agenda" data-action="pub-open-agenda" data-agenda="${esc(row.id)}">عرض المنشورات ${icon('arrow')}</button></td></tr>`;
+      <td><div class="pub-agenda-actions"><button class="pub-open-agenda" data-action="pub-open-agenda" data-agenda="${esc(row.id)}">عرض المنشورات ${icon('arrow')}</button><button type="button" class="pub-delete-btn" data-action="pub-delete-ask" data-agenda="${esc(row.id)}" aria-label="حذف الأجندة ${esc(a.name||'')} من الاستراتيجية">حذف</button></div></td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 function dayHeading(value){
@@ -276,7 +304,7 @@ function detailedAgenda(state,plan){
   const dates=dayGroups(filtered);
   return `<div class="pub-toolbar"><div class="pub-toolbar-identity"><button class="pub-back" data-action="pub-back">${icon('arrow')} كل الأجندات</button><strong title="${esc(agenda?.name||'')}">${esc(agenda?.name||'أجندة')}</strong><span class="pub-toolbar-range" dir="ltr">${esc(agenda?.publishFrom||'')} — ${esc(agenda?.publishTo||'')}</span><span class="pub-toolbar-count">${rows.length} منشور</span></div>
       <div class="pub-toolbar-actions"><button class="btn" data-action="pub-reload" ${state.loading?'disabled':''}>${icon('refresh')} تحديث البيانات</button>
-      <button class="btn btn-primary" data-action="pub-refresh" ${state.refreshing||state.loading?'disabled':''}>${icon('refresh')} ${state.refreshing?'جارٍ التحديث':'تحديث جاهزية الملفات'}</button></div></div>
+      <button class="btn btn-primary" data-action="pub-refresh" ${state.refreshing||state.loading?'disabled':''}>${icon('refresh')} ${state.refreshing?'جارٍ التحديث':'تحديث جاهزية الملفات'}</button><button type="button" class="pub-delete-btn" data-action="pub-delete-ask" data-agenda="${esc(state.agendaId)}" ${state.refreshing||state.loading?'disabled':''}>حذف الأجندة</button></div></div>
     <div class="pub-filters"><input id="pub-search" type="search" aria-label="بحث في المنشورات" placeholder="بحث برقم الطلب أو اسم الفكرة أو المنصة أو المحتوى" value="${esc(state.search)}" />
       <select id="pub-platform" aria-label="فلتر المنصة"><option value="all">كل المنصات</option>${platforms.map(p=>`<option value="${esc(p)}" ${state.platform===p?'selected':''}>${esc(p)}</option>`).join('')}</select>
       <select id="pub-status" aria-label="فلتر حالة الملف"><option value="all">كل الحالات</option>${Object.entries(statusText).map(([k,v])=>`<option value="${k}" ${state.status===k?'selected':''}>${esc(v)}</option>`).join('')}</select>
@@ -322,6 +350,17 @@ function publicationCopyModal(state){
       <div class="pub-modal-actions"><button type="button" class="btn" data-action="pub-copy-close" ${editor.saving?'disabled':''}>إلغاء</button><button type="submit" class="btn btn-primary" ${editor.saving?'disabled':''}>${editor.saving?'جارٍ الحفظ...':'حفظ التعديلات'}</button></div>
     </form></div></dialog>`;
 }
+function publicationDeleteModal(state){
+  const confirm=state.deleteConfirmation;
+  if(!confirm)return '';
+  return `<dialog class="pub-native-dialog pub-delete-dialog" id="pub-delete-dialog" data-action="pub-delete-close" aria-label="تأكيد حذف الأجندة من الاستراتيجية"><div class="pub-modal pub-delete-modal">
+    <div class="pub-modal-top"><div><strong>حذف الأجندة من صفحة النشر</strong></div><button type="button" class="pub-icon-btn" data-action="pub-delete-close" ${confirm.deleting?'disabled':''} aria-label="إغلاق">✕</button></div>
+    <div class="pub-delete-body"><p>هل تريد حذف <strong>${esc(confirm.name)}</strong> وكل منشوراتها وتعديلات الكابشن واسم الفكرة المحفوظة داخل الاستراتيجية؟</p>
+    <p>لن يتم حذف الأجندة من سيستم التسويق، ولن تُحذف ملفات Google Drive. يمكن استلامها مرة أخرى بمزامنتها من التسويق.</p>
+    ${confirm.error?`<p class="pub-copy-error" role="alert">${esc(confirm.error)}</p>`:''}</div>
+    <div class="pub-modal-actions"><button type="button" class="btn" data-action="pub-delete-close" ${confirm.deleting?'disabled':''}>إلغاء</button><button type="button" class="btn pub-delete-confirm" data-action="pub-delete-confirm" ${confirm.deleting?'disabled':''}>${confirm.deleting?'جارٍ الحذف...':'تأكيد حذف الأجندة'}</button></div>
+  </div></dialog>`;
+}
 export function publicationPage(state,plan=null){
   const detail=state.agendaView==='detail' && state.agendaId;
   return `<section class="pub-page">
@@ -329,7 +368,7 @@ export function publicationPage(state,plan=null){
     ${state.error?`<div class="pub-error" role="alert">${icon('alert')} ${esc(state.error)}</div>`:''}
     ${detail?detailedAgenda(state,plan):agendaCards(state)}
     ${state.loading?`<div class="pub-loading">${icon('refresh')} جارٍ التحميل...</div>`:''}
-    ${publicationFilesModal(state)}${publicationMediaModal(state)}${publicationCopyModal(state)}${publicationIdeaModal(state)}
+    ${publicationFilesModal(state)}${publicationMediaModal(state)}${publicationCopyModal(state)}${publicationIdeaModal(state)}${publicationDeleteModal(state)}
   </section>`;
 }
 export function publicationMediaModal(state){

@@ -21,7 +21,7 @@ function collection(path){return {
  orderBy(){return this;},limit(){return this;},
  async get(){return {docs:[...database].filter(([name])=>name.startsWith(path+'/')&&name.split('/').length===path.split('/').length+1).map(([name,value])=>({id:name.split('/').at(-1),data:()=>value}))};}
 };}
-const db={collection, batch(){const operations=[];return {set(doc,value){operations.push([doc.path,value]);},async commit(){for(const [name,data] of operations)database.set(name,data);}};},
+const db={collection, async recursiveDelete(doc){for(const name of [...database.keys()])if(name===doc.path||name.startsWith(doc.path+'/'))database.delete(name);}, batch(){const operations=[];return {set(doc,value){operations.push([doc.path,value]);},async commit(){for(const [name,data] of operations)database.set(name,data);}};},
  async getAll(...docs){return Promise.all(docs.map(d=>d.get()));}};
 globalThis.__testPublicationDb=db;
 process.env.MZJ_STRATEGY_OWNER_UID='test-owner';
@@ -34,7 +34,7 @@ const {default:agendas}=await import('../api/publication-agendas.js');
 const {default:media}=await import('../api/publication-media.js');
 const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const planId=uuid(1),postId=uuid(2),typeId=uuid(3),platformId=uuid(4),taskId=uuid(5),fileId=uuid(6);
-const entry=(i,ready)=>({id:`${uuid(i+10)}:${typeId}`,lineId:uuid(i+10),productId:uuid(i+20),taskId,taskNo:'TSK-000222',taskName:'محتوى الشهر',requestNo:`TSK-000222-0${i+1}`,requirementNumber:i+1,ideaName:'فكرة',ideaCode:'I-3',mediaKind:'video',scheduledOn:'2026-12-05',
+const entry=(i,ready)=>({id:`${uuid(i+10)}:${typeId}`,lineId:uuid(i+10),productId:uuid(i+20),taskId,taskNo:'TSK-000222',taskName:'محتوى الشهر',requestNo:`TSK-000222-0${i+1}`,requirementNumber:i+1,ideaName:'فكرة',productIdea:'عملية التمويل: حاسبة التقسيط',ideaCode:'I-3',mediaKind:'video',scheduledOn:'2026-12-05',
  platform:{id:platformId,code:'insta',name:'Instagram'},postType:{id:typeId,name:'ريل',width:1080,height:1920},
  caption:'إعلان الشهر',hashtags:'#MZJ',publishStatus:null,fileStatus:ready?'ready':'waiting_file',
  files:ready?[{id:fileId,name:'final-video.mp4',mimeType:'video/mp4',fileSize:3,formatId:typeId,width:1080,height:1920,downloadPath:'do-not-trust'}]:[]});
@@ -63,6 +63,7 @@ result=await request(agendas,{authorization:'Bearer invalid'});assert.equal(resu
 result=await request(agendas,{authorization:owner});assert.equal(result.httpCode,200);assert.equal(result.content.agendas.length,1);
 result=await request(agendas,{query:{agendaId:planId},authorization:owner});
 assert.equal(result.content.entries.length,2);assert.equal(result.content.totals.waiting,1);
+assert.equal(result.content.entries[0].productIdea,'عملية التمويل: حاسبة التقسيط','exact idea is stored for the publishing page');
 // Copy is editable only by the owner, in Strategy storage, and belongs to one
 // existing posting slot. It survives a later Marketing snapshot refresh.
 const copy={action:'save-copy',agendaId:planId,entryId:payload.entries[0].id,
@@ -118,5 +119,29 @@ try{
   assert.equal(result.headers['content-type'],'video/mp4');
   assert.equal(callLog.length,2);assert(callLog.every(c=>c.opts.headers.Authorization===key));
   assert(callLog[1].url.includes('publication-file?planId='));
-  console.log('PASS: unauthorized/authorized sync, atomic manifest, repeated sync, owner read, refresh, private original binary media, blocked unknown file');
+  // Deleting the synced agenda requires the Strategy owner and leaves all
+  // unrelated Strategy data + Marketing data untouched.
+  database.set('contentPlans/another-plan/ideas/keep-me',{value:'untouched'});
+  result=await request(agendas,{method:'DELETE',query:{agendaId:planId},authorization:key});
+  assert.equal(result.httpCode,401,'Marketing API key cannot delete agendas');
+  result=await request(agendas,{method:'DELETE',query:{agendaId:'invalid'},authorization:owner});
+  assert.equal(result.httpCode,400,'invalid agenda ID is rejected');
+  result=await request(agendas,{method:'DELETE',query:{agendaId:uuid(999)},authorization:owner});
+  assert.equal(result.httpCode,404,'unknown agenda cannot be deleted');
+  result=await request(agendas,{method:'DELETE',query:{agendaId:planId},authorization:owner});
+  assert.equal(result.httpCode,200);
+  assert.equal(result.content.deleted,true);
+  assert.equal(database.has('contentPlans/another-plan/ideas/keep-me'),true,'unrelated Strategy documents untouched');
+  const agendaPath=`contentPlans/mzj-2026-launch-cycle-01/marketingPublishingAgendas/${planId}`;
+  assert.equal([...database.keys()].filter(p=>p===agendaPath||p.startsWith(agendaPath+'/')).length,0,'all revisions and copy/idea overrides deleted');
+  result=await request(agendas,{authorization:owner});assert.equal(result.content.agendas.length,0);
+  result=await request(agendas,{authorization:owner,query:{agendaId:planId}});assert.equal(result.httpCode,404);
+  // Marketing may explicitly re-sync later, but historical owner edits must
+  // not reappear after that re-sync.
+  result=await request(receive,{method:'POST',body:payload,authorization:key});assert.equal(result.httpCode,200);
+  result=await request(agendas,{authorization:owner,query:{agendaId:planId}});
+  assert.equal(result.content.entries[0].productIdea,'عملية التمويل: حاسبة التقسيط');
+  assert.equal(result.content.entries[0].strategyIdeaTitle,undefined);
+  assert.equal(result.content.entries[0].strategyCopyEdited,undefined);
+  console.log('PASS: owner-only delete scoped to synced publishing agenda, nested revisions/overrides removed, unrelated data preserved, clean explicit re-sync');
 }finally{globalThis.fetch=originalFetch;delete globalThis.__testPublicationDb;}

@@ -1,14 +1,15 @@
 /** Owner-only list/read/refresh for Marketing-synced publication agendas. */
-import {requireOwner,json,PublicationError,uuid,listAgendas,agendaDetails,fetchMarketingSnapshot,storeSnapshot,savePublicationCopy,savePublicationIdeaTitle} from './_publication-store.js';
+import {requireOwner,json,PublicationError,uuid,listAgendas,agendaDetails,fetchMarketingSnapshot,storeSnapshot,savePublicationCopy,savePublicationIdeaTitle,deletePublicationAgenda} from './_publication-store.js';
 export default async function handler(req,res){
   const method=String(req.method||'GET').toUpperCase();
-  if(!['GET','POST'].includes(method)){res.setHeader('Allow','GET, POST');return json(res,405,{ok:false,error:'Method not allowed'});}
+  if(!['GET','POST','DELETE'].includes(method)){res.setHeader('Allow','GET, POST, DELETE');return json(res,405,{ok:false,error:'Method not allowed'});}
   try{
     await requireOwner(req);
     if(method==='GET'){
       const agendaId=String(req.query?.agendaId||'');
       return json(res,200,agendaId?{ok:true,...await agendaDetails(agendaId)}:{ok:true,agendas:await listAgendas()});
     }
+    if(method==='DELETE')return json(res,200,await deletePublicationAgenda(String(req.query?.agendaId||'')));
     const body=typeof req.body==='string'?JSON.parse(req.body):req.body;
     if(body?.action==='save-idea'){
       const result=await savePublicationIdeaTitle(body.agendaId,body.productId,body.title);

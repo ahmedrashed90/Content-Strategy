@@ -151,3 +151,15 @@
 .pub-copy-error{display:flex;gap:6px;align-items:center;color:#883d39;font-weight:850;font-size:11px}
 @media(max-width:1050px){.pub-day-table{min-width:1210px}.pub-toolbar-identity{flex-wrap:wrap;row-gap:4px}.pub-toolbar{align-items:center}}
 @media(max-width:740px){.pub-page{margin:-10px -12px -28px}.pub-toolbar{flex-wrap:wrap;gap:7px;padding:8px}.pub-toolbar-actions{width:100%}.pub-toolbar .btn{flex:1}.pub-filters{padding:7px 8px;gap:6px}.pub-filters input{flex-basis:100%;width:100%}.pub-filters select{flex:1}.pub-results{width:100%;margin:0}.pub-files-list-row{flex-wrap:wrap}}
+
+/* Delete actions exist only on the isolated publication-agenda screen. */
+.pub-agenda-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pub-delete-btn{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;padding:7px 10px;min-height:33px;border:1px solid #b8958c;border-radius:7px;background:transparent;color:var(--brown);font:inherit;font-size:11px;font-weight:850;cursor:pointer}
+.pub-delete-btn:hover,.pub-delete-btn:focus-visible{background:#f4e6e2;border-color:var(--brown)}
+.pub-delete-btn:disabled{opacity:.5;cursor:default}
+.pub-delete-dialog{width:min(540px,calc(100vw - 28px))}
+.pub-delete-body{padding:12px 20px 4px;font-size:13px;line-height:1.9;color:var(--brown-deep)}
+.pub-delete-body p{margin:0 0 11px}
+.pub-delete-confirm{background:var(--brown);color:var(--cream-soft);border-color:var(--brown)}
+.pub-delete-confirm:hover{filter:brightness(.93)}
+.pub-delete-confirm:disabled{opacity:.6;cursor:wait}

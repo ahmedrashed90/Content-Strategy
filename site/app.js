@@ -8,7 +8,7 @@ import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import
 import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
-import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor, openPublicationIdeaEditor, closePublicationIdeaEditor, savePublicationIdeaEditor } from './publication.js';
+import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor, openPublicationIdeaEditor, closePublicationIdeaEditor, savePublicationIdeaEditor, openPublicationDeleteConfirmation, closePublicationDeleteConfirmation, deletePublicationAgenda } from './publication.js';
 
 // Remember the last opened screen locally; production data and API routes are untouched.
 const NAV_STORAGE_KEY = 'mzj.contentStrategy.lastScreen.v1';
@@ -638,6 +638,7 @@ function render() {
         if(dialog.id==='pub-media-dialog')resetPublicationMedia(state.publishing);
         if(dialog.id==='pub-copy-dialog'&&!state.publishing.copyEditor?.saving)closePublicationCopyEditor(state.publishing);
         if(dialog.id==='pub-idea-dialog'&&!state.publishing.ideaEditor?.saving)closePublicationIdeaEditor(state.publishing);
+        if(dialog.id==='pub-delete-dialog'&&!state.publishing.deleteConfirmation?.deleting)closePublicationDeleteConfirmation(state.publishing);
         render();
       },{once:true});
       dialog.showModal();
@@ -1465,6 +1466,22 @@ app.addEventListener('click', async event => {
       await loadPublicationAgenda(pub,control.dataset.agenda||'');
       render();window.scrollTo({top:0,behavior:'instant'});return;
     }
+    if(action==='pub-delete-ask'){
+      if(openPublicationDeleteConfirmation(pub,control.dataset.agenda||''))render();
+      return;
+    }
+    if(action==='pub-delete-close'){
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
+      if(closePublicationDeleteConfirmation(pub))render();return;
+    }
+    if(action==='pub-delete-confirm'){
+      const pending=deletePublicationAgenda(pub);
+      render();
+      const deleted=await pending;
+      render();
+      if(deleted){toast('تم حذف نسخة الأجندة من النشر في الاستراتيجية فقط');window.scrollTo({top:0,behavior:'instant'});}
+      return;
+    }
     if(action==='pub-back'){
       closePublicationAgenda(pub);render();window.scrollTo({top:0,behavior:'instant'});return;
     }
@@ -1802,13 +1819,17 @@ app.addEventListener('click', async event => {
 // Read-only against Marketing: refresh active synced agenda while this owner tab is open.
 // Never schedules automatic publication or touches the existing posts collection.
 if (typeof window.setInterval==='function') window.setInterval(async()=>{
-  if(document.hidden||state.view!=='publishing'||!state.user||isLocalPreview||state.publishing.refreshing||state.publishing.loading||!state.publishing.agendaId||state.publishing.copyEditor||state.publishing.ideaEditor||state.publishing.media||state.publishing.fileListEntryId)return;
+  if(document.hidden||state.view!=='publishing'||!state.user||isLocalPreview||state.publishing.refreshing||state.publishing.loading||!state.publishing.agendaId||state.publishing.copyEditor||state.publishing.ideaEditor||state.publishing.media||state.publishing.fileListEntryId||state.publishing.deleteConfirmation)return;
   await refreshPublicationAgenda(state.publishing);if(state.view==='publishing')render();
 },120000);
 
 window.addEventListener('keydown', event => {
   if(event.key!=='Escape')return;
   if(state.modal){state.modal=null;render();return;}
+  if(state.view==='publishing'&&state.publishing.deleteConfirmation){
+    if(closePublicationDeleteConfirmation(state.publishing))render();
+    return;
+  }
   if(state.view==='publishing'&&state.publishing.copyEditor){
     if(!state.publishing.copyEditor.saving){closePublicationCopyEditor(state.publishing);render();}
     return;
