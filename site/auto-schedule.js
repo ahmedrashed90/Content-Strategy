@@ -18,10 +18,12 @@ const supported = e => {
   if (e.fileStatus !== 'ready') return false;
   const p = `${e.platform?.code} ${e.platform?.name}`, t = e.postType?.name || '';
   if (/tiktok|تيك/i.test(p)) return true;
-  return /instagram|انستجرام|إنستجرام/i.test(p) && /ريل|reel|ستوري|story/i.test(t);
+  if (/snap|سناب/i.test(p)) return /spotlight|story|ستوري/i.test(t);
+  return /instagram|انستجرام|إنستجرام|facebook|فيس/i.test(p) && /ريل|reel|ستوري|story/i.test(t);
 };
 
 function render(msg = '') {
+  const prevIg = $('ig')?.value, prevTt = $('tt')?.value;
   const today = new Date().toISOString().slice(0, 10);
   const rows = detail ? detail.entries.filter(e => supported(e) && e.scheduledOn >= today) : [];
   app.innerHTML = `
@@ -33,7 +35,11 @@ function render(msg = '') {
   ${rows.map(e => `<tr><td><input type="checkbox" data-e="${esc(e.id)}"></td><td>${esc(e.scheduledOn)}</td><td>${esc(e.platform?.name)} / ${esc(e.postType?.name)}</td><td>${esc(e.strategyIdeaTitle || e.ideaName)}</td><td>${e.caption ? '✓' : '<span class="bad">فارغ</span>'}</td><td><input type="datetime-local" data-t="${esc(e.id)}" value="${esc(e.scheduledOn)}T14:00"></td></tr>`).join('') || '<tr><td colspan="6" class="muted">لا منشورات مدعومة وجاهزة بتاريخ قادم</td></tr>'}</table>
   <p><button id="preview">معاينة (بدون إرسال)</button> <button id="go" class="alt">جدولة فعلية</button></p>` : ''}
   <pre id="out">${esc(msg)}</pre>`;
-  try { if (!$('ig').value) $('ig').value = localStorage.getItem('mzj-auto-ig') || ''; if (!$('tt').value) $('tt').value = localStorage.getItem('mzj-auto-tt') || ''; } catch { /* optional */ }
+  try {
+    $('ig').value = prevIg || localStorage.getItem('mzj-auto-ig') || '';
+    $('tt').value = prevTt || localStorage.getItem('mzj-auto-tt') || '';
+  } catch { /* optional */ }
+  $('ig').oninput = $('tt').oninput = () => { try { localStorage.setItem('mzj-auto-ig', $('ig').value.trim()); localStorage.setItem('mzj-auto-tt', $('tt').value.trim()); } catch { /* optional */ } };
   $('load').onclick = loadAgenda; $('accounts').onclick = accounts;
   if (detail) { $('preview').onclick = () => run(false); $('go').onclick = () => { if (confirm('سيتم إرسال المنشورات المحددة إلى Storrito للنشر في مواعيدها. متأكد؟')) run(true); }; }
 }
@@ -55,7 +61,7 @@ async function run(confirmed) {
     const r = await api('/api/publication-schedule', { action: 'schedule', agendaId: detail.id, items, confirm: confirmed, instagramUsername: ig, tiktokAccountId: tt });
     const list = r.plans || r.results;
     const keep = () => restore(ig, tt, kept, keptTimes);
-    render((r.dryRun ? 'معاينة فقط، لم يُرسل شيء\n\n' : 'تم التنفيذ\n\n') + list.map(p => `${p.state.toUpperCase()}  ${p.platform || ''} ${p.postType || ''}  ${p.publishAt || ''}\n  ${p.reason || ''}${p.file ? `الملف: ${p.file.name}${p.file.matchesSize ? '' : ' (تنبيه: المقاس لا يطابق)'}` : ''}`).join('\n'));
+    render((r.dryRun ? 'معاينة فقط، لم يُرسل شيء\n\n' : 'تم التنفيذ\n\n') + list.map(p => `${p.state.toUpperCase()}  ${p.platform || ''} ${p.postType || ''}  ${p.publishAt || ''}\n  ${p.reason || ''}${p.target ? `الحساب: ${p.target.label} ` : ''}${p.file ? `الملف: ${p.file.name}${p.file.matchesSize ? '' : ' (تنبيه: المقاس لا يطابق)'}` : ''}`).join('\n'));
     keep();
   } catch (e) { render('خطأ: ' + e.message); }
 }
@@ -70,7 +76,7 @@ async function loadAgenda() {
   try { detail = await api(`/api/publication-agendas?agendaId=${encodeURIComponent($('agenda').value)}`); render(); } catch (e) { render('خطأ: ' + e.message); }
 }
 async function accounts() {
-  try { const r = await api('/api/publication-schedule', { action: 'accounts' }); render(JSON.stringify({ instagram: r.instagram, tiktok: r.tiktok }, null, 2)); } catch (e) { render('خطأ: ' + e.message); }
+  try { const r = await api('/api/publication-schedule', { action: 'accounts' }); render(JSON.stringify({ instagram: r.instagram, tiktok: r.tiktok, social: r.social }, null, 2)); } catch (e) { render('خطأ: ' + e.message); }
 }
 await connectFirebase();
 listenToAuth(async user => {

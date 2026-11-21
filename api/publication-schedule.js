@@ -1,7 +1,7 @@
 /** Owner-only automatic scheduling through Storrito. Default is a dry run: nothing is sent unless confirm===true. */
 import { FieldValue } from 'firebase-admin/firestore';
 import { requireOwner, json, PublicationError, uuid, agendaDetails, agendaRef, marketingOrigin, marketingKey } from './_publication-store.js';
-import { StorritoError, storritoConfig, storritoCall, uploadTempBlob, deterministicUuid, classifyEntry, pickFile, buildCaption, validatePublishAt, buildStoryHtml } from '../lib/storrito.js';
+import { StorritoError, storritoConfig, storritoCall, uploadTempBlob, deterministicUuid, classifyEntry, pickFile, buildCaption, validatePublishAt, buildStoryHtml, resolveSocialTarget } from '../lib/storrito.js';
 
 const MAX_ITEMS = 10;
 const ENTRY_ID = /^[0-9a-f-]{36}:(?:[0-9a-f-]{36}|unassigned)$/i;
@@ -22,7 +22,7 @@ async function fetchMarketingFile(agendaId, fileId) {
 }
 
 /** Builds the per-item plan without any external side effect. */
-function planItem(entry, item, targets, now) {
+function planItem(entry, item, targets, now, social) {
   const base = { entryId: entry.id, requestNo: entry.requestNo, idea: entry.strategyIdeaTitle || entry.ideaName, platform: entry.platform?.name || '', postType: entry.postType?.name || '' };
   const kind = classifyEntry(entry);
   if (!kind.ok) return { ...base, state: 'unsupported', reason: kind.reason };
@@ -35,8 +35,13 @@ function planItem(entry, item, targets, now) {
   try { publishAt = validatePublishAt(item.publishAt, now); } catch (e) { return { ...base, state: 'blocked', reason: e.message }; }
   if (kind.kind.startsWith('instagram') && !targets.instagramUsername) return { ...base, state: 'blocked', reason: 'instagramUsername غير محدد' };
   if (kind.kind === 'tiktok-post' && !targets.tiktokAccountId) return { ...base, state: 'blocked', reason: 'tiktokAccountId غير محدد' };
+  let target = null;
+  if (kind.kind === 'social-post') {
+    target = social ? resolveSocialTarget(social, kind.network, kind.typeWord) : null;
+    if (!target) return { ...base, state: 'blocked', reason: `لم يُعثر على حساب ${kind.network} أو نوع النشر ${kind.typeWord} في Storrito (تحقق من ربط الحساب)` };
+  }
   return { ...base, state: 'ready', kind: kind.kind, publishAt, caption, file: { id: file.id, name: file.name, mimeType: file.mimeType, fileSize: file.fileSize, matchesSize: !!(entry.postType?.width && file.width === entry.postType.width && file.height === entry.postType.height) },
-    storritoUuid: deterministicUuid(entry.id, file.id, publishAt, kind.kind) };
+    storritoUuid: deterministicUuid(entry.id, file.id, publishAt, kind.kind), target };
 }
 
 async function execute(agendaId, entry, plan, targets, config) {
@@ -46,6 +51,7 @@ async function execute(agendaId, entry, plan, targets, config) {
   let procedure, body;
   if (plan.kind === 'instagram-reel') { procedure = 'schedule-instagram-reel'; body = { html, instagramUsername: targets.instagramUsername, reelPostUuid: plan.storritoUuid, caption: plan.caption, date: plan.publishAt }; }
   else if (plan.kind === 'instagram-story') { procedure = 'schedule-instagram-story'; body = { html, instagramUsername: targets.instagramUsername, storyPostUuid: plan.storritoUuid, date: plan.publishAt }; }
+  else if (plan.kind === 'social-post') { procedure = 'schedule-social-post'; body = { html, socialAccountId: plan.target.socialAccountId, postType: plan.target.postType, socialPostUuid: plan.storritoUuid, text: plan.caption, date: plan.publishAt }; }
   else { procedure = 'schedule-tiktok-post'; body = { html, tiktokAccountId: targets.tiktokAccountId, tiktokPostUuid: plan.storritoUuid, date: plan.publishAt, title: plan.caption.slice(0, 90), description: plan.caption }; }
   const result = await storritoCall(procedure, body, { config, timeoutMs: 150000 });
   return { procedure, warnings: Array.isArray(result?.warnings) ? result.warnings.slice(0, 10) : [] };
@@ -59,7 +65,8 @@ export default async function handler(req, res) {
     if (body.action === 'accounts') {
       const config = storritoConfig();
       const [ig, tt] = await Promise.all([storritoCall('list-instagram-users', {}, { config }), storritoCall('list-tiktok-accounts', {}, { config })]);
-      return json(res, 200, { ok: true, instagram: ig, tiktok: tt });
+      let social = null; try { social = await storritoCall('list-social-accounts', {}, { config }); } catch { social = { error: 'تعذر قراءة list-social-accounts' }; }
+      return json(res, 200, { ok: true, instagram: ig, tiktok: tt, social });
     }
     if (!uuid(body.agendaId)) throw new PublicationError(400, 'معرّف الأجندة غير صالح');
     if (body.action === 'status') {
@@ -75,7 +82,9 @@ export default async function handler(req, res) {
     const detail = await agendaDetails(body.agendaId);
     const byId = new Map(detail.entries.map(e => [e.id, e]));
     const now = Date.now();
-    const plans = items.map(item => { const entry = byId.get(item.entryId); return entry ? planItem(entry, item, targets, now) : { entryId: item.entryId, state: 'blocked', reason: 'المنشور غير موجود في الأجندة' }; });
+    let social = null;
+    try { social = await storritoCall('list-social-accounts', {}, { config: storritoConfig() }); } catch { social = null; }
+    const plans = items.map(item => { const entry = byId.get(item.entryId); return entry ? planItem(entry, item, targets, now, social) : { entryId: item.entryId, state: 'blocked', reason: 'المنشور غير موجود في الأجندة' }; });
     if (body.confirm !== true) return json(res, 200, { ok: true, dryRun: true, plans, note: 'معاينة فقط. لم يُرسل أي شيء. أعد الطلب مع confirm:true للجدولة الفعلية.' });
     const config = storritoConfig();
     const col = agendaRef(body.agendaId).collection('scheduleJobs');

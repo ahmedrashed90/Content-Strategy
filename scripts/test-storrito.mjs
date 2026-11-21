@@ -6,8 +6,8 @@ assert.equal(classifyEntry(e('انستجرام', 'ريل')).kind, 'instagram-ree
 assert.equal(classifyEntry(e('انستجرام', 'ستوري')).kind, 'instagram-story');
 assert.equal(classifyEntry(e('تيك توك', 'ستوري')).kind, 'tiktok-post');
 assert.equal(classifyEntry(e('انستجرام', 'بوست صور')).ok, false);
-assert.equal(classifyEntry(e('فيس بوك', 'ريل')).ok, false);
-assert.equal(classifyEntry(e('سناب شات', 'Story')).ok, false);
+assert.equal(classifyEntry(e('فيس بوك', 'ريل')).network, 'facebook');
+assert.equal(classifyEntry(e('سناب شات', 'Story')).typeWord, 'story');
 
 const a = deterministicUuid('x', 'y'), b = deterministicUuid('x', 'y');
 assert.equal(a, b); assert.match(a, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -46,3 +46,13 @@ assert.deepEqual(calls.map(c => c.method), ['POST', 'PUT']);
 await assert.rejects(storritoCall('schedule-instagram-reel', {}, { fetchImpl: fakeFetch, config: cfg }), /400/);
 await assert.rejects(uploadTempBlob(Buffer.alloc(0), 'video/mp4', { fetchImpl: async () => new Response(JSON.stringify({}), { status: 200 }), config: cfg }), /uploadUrl/);
 console.log('storrito tests passed');
+import { resolveSocialTarget } from '../lib/storrito.js';
+assert.equal(classifyEntry(e('فيس بوك', 'ريل')).typeWord, 'reel');
+assert.equal(classifyEntry(e('سناب شات', 'Spotlight')).typeWord, 'spotlight');
+assert.equal(classifyEntry(e('فيس بوك', 'بوست صور')).ok, false);
+const accts = { socialAccounts: [{ socialAccountId: 'fb1', platform: 'FACEBOOK', name: 'Page', postTypes: [{ postType: 'FACEBOOK_REEL', media: 'video' }, { postType: 'FACEBOOK_STORY' }] }, { socialAccountId: 'sc1', platform: 'SNAPCHAT', postTypes: [{ postType: 'SNAPCHAT_SPOTLIGHT' }, { postType: 'SNAPCHAT_STORY' }] }] };
+assert.deepEqual(resolveSocialTarget(accts, 'facebook', 'reel').postType, 'FACEBOOK_REEL');
+assert.equal(resolveSocialTarget(accts, 'snapchat', 'story').socialAccountId, 'sc1');
+assert.equal(resolveSocialTarget(accts, 'snapchat', 'reel'), null);
+assert.equal(resolveSocialTarget({ error: 'x' }, 'facebook', 'reel'), null);
+console.log('social resolver tests passed');
