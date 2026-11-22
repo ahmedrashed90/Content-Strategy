@@ -153,7 +153,7 @@ export function strategyAgendaPage(state){
  const productTable=products.filter(p=>[p.title,p.category,p.assigneeName].join(' ').toLowerCase().includes(a.search.toLowerCase()))
  .map(p=>`<tr><td><strong>${e(p.title)}</strong><small>${e(p.taskNo)}</small></td>
  <td>${e(p.category)}</td><td>${e(mediaLabel(p))}</td>
- <td>${availableFormats(p).map(f=>`<div>${e(f.platformName)} · ${e(f.name)} (${e(f.width||'?')}×${e(f.height||'?')})</div>`).join('')}</td>
+ <td>${availableFormats(p).map(f=>`<div>${e(f.platformName)} · ${e(f.name)} <bdi dir="ltr">(${e(f.width||'?')}×${e(f.height||'?')})</bdi></div>`).join('')}</td>
  <td>${e(p.dueOn)}</td><td>${e(p.approvedAt?dateLabel(String(p.approvedAt).slice(0,10)):'—')}</td>
  <td>${e(p.assigneeName||'—')}</td><td>${p.alreadyPlanned?'مجدول سابقًا':'جاهز للجدولة'}</td></tr>`).join('');
  const rows=a.entries.map((line,index)=>{
