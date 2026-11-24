@@ -1,0 +1,103 @@
+import assert from 'node:assert/strict';
+import { deterministicUuid, classifyEntry, pickFile, buildCaption, validatePublishAt, buildStoryHtml, storritoConfig, storritoCall, uploadTempBlob, StorritoError } from '../lib/storrito.js';
+
+const e = (platform, type, extra = {}) => ({ platform: { code: '', name: platform }, postType: { name: type, width: 1080, height: 1920 }, files: [], ...extra });
+assert.equal(classifyEntry(e('انستجرام', 'ريل')).typeWord, 'reel');
+assert.equal(classifyEntry(e('انستجرام', 'ستوري')).network, 'instagram');
+assert.equal(classifyEntry(e('تيك توك', 'ستوري')).kind, 'tiktok-post');
+assert.equal(classifyEntry(e('انستجرام', 'بوست صور')).ok, false);
+assert.equal(classifyEntry(e('فيس بوك', 'ريل')).network, 'facebook');
+assert.equal(classifyEntry(e('سناب شات', 'Story')).typeWord, 'story');
+
+const a = deterministicUuid('x', 'y'), b = deterministicUuid('x', 'y');
+assert.equal(a, b); assert.match(a, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
+assert.notEqual(a, deterministicUuid('x', 'z'));
+
+assert.equal(buildCaption({ caption: '**مرحبا**', hashtags: '#MZJ' }), 'مرحبا\n\n#MZJ');
+assert.equal(buildCaption({ caption: 'نص #MZJ', hashtags: '#MZJ' }), 'نص #MZJ');
+assert.equal(buildCaption({ caption: '', hashtags: '' }), '');
+
+const now = Date.parse('2026-11-21T12:00:00Z');
+assert.equal(validatePublishAt('2026-11-22T14:00:00+03:00', now), '2026-11-22T11:00:00.000Z');
+assert.throws(() => validatePublishAt('2026-11-21T12:05:00Z', now), /الماضي أو قريب/);
+assert.throws(() => validatePublishAt('2026-11-20T12:00:00Z', now), /الماضي أو قريب/);
+assert.throws(() => validatePublishAt('2026-11-22', now), /ISO/);
+assert.throws(() => validatePublishAt('2027-06-01T12:00:00Z', now), /بعيد/);
+
+assert.equal(pickFile({ postType: { width: 1080, height: 1920 }, files: [{ id: 1, width: 1, height: 1 }, { id: 2, width: 1080, height: 1920 }] }).id, 2);
+assert.equal(pickFile({ files: [] }), null);
+assert.match(buildStoryHtml('https://x/a"b.mp4', 'video/mp4'), /^<insta-story src="https:\/\/x\/a&quot;b\.mp4"><\/insta-story>$/);
+assert.match(buildStoryHtml('https://x/a.png', 'image/png'), /<img src="https:\/\/x\/a\.png"/);
+
+assert.throws(() => storritoConfig({}), StorritoError);
+assert.throws(() => storritoConfig({ STORRITO_API_KEY: 'k', STORRITO_API_BASE_URL: 'https://evil.com/api/v1/' }), /storrito\.com/);
+const cfg = storritoConfig({ STORRITO_API_KEY: 'k', STORRITO_API_BASE_URL: 'https://org-1.storrito.com/api/v1/' });
+assert.equal(cfg.base, 'https://org-1.storrito.com/api/v1');
+
+const calls = [];
+const fakeFetch = async (url, opts) => {
+  calls.push({ url: String(url), method: opts.method });
+  if (String(url).endsWith('/create-temp-blob-upload-url')) return new Response(JSON.stringify({ uploadUrl: 'https://blob.example/put', url: 'https://blob.example/get' }), { status: 200 });
+  if (String(url) === 'https://blob.example/put') return new Response('', { status: 200 });
+  return new Response(JSON.stringify({ message: 'bad' }), { status: 400 });
+};
+assert.equal(await uploadTempBlob(Buffer.from('abc'), 'video/mp4', { fetchImpl: fakeFetch, config: cfg, tempBlobUuid: a }), 'https://blob.example/get');
+assert.deepEqual(calls.map(c => c.method), ['POST', 'PUT']);
+await assert.rejects(storritoCall('schedule-instagram-reel', {}, { fetchImpl: fakeFetch, config: cfg }), /400/);
+await assert.rejects(uploadTempBlob(Buffer.alloc(0), 'video/mp4', { fetchImpl: async () => new Response(JSON.stringify({}), { status: 200 }), config: cfg }), /uploadUrl/);
+console.log('storrito tests passed');
+import { resolveTikTok, resolveSocialTarget } from '../lib/storrito.js';
+assert.equal(classifyEntry(e('فيس بوك', 'ريل')).typeWord, 'reel');
+assert.equal(classifyEntry(e('سناب شات', 'Spotlight')).typeWord, 'spotlight');
+assert.equal(classifyEntry(e('فيس بوك', 'بوست صور')).ok, false);
+const accts = { socialAccounts: [{ socialAccountId: 'fb1', platform: 'FACEBOOK', name: 'Page', postTypes: [{ postType: 'REEL', media: ['video'] }, { postType: 'STORY' }] }, { socialAccountId: 'sc1', platform: 'SNAPCHAT', postTypes: [{ postType: 'SPOTLIGHT', media: ['video'], captionPublished: true, maxCaptionLength: 160 }, { postType: 'STORY' }] }, { tiktokAccountId: 'tk1', platform: 'TIKTOK', postTypes: [] }] };
+assert.deepEqual(resolveSocialTarget(accts, 'facebook', 'reel').postType, 'REEL');
+assert.equal(resolveSocialTarget(accts, 'snapchat', 'story').socialAccountId, 'sc1');
+assert.equal(resolveSocialTarget(accts, 'snapchat', 'reel'), null);
+assert.equal(resolveSocialTarget({ error: 'x' }, 'facebook', 'reel'), null);
+console.log('social resolver tests passed');
+assert.equal(resolveTikTok(accts), 'tk1');
+assert.equal(resolveSocialTarget(accts, 'snapchat', 'spotlight').maxCaptionLength, 160);
+console.log('resolver v2 ok');
+// youtube / linkedin / google coverage
+assert.equal(classifyEntry(e('يوتيوب', 'Shorts')).network, 'youtube');
+assert.equal(classifyEntry(e('يوتيوب', 'فيديو')).ok, true);
+assert.equal(classifyEntry(e('لينكد ان', 'بوست')).network, 'linkedin');
+assert.equal(classifyEntry(e('لينكد ان', 'فيديو')).ok, true);
+assert.equal(classifyEntry(e('Google', 'فيديو')).ok, false);
+const accts2 = { socialAccounts: [{ socialAccountId: 'yt1', platform: 'YOUTUBE', postTypes: [{ postType: 'SHORTS', media: ['video'] }] }, { socialAccountId: 'li1', platform: 'LINKEDIN', postTypes: [{ postType: 'POST', media: ['video', 'image'] }] }] };
+assert.equal(resolveSocialTarget(accts2, 'youtube', ['shorts', 'short', 'video']).socialAccountId, 'yt1');
+assert.equal(resolveSocialTarget(accts2, 'linkedin', ['video', 'post']).postType, 'POST');
+assert.equal(resolveSocialTarget(accts2, 'youtube', ['story']), null);
+console.log('youtube/linkedin tests passed');
+// Zernio coverage (photo posts + google)
+import { classifyZernio, resolveZernioAccount, uploadZernioMedia, createZernioPost, zernioConfig, zernioCall } from '../lib/zernio.js';
+assert.equal(classifyZernio(e('انستجرام', 'بوست صور')).network, 'instagram');
+assert.equal(classifyZernio(e('فيس بوك', 'بوست صور')).network, 'facebook');
+assert.equal(classifyZernio(e('Google', 'فيديو')).network, 'google');
+assert.equal(classifyZernio(e('Google', 'كلمات بحث')).ok, false);
+assert.equal(classifyZernio(e('لينكد ان', 'بوست')).ok, false);
+assert.throws(() => zernioConfig({}), /ZERNIO_API_KEY/);
+const zc = zernioConfig({ ZERNIO_API_KEY: 'k' });
+const zl = { accounts: [{ _id: 'a1', platform: 'instagram', username: 'mzjcars' }, { _id: 'a2', platform: 'facebook', isActive: false }, { _id: 'a3', platform: 'facebook' }] };
+assert.equal(resolveZernioAccount(zl, ['instagram']).accountId, 'a1');
+assert.equal(resolveZernioAccount(zl, ['facebook']).accountId, 'a3');
+assert.equal(resolveZernioAccount(zl, ['googlebusiness']), null);
+const zcalls = [];
+const zf = async (url, opts) => {
+  zcalls.push({ url: String(url), method: opts.method, headers: opts.headers, body: opts.body });
+  if (String(url).endsWith('/media/presign')) return new Response(JSON.stringify({ uploadUrl: 'https://store.example/put', publicUrl: 'https://store.example/pub.jpg' }), { status: 200 });
+  if (String(url) === 'https://store.example/put') return new Response('', { status: 200 });
+  if (String(url).endsWith('/posts')) return new Response(JSON.stringify({ post: { _id: 'p1', status: 'scheduled' } }), { status: 201 });
+  return new Response('{}', { status: 404 });
+};
+const pub = await uploadZernioMedia(Buffer.from('abc'), 'image/jpeg', 'a.jpg', { fetchImpl: zf, config: zc });
+assert.equal(pub, 'https://store.example/pub.jpg');
+const cp = await createZernioPost({ accountId: 'a1', platform: 'instagram', caption: 'hi', mediaUrl: pub, mimeType: 'image/jpeg', publishAt: '2026-12-01T08:00:00.000Z', idempotencyKey: 'u1' }, { fetchImpl: zf, config: zc });
+assert.equal(cp.postId, 'p1');
+const last = zcalls.at(-1);
+assert.equal(last.headers['Idempotency-Key'], 'u1');
+const sent = JSON.parse(last.body);
+assert.equal(sent.timezone, 'Asia/Riyadh'); assert.equal(sent.platforms[0].accountId, 'a1'); assert.equal(sent.mediaItems[0].type, 'image');
+await assert.rejects(zernioCall('GET', '/x', null, { fetchImpl: zf, config: zc }), /404|502/);
+console.log('zernio tests passed');
