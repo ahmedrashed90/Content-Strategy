@@ -38,7 +38,7 @@ function planItem(entry, item, targets, now, social) {
   let target = null;
   if (kind.kind === 'social-post') {
     target = social ? resolveSocialTarget(social, kind.network, kind.typeWord) : null;
-    if (!target) return { ...base, state: 'blocked', reason: `لم يُعثر على حساب ${kind.network} أو نوع النشر ${kind.typeWord} في Storrito (تحقق من ربط الحساب)` };
+    if (!target) return { ...base, state: 'blocked', reason: `لم يُعثر على حساب ${kind.network} أو نوع النشر ${[].concat(kind.typeWord).join('/')} في Storrito (تحقق من ربط الحساب)` };
     const mediaKind = String(file.mimeType).startsWith('video/') ? 'video' : 'image';
     if (target.media.length && !target.media.includes(mediaKind)) return { ...base, state: 'blocked', reason: `هذا النوع (${target.label}) لا يقبل ${mediaKind === 'video' ? 'فيديو' : 'صورة'}، يقبل: ${target.media.join('/')}` };
     if (!target.captionPublished && caption) base.note = 'هذا النوع لا ينشر كابشن';

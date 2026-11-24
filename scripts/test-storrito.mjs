@@ -59,3 +59,14 @@ console.log('social resolver tests passed');
 assert.equal(resolveTikTok(accts), 'tk1');
 assert.equal(resolveSocialTarget(accts, 'snapchat', 'spotlight').maxCaptionLength, 160);
 console.log('resolver v2 ok');
+// youtube / linkedin / google coverage
+assert.equal(classifyEntry(e('يوتيوب', 'Shorts')).network, 'youtube');
+assert.equal(classifyEntry(e('يوتيوب', 'فيديو')).ok, true);
+assert.equal(classifyEntry(e('لينكد ان', 'بوست')).network, 'linkedin');
+assert.equal(classifyEntry(e('لينكد ان', 'فيديو')).ok, true);
+assert.equal(classifyEntry(e('Google', 'فيديو')).ok, false);
+const accts2 = { socialAccounts: [{ socialAccountId: 'yt1', platform: 'YOUTUBE', postTypes: [{ postType: 'SHORTS', media: ['video'] }] }, { socialAccountId: 'li1', platform: 'LINKEDIN', postTypes: [{ postType: 'POST', media: ['video', 'image'] }] }] };
+assert.equal(resolveSocialTarget(accts2, 'youtube', ['shorts', 'short', 'video']).socialAccountId, 'yt1');
+assert.equal(resolveSocialTarget(accts2, 'linkedin', ['video', 'post']).postType, 'POST');
+assert.equal(resolveSocialTarget(accts2, 'youtube', ['story']), null);
+console.log('youtube/linkedin tests passed');

@@ -2,7 +2,7 @@ import { connectFirebase, listenToAuth } from './firebase.js';
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[x]);
 const app = $('app');
-let agendas = [], detail = null;
+let agendas = [], detail = null, ideaFilter = '';
 
 async function api(path, body) {
   const { auth } = await connectFirebase();
@@ -19,20 +19,40 @@ const supported = e => {
   const p = `${e.platform?.code} ${e.platform?.name}`, t = e.postType?.name || '';
   if (/tiktok|تيك/i.test(p)) return true;
   if (/snap|سناب/i.test(p)) return /spotlight|story|ستوري/i.test(t);
+  if (/youtube|يوتيوب/i.test(p)) return /short|شورت|ريل|reel|فيديو|video/i.test(t);
+  if (/linkedin|لينكد/i.test(p)) return /بوست|post|صور|image|فيديو|video|ريل|reel/i.test(t);
   return /instagram|انستجرام|إنستجرام|facebook|فيس/i.test(p) && /ريل|reel|ستوري|story/i.test(t);
+};
+/** Default publish time (Riyadh) per platform + post type, from the agreed schedule. Editable per row before sending. */
+const defaultTime = e => {
+  const p = `${e.platform?.code} ${e.platform?.name}`, t = e.postType?.name || '';
+  const story = /ستوري|story/i.test(t), spot = /spotlight/i.test(t), reel = /ريل|reel|فيديو|video|short|شورت/i.test(t);
+  if (/instagram|انستجرام|إنستجرام/i.test(p)) return story ? '11:00' : '19:00';
+  if (/tiktok|تيك/i.test(p)) return story ? '11:30' : '20:00';
+  if (/facebook|فيس/i.test(p)) return story ? '17:45' : '17:00';
+  if (/snap|سناب/i.test(p)) return spot ? '19:30' : '17:45';
+  if (/youtube|يوتيوب/i.test(p)) return '18:00';
+  if (/linkedin|لينكد/i.test(p)) return '10:00';
+  return reel ? '19:00' : '14:00';
 };
 
 function render(msg = '') {
   const prevIg = $('ig')?.value, prevTt = $('tt')?.value;
   const today = new Date().toISOString().slice(0, 10);
-  const rows = detail ? detail.entries.filter(e => supported(e) && e.scheduledOn >= today) : [];
+  const allRows = detail ? detail.entries.filter(e => supported(e) && e.scheduledOn >= today) : [];
+  const ideaOf = e => e.strategyIdeaTitle || e.ideaName || '';
+  const ideas = [...new Set(allRows.map(ideaOf))];
+  const rows = ideaFilter ? allRows.filter(e => ideaOf(e) === ideaFilter) : allRows;
+  const manual = detail ? detail.entries.filter(e => !supported(e) && e.scheduledOn >= today && e.fileStatus === 'ready').length : 0;
   app.innerHTML = `
   <label>الأجندة: <select id="agenda">${agendas.map(a => `<option value="${esc(a.id)}" ${detail?.id === a.id ? 'selected' : ''}>${esc(a.agenda?.name)} (${esc(a.agenda?.publishFrom)} → ${esc(a.agenda?.publishTo)})</option>`).join('')}</select></label>
   <button class="alt" id="load">تحميل</button>
-  <p><label>حساب انستجرام (username): <input id="ig" placeholder="mzjcars" dir="ltr"></label>
-  <label>حساب تيك توك (ID): <input id="tt" dir="ltr"></label> <button class="alt" id="accounts">عرض حساباتي في Storrito</button></p>
-  ${detail ? `<table><tr><th></th><th>التاريخ</th><th>المنصة / النوع</th><th>الفكرة</th><th>الكابشن</th><th>موعد النشر (توقيت الرياض)</th></tr>
-  ${rows.map(e => `<tr><td><input type="checkbox" data-e="${esc(e.id)}"></td><td>${esc(e.scheduledOn)}</td><td>${esc(e.platform?.name)} / ${esc(e.postType?.name)}</td><td>${esc(e.strategyIdeaTitle || e.ideaName)}</td><td>${e.caption ? '✓' : '<span class="bad">فارغ</span>'}</td><td><input type="datetime-local" data-t="${esc(e.id)}" value="${esc(e.scheduledOn)}T14:00"></td></tr>`).join('') || '<tr><td colspan="6" class="muted">لا منشورات مدعومة وجاهزة بتاريخ قادم</td></tr>'}</table>
+  <p><label>حساب انستجرام (اختياري، username): <input id="ig" placeholder="mzjcars" dir="ltr"></label>
+  <label>حساب تيك توك (اختياري، ID): <input id="tt" dir="ltr"></label> <button class="alt" id="accounts">عرض حساباتي في Storrito</button></p>
+  ${detail ? `<p><label>الفكرة: <select id="idea"><option value="">كل الأفكار</option>${ideas.map(i => `<option value="${esc(i)}" ${i === ideaFilter ? 'selected' : ''}>${esc(i)}</option>`).join('')}</select></label>
+  <button class="alt" id="selidea">حدد منشورات المعروض (حتى 10)</button> <button class="alt" id="clrsel">إلغاء التحديد</button>${manual ? ` <span class="muted">${manual} منشور جاهز غير مدعوم آليًا (بوست صور أو جوجل): يُنشر يدويًا</span>` : ''}</p>
+  <table><tr><th></th><th>التاريخ</th><th>المنصة / النوع</th><th>الفكرة</th><th>الكابشن</th><th>موعد النشر (توقيت الرياض)</th></tr>
+  ${rows.map(e => `<tr><td><input type="checkbox" data-e="${esc(e.id)}"></td><td>${esc(e.scheduledOn)}</td><td>${esc(e.platform?.name)} / ${esc(e.postType?.name)}</td><td>${esc(e.strategyIdeaTitle || e.ideaName)}</td><td>${e.caption ? '✓' : '<span class="bad">فارغ</span>'}</td><td><input type="datetime-local" data-t="${esc(e.id)}" value="${esc(e.scheduledOn)}T${defaultTime(e)}"></td></tr>`).join('') || '<tr><td colspan="6" class="muted">لا منشورات مدعومة وجاهزة بتاريخ قادم</td></tr>'}</table>
   <p><button id="preview">معاينة (بدون إرسال)</button> <button id="go" class="alt">جدولة فعلية</button></p>` : ''}
   <pre id="out">${esc(msg)}</pre>`;
   try {
@@ -41,6 +61,11 @@ function render(msg = '') {
   } catch { /* optional */ }
   $('ig').oninput = $('tt').oninput = () => { try { localStorage.setItem('mzj-auto-ig', $('ig').value.trim()); localStorage.setItem('mzj-auto-tt', $('tt').value.trim()); } catch { /* optional */ } };
   $('load').onclick = loadAgenda; $('accounts').onclick = accounts;
+  if (detail) {
+    $('idea').onchange = () => { ideaFilter = $('idea').value; render(); };
+    $('selidea').onclick = () => { const boxes = [...document.querySelectorAll('input[data-e]')]; boxes.forEach((b, i) => { b.checked = i < 10; }); };
+    $('clrsel').onclick = () => document.querySelectorAll('input[data-e]').forEach(b => { b.checked = false; });
+  }
   if (detail) { $('preview').onclick = () => run(false); $('go').onclick = () => { if (confirm('سيتم إرسال المنشورات المحددة إلى Storrito للنشر في مواعيدها. متأكد؟')) run(true); }; }
 }
 function selected() {
@@ -73,7 +98,7 @@ function restore(ig, tt, kept = [], times = {}) {
   }
 }
 async function loadAgenda() {
-  try { detail = await api(`/api/publication-agendas?agendaId=${encodeURIComponent($('agenda').value)}`); render(); } catch (e) { render('خطأ: ' + e.message); }
+  try { detail = await api(`/api/publication-agendas?agendaId=${encodeURIComponent($('agenda').value)}`); ideaFilter = ''; render(); } catch (e) { render('خطأ: ' + e.message); }
 }
 async function accounts() {
   try { const r = await api('/api/publication-schedule', { action: 'accounts' }); render(JSON.stringify({ instagram: r.instagram, tiktok: r.tiktok, social: r.social }, null, 2)); } catch (e) { render('خطأ: ' + e.message); }
