@@ -8,10 +8,11 @@ import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import
 import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
+import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor, openPublicationIdeaEditor, closePublicationIdeaEditor, savePublicationIdeaEditor, openPublicationDeleteConfirmation, closePublicationDeleteConfirmation, deletePublicationAgenda } from './publication.js';
 
 // Remember the last opened screen locally; production data and API routes are untouched.
 const NAV_STORAGE_KEY = 'mzj.contentStrategy.lastScreen.v1';
-const RESTORABLE_VIEWS = new Set(['overview','ideas','bridge','inspirations','archive','plan','proposals','tasks','baseline','platforms','comparison','settings','schedule','post','asset']);
+const RESTORABLE_VIEWS = new Set(['overview','ideas','bridge','inspirations','archive','plan','proposals','tasks','baseline','platforms','comparison','settings','schedule','post','asset','publishing']);
 const restoredScreen = (() => {
   try {
     const record = JSON.parse(localStorage.getItem(NAV_STORAGE_KEY) || '{}');
@@ -92,7 +93,8 @@ const state = {
   selectedPostId: restoredScreen.selectedPostId || null,
   selectedAssetCode: restoredScreen.selectedAssetCode || null,
   bridge: newBridgeState(),
-  inspirations: newInspirationState()
+  inspirations: newInspirationState(),
+  publishing: newPublicationState()
 };
 
 const formatNumber = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -236,7 +238,7 @@ function sidebar() {
   <aside class="sidebar ${state.mobileNav ? 'is-open':''}" aria-label="القائمة الرئيسية">
     <div class="brand"><span class="wordmark">MZJ</span><span class="brand-ar">محمد ذعار العجمي للسيارات</span><span class="brand-sub">استراتيجية المحتوى | منظومة مستقلة</span></div>
     <div class="menu-label">مساحة العمل</div>
-    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','الداش بورد','grid')}${navButton('ideas','الأفكار','file')}${navButton('bridge','إنشاء التكليفات','compare')}${navButton('inspirations','الأفكار الجديدة','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('tasks','التسليمات والإنتاج','clock')}</nav>
+    <nav class="nav-group" aria-label="الأقسام">${navButton('overview','الداش بورد','grid')}${navButton('ideas','الأفكار','file')}${navButton('bridge','إنشاء التكليفات','compare')}${navButton('inspirations','الأفكار الجديدة','file')}${navButton('archive','أرشيف الأفكار','layers')}${navButton('plan','تقويم النشر والتنشيط','calendar')}${navButton('proposals','جدول النشر الاستراتيجي','calendar')}${navButton('publishing','النشر','file')}${navButton('tasks','التسليمات والإنتاج','clock')}</nav>
     <div class="menu-label">البيانات والتحليل</div>
     <nav class="nav-group" aria-label="بيانات الأداء">${navButton('baseline','المرجع الأساسي','database')}${navButton('platforms','تحليل المنصات','chart')}${navButton('comparison','مقارنة الأداء','compare','قريبًا')}</nav>
     <div class="menu-label">النظام</div>
@@ -249,7 +251,7 @@ function sidebar() {
 }
 
 function topbar() {
-  const viewName = ({overview:'الداش بورد',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',tasks:'التسليمات والإنتاج',ideas:'الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات',inspirations:'الأفكار الجديدة'})[state.view] || 'الداش بورد';
+  const viewName = ({overview:'الداش بورد',plan:'تقويم النشر والتنشيط',proposals:'جدول النشر الاستراتيجي',publishing:'النشر',tasks:'التسليمات والإنتاج',ideas:'الأفكار',archive:'أرشيف الأفكار',post:'تفاصيل النشر',asset:'مراجعة البريف',baseline:'المرجع الأساسي',platforms:'تحليل المنصات',comparison:'مقارنة الأداء',settings:'الإعدادات والأمان',bridge:'إنشاء التكليفات',inspirations:'الأفكار الجديدة'})[state.view] || 'الداش بورد';
   return `<header class="topbar">
     <div style="display:flex;align-items:center;gap:11px"><button class="menu-toggle" data-action="toggle-menu" aria-label="فتح القائمة">${icon('menu')}</button><div class="crumbs"><span>MZJ</span>${icon('arrow','ic-sm')}<span>استراتيجية المحتوى</span>${icon('arrow','ic-sm')}<b>${viewName}</b></div></div>
     <div class="top-actions"><span class="small-pill">${icon('calendar','ic-sm')} <span>${formatDate.format(new Date())}</span></span><span class="small-pill"><span class="dot ${state.baselineStatus==='saved' ? 'solid-dot':''}"></span> مركز إدارة المحتوى</span></div>
@@ -623,9 +625,25 @@ function render() {
     return;
   }
   if (state.baselineStatus === 'loading') { app.innerHTML = `<main class="setup-screen"><div class="card panel">${icon('refresh','ic-lg')} <h1 class="page-title">جارٍ فحص المرجع المحفوظ...</h1><p class="page-description">التأكد من وجود نسخة مرجعية في Firestore.</p></div></main>`; return; }
-  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals','inspirations'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
-  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state), inspirations: ()=>inspirationsPage(state) };
+  if (['not-saved','denied'].includes(state.baselineStatus) && !state.pendingSeed && !['settings','plan','tasks','ideas','archive','schedule','post','asset','bridge','proposals','inspirations','publishing'].includes(state.view)) { app.innerHTML = importBaselinePage(); return; }
+  const pages = { overview: overviewPage, plan: ()=>planPage(state), tasks: ()=>tasksPage(state), ideas: ()=>ideasPage(state), archive: ()=>archivePage(state), schedule: ()=>schedulePage(state), post: ()=>postDetailPage(state), asset: ()=>assetDetailPage(state), baseline: baselinePage, platforms: platformPage, comparison: comparisonPage, settings: settingsPage, bridge: ()=>bridgePage(state), proposals: ()=>strategyAgendaPage(state), inspirations: ()=>inspirationsPage(state), publishing: ()=>publicationPage(state.publishing,state.plan) };
   app.innerHTML = `<div class="shell">${sidebar()}<div class="main">${topbar()}<div class="content">${(pages[state.view] || overviewPage)()}</div></div>${modalView()}</div>${manualIdeaModal(state.manualIdeaDraft,state.planSaving,state.manualIdeaError)}`;
+  if(state.view==='publishing'){
+    // Native showModal() enters the browser top layer. Existing content motion
+    // transforms no longer shift publication dialogs when the user scrolls.
+    app.querySelectorAll('dialog.pub-native-dialog').forEach(dialog=>{
+      dialog.addEventListener('cancel',event=>{
+        event.preventDefault();
+        if(dialog.id==='pub-files-dialog')state.publishing.fileListEntryId='';
+        if(dialog.id==='pub-media-dialog')resetPublicationMedia(state.publishing);
+        if(dialog.id==='pub-copy-dialog'&&!state.publishing.copyEditor?.saving)closePublicationCopyEditor(state.publishing);
+        if(dialog.id==='pub-idea-dialog'&&!state.publishing.ideaEditor?.saving)closePublicationIdeaEditor(state.publishing);
+        if(dialog.id==='pub-delete-dialog'&&!state.publishing.deleteConfirmation?.deleting)closePublicationDeleteConfirmation(state.publishing);
+        render();
+      },{once:true});
+      dialog.showModal();
+    });
+  }
 }
 
 async function boot() {
@@ -703,6 +721,10 @@ async function boot() {
           state.planError='تعذر قراءة خطة النشر. تحقق من نشر قواعد firestore.rules الجديدة.';
           console.warn('Publishing-plan access failed:',err.code||err.message);
         }
+      }
+      // A restored last screen must load its synced agendas without requiring a second click.
+      if(user && state.view==='publishing' && state.publishing.loadState==='idle' && !isLocalPreview){
+        void loadPublicationAgendas(state.publishing).then(render);
       }
       render();
     });
@@ -1164,6 +1186,32 @@ async function submitBridgeAssignment(form) {
 }
 
 app.addEventListener('submit', event => {
+  if(event.target.id==='pub-idea-form' && state.view==='publishing'){
+    event.preventDefault();
+    const title=String(event.target.elements.namedItem('ideaTitle')?.value||'');
+    if(state.publishing.ideaEditor)state.publishing.ideaEditor.title=title;
+    void (async()=>{
+      const success=await savePublicationIdeaEditor(state.publishing,title);
+      render();if(success)toast('تم حفظ اسم الفكرة في الاستراتيجية لكل منشورات المطلوب');
+    })();
+    render();return;
+  }
+  if(event.target.id==='pub-copy-form' && state.view==='publishing'){
+    event.preventDefault();
+    const form=event.target;
+    const caption=form.elements.namedItem('caption')?.value??'';
+    const hashtags=form.elements.namedItem('hashtags')?.value??'';
+    if(state.publishing.copyEditor){
+      state.publishing.copyEditor.caption=caption;
+      state.publishing.copyEditor.hashtags=hashtags;
+    }
+    void (async()=>{
+      const success=await savePublicationCopyEditor(state.publishing,caption,hashtags);
+      render();
+      if(success)toast('تم حفظ الكابشن والهاشتاج في الاستراتيجية');
+    })();
+    render();return;
+  }
   if(event.target.id==='login-form'){
     event.preventDefault();handleLogin(event.target);return;
   }
@@ -1212,6 +1260,31 @@ app.addEventListener('input', event => {
   if(results)results.innerHTML=renderStockOptions(state.bridge) || '<p class="bridge-search-empty">لا توجد سيارات مطابقة للبحث.</p>';
 });
 
+app.addEventListener('change', async event => {
+  if(state.view!=='publishing')return;
+  if(event.target?.id==='pub-agenda-select'){
+    resetPublicationMedia(state.publishing);
+    state.publishing.platform='all';state.publishing.status='all';state.publishing.search='';
+    await loadPublicationAgenda(state.publishing,event.target.value);
+    render();
+  }
+  if(event.target?.id==='pub-platform'){
+    state.publishing.platform=event.target.value;render();
+  }
+  if(event.target?.id==='pub-status'){
+    state.publishing.status=event.target.value;render();
+  }
+});
+app.addEventListener('input', event => {
+  if(state.view==='publishing' && event.target?.id==='pub-search'){
+    state.publishing.search=event.target.value;
+    // Preserve focus and caret while filtering. A full re-render would lose both.
+    const pos=event.target.selectionStart;
+    render();
+    const next=app.querySelector('#pub-search');
+    if(next){next.focus();try{next.setSelectionRange(pos,pos);}catch{}}
+  }
+});
 app.addEventListener('change', async event => {
   if(event.target.id==='calendar-month'){
     if(/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)){state.calendarMonth=event.target.value;state.calendarSelectedDate='';render();}return;
@@ -1368,9 +1441,13 @@ app.addEventListener('click', async event => {
   if(nav?.dataset.nav==='bridge' && !state.bridge.stock.length && !state.bridge.loading){void reloadBridge(state.bridge).then(render);}
   if(nav?.dataset.nav==='proposals'&&!state.agenda.loading){void loadAgendaProducts(state).then(render);}
   if(nav?.dataset.nav==='inspirations'&&!state.inspirations.items.length&&!state.inspirations.loading){void refreshInspirations(state.inspirations).then(render);}
+  if(nav?.dataset.nav==='publishing' && !state.publishing.loading && state.publishing.loadState==='idle' && !isLocalPreview){
+    void loadPublicationAgendas(state.publishing).then(render);
+  }
   if (nav) {
     if(!canLeaveBrief())return;
     state.briefBaseline='';
+    if(state.view==='publishing' && nav.dataset.nav!=='publishing')resetPublicationMedia(state.publishing);
     state.view = nav.dataset.nav;
     state.mobileNav = false;
     state.modal = null;
@@ -1379,6 +1456,89 @@ app.addEventListener('click', async event => {
     return;
   }
   const control = event.target.closest('[data-action]');
+  // Only the new publishing screen handles these actions. All prior flows remain intact.
+  if(control?.dataset.action?.startsWith('pub-')){
+    const action=control.dataset.action;
+    const pub=state.publishing;
+    if(action==='pub-open-agenda'){
+      resetPublicationMedia(pub);
+      pub.search='';pub.platform='all';pub.status='all';
+      await loadPublicationAgenda(pub,control.dataset.agenda||'');
+      render();window.scrollTo({top:0,behavior:'instant'});return;
+    }
+    if(action==='pub-delete-ask'){
+      if(openPublicationDeleteConfirmation(pub,control.dataset.agenda||''))render();
+      return;
+    }
+    if(action==='pub-delete-close'){
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
+      if(closePublicationDeleteConfirmation(pub))render();return;
+    }
+    if(action==='pub-delete-confirm'){
+      const pending=deletePublicationAgenda(pub);
+      render();
+      const deleted=await pending;
+      render();
+      if(deleted){toast('تم حذف نسخة الأجندة من النشر في الاستراتيجية فقط');window.scrollTo({top:0,behavior:'instant'});}
+      return;
+    }
+    if(action==='pub-back'){
+      closePublicationAgenda(pub);render();window.scrollTo({top:0,behavior:'instant'});return;
+    }
+    if(action==='pub-files-open'){
+      pub.fileListEntryId=control.dataset.entry||'';render();return;
+    }
+    if(action==='pub-files-close'){
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
+      pub.fileListEntryId='';render();return;
+    }
+    if(action==='pub-close-media'){
+      // An overlay click should close only when it is outside the dialog.
+      if(event.target.closest('.pub-modal') && control.classList.contains('pub-native-dialog'))return;
+      resetPublicationMedia(pub);render();return;
+    }
+    if(action==='pub-idea-open'){
+      if(openPublicationIdeaEditor(pub,control.dataset.entry||''))render();
+      return;
+    }
+    if(action==='pub-idea-close'){
+      if(pub.ideaEditor?.saving)return;
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
+      closePublicationIdeaEditor(pub);render();return;
+    }
+    if(action==='pub-copy-open'){
+      if(openPublicationCopyEditor(pub,control.dataset.entry||''))render();
+      return;
+    }
+    if(action==='pub-copy-close'){
+      if(pub.copyEditor?.saving)return;
+      if(control.classList.contains('pub-native-dialog')&&event.target.closest('.pub-modal'))return;
+      closePublicationCopyEditor(pub);render();return;
+    }
+    if(action==='pub-reload'){
+      await loadPublicationAgendas(pub);render();return;
+    }
+    if(action==='pub-refresh'){
+      await refreshPublicationAgenda(pub);render();return;
+    }
+    if(action==='pub-copy'){
+      const row=publicationEntry(pub,control.dataset.entry||'');
+      if(!row)return;
+      try{await navigator.clipboard.writeText([row.caption,row.hashtags].filter(Boolean).join('\n\n'));toast('تم نسخ الكابشن والهاشتاج');}
+      catch{toast('تعذر النسخ؛ انسخ النص يدويًا من الجدول');}
+      return;
+    }
+    if(['pub-preview','pub-download','pub-use'].includes(action)){
+      const entryId=control.dataset.entry||'',fileId=control.dataset.file||'';
+      if(action==='pub-preview'){
+        pub.fileListEntryId='';
+        void previewPublicationMedia(pub,entryId,fileId).then(render).catch(err=>{pub.mediaError=err.message;render();});render();return;
+      }
+      try{const msg=await downloadPublicationMedia(pub,entryId,fileId,action==='pub-use');toast(msg);}
+      catch(err){toast(err.message||'تعذر تنزيل الملف النهائي');}
+      render();return;
+    }
+  }
   if(control?.dataset.action==='bridge-show-history-task'){
     state.bridge.expandedTaskId=state.bridge.expandedTaskId===control.dataset.task?'':control.dataset.task||'';
     const y=window.scrollY;render();window.scrollTo({top:y,behavior:'instant'});return;
@@ -1656,9 +1816,30 @@ app.addEventListener('click', async event => {
   if (action === 'save-baseline') { await saveBaseline(); return; }
 });
 
+// Read-only against Marketing: refresh active synced agenda while this owner tab is open.
+// Never schedules automatic publication or touches the existing posts collection.
+if (typeof window.setInterval==='function') window.setInterval(async()=>{
+  if(document.hidden||state.view!=='publishing'||!state.user||isLocalPreview||state.publishing.refreshing||state.publishing.loading||!state.publishing.agendaId||state.publishing.copyEditor||state.publishing.ideaEditor||state.publishing.media||state.publishing.fileListEntryId||state.publishing.deleteConfirmation)return;
+  await refreshPublicationAgenda(state.publishing);if(state.view==='publishing')render();
+},120000);
+
 window.addEventListener('keydown', event => {
   if(event.key!=='Escape')return;
   if(state.modal){state.modal=null;render();return;}
+  if(state.view==='publishing'&&state.publishing.deleteConfirmation){
+    if(closePublicationDeleteConfirmation(state.publishing))render();
+    return;
+  }
+  if(state.view==='publishing'&&state.publishing.copyEditor){
+    if(!state.publishing.copyEditor.saving){closePublicationCopyEditor(state.publishing);render();}
+    return;
+  }
+  if(state.view==='publishing'&&state.publishing.ideaEditor){
+    if(!state.publishing.ideaEditor.saving){closePublicationIdeaEditor(state.publishing);render();}
+    return;
+  }
+  if(state.view==='publishing'&&state.publishing.media){resetPublicationMedia(state.publishing);render();return;}
+  if(state.view==='publishing'&&state.publishing.fileListEntryId){state.publishing.fileListEntryId='';render();return;}
   if(state.view!=='asset')return;
   // Escape is an explicit back action; do not discard uncommitted review fields.
   if(!canLeaveBrief())return;
