@@ -105,7 +105,7 @@ async function loadAgenda() {
   try { detail = await api(`/api/publication-agendas?agendaId=${encodeURIComponent($('agenda').value)}`); ideaFilter = ''; render(); } catch (e) { render('خطأ: ' + e.message); }
 }
 async function accounts() {
-  try { const r = await api('/api/publication-schedule', { action: 'accounts' }); render(JSON.stringify({ instagram: r.instagram, tiktok: r.tiktok, social: r.social }, null, 2)); } catch (e) { render('خطأ: ' + e.message); }
+  try { const r = await api('/api/publication-schedule', { action: 'accounts' }); render(JSON.stringify({ instagram: r.instagram, tiktok: r.tiktok, social: r.social, zernio: r.zernio }, null, 2)); } catch (e) { render('خطأ: ' + e.message); }
 }
 await connectFirebase();
 listenToAuth(async user => {
