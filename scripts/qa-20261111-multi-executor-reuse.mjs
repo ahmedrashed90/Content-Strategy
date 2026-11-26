@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
-import {getIdea,taskCodes,ideaIsApproved,ideaWasUsed,activeIdeaRows,nowInRiyadh,toCreativeTreatmentText} from '../site/planner.js';
+import {getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText} from '../site/planner.js';
 import {validISODate} from '../site/idea-import.js';
 
 const raw=fs.readFileSync(new URL('../site/marketing-bridge.js',import.meta.url),'utf8');
 let attempts=[],created=new Map(), firestoreFails=true, linked=[];
-const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,ideaWasUsed,activeIdeaRows,nowInRiyadh,toCreativeTreatmentText,validISODate,
+const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText,validISODate,
  PLAN_ID:'mzj-2026-launch-cycle-01',
  updateManyAssets:async()=>{},
  linkMarketingTask:async links=>{

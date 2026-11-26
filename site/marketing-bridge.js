@@ -1,5 +1,5 @@
 import { connectFirebase } from './firebase.js';
-import { getIdea, taskCodes, ideaIsApproved, ideaWasUsed, activeIdeaRows, nowInRiyadh, toCreativeTreatmentText } from './planner.js';
+import { getIdea, taskCodes, ideaIsApproved, nowInRiyadh, toCreativeTreatmentText } from './planner.js';
 import { PLAN_ID, updateManyAssets, linkMarketingTask, listAssignmentDrafts, saveAssignmentDraft, deleteAssignmentDraft } from './plan-firebase.js';
 import { validISODate } from './idea-import.js';
 
@@ -49,6 +49,7 @@ const SALES_CATEGORIES = new Set(['بيعي - قسط','بيعي - كاش','بي�
 const sameCategoryGroup = (a,b) => (SALES_CATEGORIES.has(a)&&SALES_CATEGORIES.has(b)) || a===b;
 const eligible = idea => idea && !idea.retiredFromIdeaBank && !idea.requiresVerification && idea.sourceStatus!=='موقوف' && CAMPAIGN_CATEGORIES.includes(idea.marketingCategory);
 const selectionCodes = bridge => [...new Set(bridge.selectedCodes||[])];
+const ideaRows = plan => plan ? [...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))] : [];
 const selectedIdeas = state => selectionCodes(state.bridge).map(code=>getIdea(state.plan,code)).filter(Boolean);
 const defaultAssignment = () => ({assignee:'',dueOn:nowInRiyadh()});
 const assignmentPerson = (bridge,assignee) => bridge.executors.find(row=>row.user_id+'|'+row.department_id===assignee);
@@ -143,7 +144,7 @@ export async function deleteBridgePlanName(state,draftId){
 export function resetBridgeAssignment(state){
   Object.assign(state.bridge,{selectedCodes:[],ideaCode:'',activeAssignmentIdeaCode:'',mode:'single',chosenStocks:[],stockSearch:'',
     taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},formatIdsByIdea:{},formatIdsByKind:{image:[],video:[]},
-    carSelectionsByIdea:{},carModesByIdea:{},placementsByIdea:{},lastPlacement:null,pdfReportMeta:{},currentDraftId:'',draftsOpen:false,error:''});
+    carSelectionsByIdea:{},carModesByIdea:{},placementsByIdea:{},lastPlacement:null,currentDraftId:'',draftsOpen:false,error:''});
 }
 export async function clearPendingDraft(state){
   const plan=state.plan,bridge=state.bridge,ideas=selectedIdeas(state);
@@ -220,7 +221,7 @@ export function newBridgeState() {
   category:'',selectedCodes:[],ideaCode:'',ideaSearch:'',ideaUsageFilter:'all',mode:'single',chosenStocks:[],stockSearch:'',
   formatIdsByKind:{image:[],video:[]},formatIdsByIdea:{},taskTypeId:'',assignments:[defaultAssignment()],assignmentsByIdea:{},activeAssignmentIdeaCode:'',carSelectionsByIdea:{},carModesByIdea:{},
   remoteTasks:{},busy:false,lastCreatedTask:null,focusAfterSave:'',carsExpanded:true,
-  planDrafts:[],placementsByIdea:{},lastPlacement:null,pdfReportMeta:{},
+  planDrafts:[],placementsByIdea:{},lastPlacement:null,
   savedDrafts:[],currentDraftId:'',draftsOpen:false,draftLoadError:'',draftSaving:false,
   historyByIdea:{},historyLoading:{},historyError:{},expandedTaskId:''};
 }
@@ -297,7 +298,6 @@ export function resumeBridgeAssignmentDraft(state,draftId) {
   selectBridgeIdea(state,selectedCodes.includes(draft.ideaCode)?draft.ideaCode:selectedCodes[0],false);
   if(selectedCodes.length !== (draft.selectedCodes||[]).length)
     bridge.error='بعض الأفكار في المسودة لم تعد معتمدة. راجع الاختيارات قبل إنشاء التكليف.';
-  bridge.pdfReportMeta={};
   return draft;
 }
 export async function discardBridgeAssignmentDraft(state,draftId){
@@ -309,7 +309,7 @@ export async function discardBridgeAssignmentDraft(state,draftId){
 
 export function selectBridgeCategory(state, category) {
  if(category&&!CAMPAIGN_CATEGORIES.includes(category)&&!SALES_CATEGORIES.has(category))throw Error('تصنيف غير معتمد');
- Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',assignmentsByIdea:{},activeAssignmentIdeaCode:'',formatIdsByIdea:{},carSelectionsByIdea:{},carModesByIdea:{},pdfReportMeta:{},error:''});
+ Object.assign(state.bridge,{category,selectedCodes:[],ideaCode:'',mode:'single',chosenStocks:[],stockSearch:'',assignmentsByIdea:{},activeAssignmentIdeaCode:'',formatIdsByIdea:{},carSelectionsByIdea:{},carModesByIdea:{},error:''});
 }
 export function toggleBridgeIdea(state,code,checked) {
  const idea=getIdea(state.plan,code),bridge=state.bridge;
@@ -336,7 +336,7 @@ export function toggleBridgeIdea(state,code,checked) {
 }
 export function selectBridgeIdea(state, code, add=true) {
  const idea=getIdea(state.plan,code);
- if(idea && !eligible(idea))throw Error('هذه الفكرة موقوفة أو ليست ضمن البنك النشط أو لا تحمل تصنيفًا معتمدًا');
+ if(idea && !eligible(idea))throw Error('هذه الفكرة موقوفة أو ليست ضمن البنك النشط');
  const first=idea ? state.plan?.assets.find(asset=>asset.code===taskCodes(state.plan,code)[0]) : null;
  if(idea && !sameCategoryGroup(idea.marketingCategory,state.bridge.category||''))Object.assign(state.bridge,{category:idea.marketingCategory,selectedCodes:[]});
  if(idea && state.bridge.category && idea.marketingCategory!==state.bridge.category && SALES_CATEGORIES.has(idea.marketingCategory) && SALES_CATEGORIES.has(state.bridge.category))state.bridge.category='بيعي';
@@ -448,82 +448,15 @@ export function bridgeAssignmentReady(state) {
         !bridgeIdeaMissing(state,row.code).length;
     });
 }
-/** Report-only metadata is not part of the Marketing assignment or Firestore. */
-export function validateAssignmentPdfMeta(input={}) {
-  const meta={title:String(input.title||'').trim(),season:String(input.season||'').trim(),
-    seasonFrom:String(input.seasonFrom||''),seasonTo:String(input.seasonTo||''),campaignEnd:String(input.campaignEnd||'')};
-  if(meta.title.length>160||meta.season.length>120)throw Error('اختصر عنوان التقرير أو اسم الموسم.');
-  for(const key of ['seasonFrom','seasonTo','campaignEnd'])if(meta[key]&&!validISODate(meta[key]))throw Error('اختر تاريخًا صحيحًا في بيانات التقرير.');
-  if(meta.seasonFrom&&meta.seasonTo&&meta.seasonFrom>meta.seasonTo)throw Error('تاريخ بداية الموسم يجب أن يسبق تاريخ نهايته.');
-  return meta;
-}
-/** Use the same approved ideas, assignee identities and placement validation as
- * creation, but do not write any data, allocate a request key or send an API call. */
-export function collectAssignmentPdfReport(state,form,metadata=state.bridge.pdfReportMeta||{}) {
-  const {bridge}=state;
-  const ideas=selectedIdeas(state);
-  if(!bridgeAssignmentReady(state)||!ideas.length)throw Error('أكمل الاختيارات وتأكيد السيارات لكل فكرة قبل تصدير PDF.');
-  const meta=validateAssignmentPdfMeta(metadata);
-  const groups=new Map(),names={agenda:new Set(),campaign:new Set()};
-  let count=0;
-  for(const idea of ideas){
-    const code=idea.code;
-    const placement=readPlacementForm(form,code,null)||bridge.placementsByIdea?.[code];
-    const payload=placementPayload(bridge,idea,placement);
-    const destinations=payload==null?[]:Array.isArray(payload)?payload:[payload];
-    const agenda=destinations.find(row=>row.kind==='agenda');
-    const campaign=destinations.find(row=>row.kind==='campaign');
-    for(const row of destinations){const name=row.name||(bridge.planDrafts||[]).find(d=>d.id===row.draftId)?.name;if(name)names[row.kind].add(name);}
-    const configured=assignmentsForIdea(bridge,code);
-    const rows=configured.map((entry,index)=>{
-      const current=readAssignmentRow(form,code,index,entry);
-      const person=assignmentPerson(bridge,current.assignee);
-      if(!validAssignmentDate(person,current.dueOn))throw Error('حدد تاريخ التسليم المطلوب لكل منفذ في الفكرة: '+idea.title);
-      const photography=/تصوير|photograph|shoot/i.test(person.department_name);
-      return {executor:person.full_name,requirement:photography?'تصوير':imageOrVideo(idea)==='video'?'فيديو':'صورة',dueOn:current.dueOn,photography};
-    });
-    count+=rows.length;
-    const hasProduction=rows.some(row=>!row.photography);
-    const finalRows=rows.map((row,index)=>({executor:row.executor,requirement:row.requirement,dueOn:row.dueOn,
-      publishOn:(!row.photography||!hasProduction&&index===rows.length-1)?agenda?.date||'لا يوجد':'',
-      fundOn:(!row.photography||!hasProduction&&index===rows.length-1)?campaign?.date||'لا يوجد':''}));
-    // Sales ideas (قسط/كاش) stay together in one PDF table; other categories keep their own table.
-    const category=SALES_CATEGORIES.has(idea.marketingCategory)?'بيعي - الموسم':idea.marketingCategory;
-    if(!groups.has(category))groups.set(category,{number:groups.size+1,category,ideas:[]});
-    groups.get(category).ideas.push({code,title:idea.title,rows:finalRows});
-  }
-  if(count>100)throw Error('التاسك الواحد يدعم 100 مطلوب كحد أقصى. قلل عدد الأفكار أو المنفذين.');
-  const allNames=[...names.agenda,...names.campaign];
-  const joined=[...new Set(allNames)].join(' + ');
-  return {title:meta.title||(joined&&joined.length<=160?joined:'خطة التنفيذ والنشر والتمويل'),
-    season:meta.season,seasonFrom:meta.seasonFrom,seasonTo:meta.seasonTo,campaignEnd:meta.campaignEnd,
-    groups:[...groups.values()]};
-}
-function assignmentPdfOptions(bridge){
-  const meta=bridge.pdfReportMeta||{};
-  return `<dialog id="bridge-pdf-options" class="bridge-pdf-dialog" aria-labelledby="bridge-pdf-options-title">
-    <div class="bridge-pdf-dialog-inner"><h2 id="bridge-pdf-options-title">بيانات تقرير PDF</h2>
-      <p>اختيارية، تظهر في الملف فقط ولا تُرسل إلى التسويق. اترك العنوان فارغًا لاستخدام أسماء الأجندة والحملة الحالية.</p>
-      <label>عنوان التقرير<input id="bridge-pdf-title" maxlength="160" value="${escape(meta.title||'')}" placeholder="أجندة وحملة شهر 2027/2"/></label>
-      <label>الموسم<input id="bridge-pdf-season" maxlength="120" value="${escape(meta.season||'')}" placeholder="اسم الموسم"/></label>
-      <div class="bridge-pdf-date-fields"><label>بداية الموسم<input id="bridge-pdf-seasonFrom" type="date" value="${escape(meta.seasonFrom||'')}"/></label>
-      <label>نهاية الموسم<input id="bridge-pdf-seasonTo" type="date" value="${escape(meta.seasonTo||'')}"/></label></div>
-      <label>انتهاء الحملة<input id="bridge-pdf-campaignEnd" type="date" value="${escape(meta.campaignEnd||'')}"/></label>
-      <div class="bridge-pdf-dialog-actions"><button type="button" class="btn" data-action="bridge-pdf-options-close">إلغاء</button><button type="button" class="btn btn-primary" data-action="bridge-pdf-options-save">حفظ بيانات التقرير</button></div>
-    </div></dialog>`;
-}
 export function bridgePage(state) {
   const bridge=state.bridge,plan=state.plan;
-  // Approval controls visibility, not source or previous assignments. Retired
-  // and explicitly paused ideas keep their existing exclusion. A legacy idea
-  // without a supported category remains visible but cannot bypass eligibility.
-  const all=activeIdeaRows(plan).filter(row=>!row.requiresVerification&&row.sourceStatus!=='موقوف'&&ideaIsApproved(plan,row.code));
+  const all=ideaRows(plan).filter(row=>eligible(row)&&ideaIsApproved(plan,row.code));
   const selected=selectedIdeas(state).filter(row=>eligible(row)&&sameCategoryGroup(row.marketingCategory,bridge.category));
   const q=String(bridge.ideaSearch||'').trim().toLocaleLowerCase();
   const usageFilter=bridge.ideaUsageFilter||'all';
-  const matchesCategory=(row,category)=>!category||(category==='بيعي'?SALES_CATEGORIES.has(row.marketingCategory):row.marketingCategory===category);
-  const visible=all.filter(row=>matchesCategory(row,bridge.category)&&
-    (usageFilter==='all'||(usageFilter==='used'?ideaWasUsed(plan,row.code):!ideaWasUsed(plan,row.code)))&&
+  const isLinked=row=>{const a=taskCodes(plan,row.code).map(c=>plan.assets.find(x=>x.code===c)).filter(Boolean);return a.some(x=>x.marketingTaskId||(x.previousMarketingTasks||[]).length);};
+  const visible=all.filter(row=>(!bridge.category||sameCategoryGroup(row.marketingCategory,bridge.category))&&
+    (usageFilter==='all'||(usageFilter==='used'?isLinked(row):!isLinked(row)))&&
     (!q||[row.code,row.title,row.marketingCategory,row.executor,row.marketingExecutorName].join(' ').toLocaleLowerCase().includes(q)));
   const current=selected.find(row=>row.code===bridge.ideaCode)||null;
   const activeAssets=current?taskCodes(plan,current.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean):[];
@@ -553,22 +486,21 @@ export function bridgePage(state) {
     'بيعي - قسط','بيعي - كاش',
   ];
   const categoryLabel=(c)=>c==='بيعي'?'بيعي (قسط وكاش)':c;
-  const categoryCount=c=>all.filter(row=>matchesCategory(row,c)).length;
+  const categoryCount=(c)=>c==='بيعي'?all.filter(row=>SALES_CATEGORIES.has(row.marketingCategory)).length:all.filter(row=>row.marketingCategory===c).length;
   const isCategoryActive=(c)=>c?((c==='بيعي'&&bridge.category==='بيعي')||c===bridge.category):!bridge.category;
   const categories=`<button type="button" class="bridge-category-tab ${isCategoryActive('')?'active':''}" data-action="bridge-pick-category" data-category="">كل التصنيفات <span>${all.length}</span></button>`+
     DISPLAY_CATEGORIES.map(c=>`<button type="button" class="bridge-category-tab ${isCategoryActive(c)?'active':''}" data-action="bridge-pick-category" data-category="${escape(c)}">${escape(categoryLabel(c))} <span>${categoryCount(c)}</span></button>`).join('');
   const ideaCards=visible.map(idea=>{
     const checked=selectionCodes(bridge).includes(idea.code);
     const focused=idea.code===bridge.ideaCode;
-    const linked=ideaWasUsed(plan,idea.code);
-    const available=eligible(idea);
-    const disabled=!available||(bridge.category&&!sameCategoryGroup(idea.marketingCategory,bridge.category));
+    const assets=taskCodes(plan,idea.code).map(code=>plan.assets.find(item=>item.code===code)).filter(Boolean);
+    const linked=assets.some(asset=>asset.marketingTaskId||(asset.previousMarketingTasks||[]).length);
     return `<article class="bridge-idea-option ${focused?'bridge-idea-selected':''}">
-      <button type="button" class="bridge-idea-open" data-action="bridge-focus-idea" data-idea="${escape(idea.code)}" aria-current="${focused}" ${available?'':'disabled'}>
+      <button type="button" class="bridge-idea-open" data-action="bridge-focus-idea" data-idea="${escape(idea.code)}" aria-current="${focused}">
         <span class="bridge-idea-code">${escape(idea.code)}</span><strong>${escape(idea.title)}</strong>
-        <small>${escape(idea.marketingCategory||'بدون تصنيف')} · ${idea.kind==='video'?'فيديو':'صورة'}${linked?' · تم التكليف سابقًا':''}${available?'':' · يلزم تصنيف معتمد للتكليف'}</small>
+        <small>${escape(idea.marketingCategory)} · ${idea.kind==='video'?'فيديو':'صورة'}${linked?' · تم التكليف سابقًا':''}</small>
       </button>
-      <label class="bridge-idea-select-label" title="${available?'إضافة هذه الفكرة إلى التكليف':'يلزم تصنيف معتمد للتكليف'}"><input type="checkbox" name="bridge-select-idea" value="${escape(idea.code)}" ${checked?'checked':''} ${disabled?'disabled':''}/></label>
+      <label class="bridge-idea-select-label" title="إضافة هذه الفكرة إلى التكليف"><input type="checkbox" name="bridge-select-idea" value="${escape(idea.code)}" ${checked?'checked':''} ${bridge.category&&!sameCategoryGroup(idea.marketingCategory,bridge.category)?'disabled':''}/></label>
     </article>`;
   }).join('');
   return `<div class="bridge-studio-toolbar" role="group" aria-label="فلاتر التصنيفات وتحديث البيانات">
@@ -616,9 +548,7 @@ export function bridgePage(state) {
               <section class="bridge-config-pane bridge-config-formats"><h3>مقاسات ${kind==='video'?'الفيديو':'الصور'}</h3>
                 <div class="bridge-format-grid">${sizes.map(dim=>`<label class="bridge-format-option"><input type="checkbox" name="format_${escape(current.code)}" value="${escape(dim.representativeId)}" ${dim.ids.some(id=>currentFormats.includes(id))?'checked':''} ${locked?'disabled':''}/><span dir="ltr">${escape(dim.width||'?')} × ${escape(dim.height||'?')} px</span></label>`).join('')||'<small>لا توجد مقاسات. حدّث المنفذين والمقاسات.</small>'}</div></section>
               <div class="bridge-editor-footer"><span>${selected.length} فكرة مختارة · ${selected.filter(idea=>taskCodes(plan,idea.code).every(code=>plan.assets.find(asset=>asset.code===code)?.creativeApprovedAt)).length} مؤكدة السيارات</span>
-                <div class="bridge-footer-actions"><button type="button" class="btn bridge-pdf-options-button" data-action="bridge-pdf-options-open" ${bridge.busy?'disabled':''}>بيانات التقرير</button>
-                <button type="button" class="btn bridge-pdf-export" data-action="bridge-export-pdf" ${!ready||bridge.busy||bridge.pdfExporting?'disabled':''}><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>تصدير PDF</button>
-                <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!taskNameValid||bridge.busy?'disabled':''}>${'إنشاء تاسك واحد يحتوي '+selected.length+' فكرة'}</button></div></div>
+                <button type="submit" class="btn btn-primary bridge-submit" ${!ready||!taskNameValid||bridge.busy?'disabled':''}>${'إنشاء تاسك واحد يحتوي '+selected.length+' فكرة'}</button></div>
             </form>
             <form id="bridge-approval" class="bridge-config-pane bridge-config-cars"><h3>تأكيد السيارات لكل فكرة</h3>
               <label>نوع اختيار السيارات<select id="bridge-mode" name="carMode" ${pending?'disabled':''}>
@@ -629,7 +559,7 @@ export function bridgePage(state) {
               <div id="bridge-completion-hint" class="bridge-completion-hint ${ideaMissing.length?'is-missing':'is-ready'}" role="status">${ideaMissing.length?'أكمل المطلوب لتفعيل الحفظ: '+ideaMissing.map(escape).join(' · '):'اكتملت بيانات هذه الفكرة. يمكنك تأكيد السيارات الآن.'}</div>
               <button type="submit" class="btn btn-primary bridge-confirm" ${pending||bridge.busy||ideaMissing.length?'disabled':''}>${selectionCurrent?'حفظ تأكيد السيارات':'تأكيد سيارات هذه الفكرة والمتابعة'}</button>
             </form>
-          </div>${assignmentPdfOptions(bridge)}`:`<div class="bridge-studio-empty"><h2>اختر فكرة معتمدة من القائمة</h2><p>حدد الفكرة من اليمين لتظهر إعدادات التكليف والسيارات والمقاسات بعرض الصفحة.</p></div>`}
+          </div>`:`<div class="bridge-studio-empty"><h2>اختر فكرة معتمدة من القائمة</h2><p>حدد الفكرة من اليمين لتظهر إعدادات التكليف والسيارات والمقاسات بعرض الصفحة.</p></div>`}
         </main>
       </div>
     </div>`}`;

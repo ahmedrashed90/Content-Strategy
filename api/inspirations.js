@@ -1,5 +1,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { prepareIdeaBatch, IDEA_BATCH_SCHEMA } from '../site/idea-import.js';
 
 // ─── Config ──────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ function getDb() {
   return getFirestore();
 }
 
-// ─── Auth: API key check ─────────────────────────────────────────
+// ─── Auth: API key (Claude) OR owner Firebase ID token (dashboard) ─
 function requireApiKey(req) {
   const key = env('MZJ_INSPIRATIONS_API_KEY');
   if (key.length < 32) throw Error('Inspirations API key not configured');
@@ -33,20 +34,181 @@ function requireApiKey(req) {
   if (!match || match[1] !== key) throw Error('Unauthorized');
 }
 
+async function requireOwnerToken(req) {
+  const owner = env('MZJ_STRATEGY_OWNER_UID');
+  if (!owner) throw Error('Unauthorized');
+  const token = /^Bearer ([A-Za-z0-9._-]{100,6500})$/.exec(String(req.headers.authorization || ''))?.[1];
+  if (!token) throw Error('Unauthorized');
+  getDb();
+  const decoded = await getAuth().verifyIdToken(token).catch(() => null);
+  if (!decoded || decoded.uid !== owner) throw Error('Unauthorized');
+}
+
+async function authorize(req) {
+  try { requireApiKey(req); return 'api-key'; }
+  catch { await requireOwnerToken(req); return 'owner'; }
+}
+
+function parseBody(req) {
+  let body = req.body;
+  if (typeof body === 'string') body = body ? JSON.parse(body) : {};
+  return body && typeof body === 'object' ? body : {};
+}
+
+
+// ─── Wording rules applied to every idea brief ──────────────────
+// 1) The brand is written «محمد ذعار العجمي» in briefs, not «MZJ».
+//    URLs such as mzj.sa (lowercase) are untouched; #MZJ is dropped because
+//    #محمد_ذعار_العجمي is always present.
+// 2) The word «منقحة / منقح / المنقحة» is replaced by plain wording because
+//    the team does not understand it.
+const BRAND_AR = 'محمد ذعار العجمي';
+const SKIP_KEYS = new Set(['code', 'kind', 'status', 'reviewStatus', 'executor', 'source', 'inspirationId',
+  'marketingCategory', 'platforms', 'importedBatchId', 'sourceIdeaCode', 'sourceLegacyCode', 'sourceSet',
+  'reviewedByUid', 'sourceVerifiedByUid', 'marketingTaskId', 'marketingTaskNo', 'marketingItemId',
+  'integrationRequestKey', 'dueDate', 'week', 'deliveryDay', 'reviewHistory', 'previousMarketingTasks',
+  'integrationDraft', 'comments', 'reviewNotes']);
+
+function rewriteString(value, key = '') {
+  let out = value;
+  if (key === 'hashtags' || /hashtag/i.test(key)) {
+    out = out.replace(/#MZJ(?![A-Za-z0-9_؀-ۿ])/g, '');
+    out = out.replace(/#يدكم_مبارك/g, '#عيدكم_مبارك');
+    if (!out.includes('#محمد_ذعار_العجمي')) out = `#محمد_ذعار_العجمي ${out}`;
+    return out.replace(/[ \t]{2,}/g, ' ').trim();
+  }
+  out = out
+    // «MZJ (محمد ذعار العجمي...)» / «محمد ذعار العجمي (MZJ)» → one name only
+    .replace(/MZJ\s*[\(（]\s*محمد\s*(?:بن\s*)?ذعار\s*العجمي(\s*للسيارات)?\s*[\)）]/g, (_, s) => BRAND_AR + (s || ''))
+    .replace(/(محمد\s*(?:بن\s*)?ذعار\s*العجمي(?:\s*للسيارات)?)\s*[\(（]\s*MZJ\s*[\)）]/g, '$1')
+    .replace(/(محمد\s*(?:بن\s*)?ذعار\s*العجمي(?:\s*للسيارات)?)\s*[—\-–|/]\s*MZJ(?![A-Za-z0-9])/g, '$1')
+    .replace(/MZJ\s*[—\-–|/]\s*(محمد\s*(?:بن\s*)?ذعار\s*العجمي)/g, '$1')
+    .replace(/#MZJ(?![A-Za-z0-9_؀-ۿ])/g, '#محمد_ذعار_العجمي')
+    .replace(/(?<![A-Za-z0-9_\-.\/])MZJ(?![A-Za-z0-9_\-])/g, BRAND_AR)
+    .replace(/#محمد_ذعار_العجمي(\s+#محمد_ذعار_العجمي)+/g, '#محمد_ذعار_العجمي')
+    // «يدكم مبارك» typo → «عيدكم مبارك» (also in hashtags: #يدكم_مبارك)
+    .replace(/(^|[^\u0600-\u06FF])يدكم(?=[\s_]*مبارك)/g, '$1عيدكم')
+    // «منقحة» wording
+    .replace(/(?:و?ب?ال)منقح(?:ة|ه|ات)?(?![؀-ۿ])/g, 'بعد إخفاء البيانات الحساسة')
+    .replace(/منقح(?:ة|ه|ات)?(?![؀-ۿ])/g, 'مع إخفاء البيانات الحساسة')
+    .replace(/[ \t]{2,}/g, ' ');
+  return out;
+}
+
+function rewriteValue(value, key = '') {
+  if (typeof value === 'string') return rewriteString(value, key);
+  if (Array.isArray(value)) return value.map(v => rewriteValue(v, key));
+  if (value && typeof value === 'object' && !(typeof value.toDate === 'function')) {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = SKIP_KEYS.has(k) ? v : rewriteValue(v, key === 'hashtagsByPlatform' ? 'hashtags' : k);
+    }
+    return out;
+  }
+  return value;
+}
+
+// Literal find/replace across every text field of an idea (same field rules as
+// rewriteValue). Used for one-off corrections without a new deploy.
+function replaceValue(value, pairs, key = '') {
+  if (typeof value === 'string') return pairs.reduce((acc, [from, to]) => acc.split(from).join(to), value);
+  if (Array.isArray(value)) return value.map(v => replaceValue(v, pairs, key));
+  if (value && typeof value === 'object' && typeof value.toDate !== 'function') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = SKIP_KEYS.has(k) ? v : replaceValue(v, pairs, k);
+    return out;
+  }
+  return value;
+}
+function replaceInIdea(data, pairs) {
+  const changes = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (SKIP_KEYS.has(k) || v == null || typeof v === 'number' || typeof v === 'boolean') continue;
+    if (typeof v === 'object' && typeof v.toDate === 'function') continue;
+    const next = replaceValue(v, pairs, k);
+    if (JSON.stringify(next) !== JSON.stringify(v)) changes[k] = next;
+  }
+  return changes;
+}
+
+// Returns only the top-level fields that actually change.
+function rewriteIdea(data) {
+  const changes = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (SKIP_KEYS.has(k) || v == null || typeof v === 'number' || typeof v === 'boolean') continue;
+    if (typeof v === 'object' && typeof v.toDate === 'function') continue;
+    const next = rewriteValue(v, k);
+    if (JSON.stringify(next) !== JSON.stringify(v)) changes[k] = next;
+  }
+  return changes;
+}
+
+const MAX_DELETE = 300;
+const CODE_RE = /^[A-Za-z0-9._-]{1,80}$/;
+
+// Delete generated ideas (assets) safely: only ideas created by Claude through
+// this API (source === 'claude'). Ideas already linked to a Marketing task are
+// kept unless force === true. Codes are also removed from every inspiration's
+// generatedIdeas; an inspiration left with no ideas returns to «جديد».
+async function deleteIdeas(db, codes, { force = false } = {}) {
+  const planRef = db.collection('contentPlans').doc(PLAN_ID);
+  const assetsRef = planRef.collection('assets');
+  const inspirationsRef = planRef.collection('inspirations');
+  const unique = [...new Set(codes.map(c => String(c || '').trim()).filter(c => CODE_RE.test(c)))].slice(0, MAX_DELETE);
+  const deleted = [], notFound = [], protectedCodes = [], linked = [];
+  if (!unique.length) return { deleted, notFound, protected: protectedCodes, linked };
+
+  const snaps = await db.getAll(...unique.map(c => assetsRef.doc(c)));
+  const toDelete = [];
+  snaps.forEach((snap, i) => {
+    const code = unique[i];
+    if (!snap.exists) { notFound.push(code); return; }
+    const d = snap.data();
+    if (d.source !== 'claude') { protectedCodes.push(code); return; }
+    if (d.marketingTaskId && !force) { linked.push(code); return; }
+    toDelete.push(snap.ref);
+    deleted.push(code);
+  });
+
+  for (let i = 0; i < toDelete.length; i += 400) {
+    const batch = db.batch();
+    toDelete.slice(i, i + 400).forEach(ref => batch.delete(ref));
+    await batch.commit();
+  }
+
+  if (deleted.length) {
+    const insSnap = await inspirationsRef.get();
+    const set = new Set(deleted);
+    const batch = db.batch();
+    let writes = 0;
+    insSnap.docs.forEach(doc => {
+      const list = Array.isArray(doc.data().generatedIdeas) ? doc.data().generatedIdeas : [];
+      if (!list.some(c => set.has(c))) return;
+      const remaining = list.filter(c => !set.has(c));
+      const update = { generatedIdeas: remaining, updatedAt: FieldValue.serverTimestamp() };
+      if (!remaining.length && doc.data().status === 'تم التوليد') update.status = 'جديد';
+      batch.update(doc.ref, update);
+      writes++;
+    });
+    if (writes) await batch.commit();
+  }
+  return { deleted, notFound, protected: protectedCodes, linked };
+}
+
 // ─── Handler ─────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const method = String(req.method || 'GET').toUpperCase();
 
   // CORS for Claude integration
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
   if (method === 'OPTIONS') return res.status(204).end();
 
   try {
-    requireApiKey(req);
+    await authorize(req);
   } catch (err) {
-    return responseJson(res, 401, { ok: false, error: err.message });
+    return responseJson(res, 401, { ok: false, error: 'Unauthorized' });
   }
 
   const action = String(req.query?.action || '').trim();
@@ -94,6 +256,8 @@ export default async function handler(req, res) {
           marketingCategory: d.marketingCategory || '',
           status: d.status || '',
           retiredFromIdeaBank: d.retiredFromIdeaBank || false,
+          source: d.source || '',
+          inspirationId: d.inspirationId || '',
         };
       });
       return responseJson(res, 200, { ok: true, ideas, total: ideas.length });
@@ -138,6 +302,7 @@ export default async function handler(req, res) {
       for (const item of prepared.items) {
         const doc = {
           ...item,
+          ...rewriteIdea(item),
           source: 'claude',
           status: 'لم يبدأ',
           reviewStatus: 'بانتظار المراجعة',
@@ -196,7 +361,108 @@ export default async function handler(req, res) {
       return responseJson(res, 201, { ok: true, id });
     }
 
-    return responseJson(res, 400, { ok: false, error: 'Unknown action. Use: list, ideas, push-ideas, create' });
+
+    // ── POST /api/inspirations?action=rewrite-wording ────────────
+    // Body: { dryRun?: boolean (default true), codes?: string[] }
+    // Applies the wording rules (MZJ → محمد ذعار العجمي, remove «منقحة») to
+    // every stored idea (or only the given codes). dryRun reports without writing.
+    if (method === 'POST' && action === 'rewrite-wording') {
+      const body = parseBody(req);
+      const dryRun = body.dryRun !== false;
+      const only = Array.isArray(body.codes) ? new Set(body.codes.map(String)) : null;
+      const assetsRef = db.collection('contentPlans').doc(PLAN_ID).collection('assets');
+      const snap = await assetsRef.get();
+      const changed = [];
+      const samples = [];
+      let batch = db.batch(), pending = 0;
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (only && !only.has(data.code || doc.id)) continue;
+        const changes = rewriteIdea(data);
+        const keys = Object.keys(changes);
+        if (!keys.length) continue;
+        changed.push({ code: data.code || doc.id, fields: keys });
+        if (samples.length < 6) samples.push({ code: data.code || doc.id, before: String(data.title || ''), after: String(changes.title ?? data.title ?? '') });
+        if (!dryRun) {
+          batch.update(doc.ref, { ...changes, updatedAt: FieldValue.serverTimestamp() });
+          if (++pending >= 400) { await batch.commit(); batch = db.batch(); pending = 0; }
+        }
+      }
+      if (!dryRun && pending) await batch.commit();
+      return responseJson(res, 200, { ok: true, dryRun, scanned: snap.size, changedIdeas: changed.length, changed, samples });
+    }
+
+
+    // ── POST /api/inspirations?action=replace-text ───────────────
+    // Body: { replacements: [{from, to}], codes?: string[], dryRun?: boolean (default true) }
+    // Literal text replacement inside idea briefs (title, hook, script, scenes,
+    // slides, captions, hashtags, notes). Codes/status/category are never touched.
+    if (method === 'POST' && action === 'replace-text') {
+      const body = parseBody(req);
+      const pairs = (Array.isArray(body.replacements) ? body.replacements : [])
+        .map(r => [String(r?.from ?? ''), String(r?.to ?? '')])
+        .filter(([from, to]) => from.trim().length >= 2 && from.length <= 300 && to.length <= 1000 && from !== to)
+        .slice(0, 30);
+      if (!pairs.length) return responseJson(res, 400, { ok: false, error: 'replacements [{from,to}] required (from ≥ 2 chars)' });
+      const dryRun = body.dryRun !== false;
+      const only = Array.isArray(body.codes) && body.codes.length ? new Set(body.codes.map(String)) : null;
+      const assetsRef = db.collection('contentPlans').doc(PLAN_ID).collection('assets');
+      const snap = await assetsRef.get();
+      const changed = [];
+      let batch = db.batch(), pending = 0;
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (only && !only.has(data.code || doc.id)) continue;
+        const changes = replaceInIdea(data, pairs);
+        const keys = Object.keys(changes);
+        if (!keys.length) continue;
+        changed.push({ code: data.code || doc.id, title: String(changes.title ?? data.title ?? ''), fields: keys });
+        if (!dryRun) {
+          batch.update(doc.ref, { ...changes, updatedAt: FieldValue.serverTimestamp() });
+          if (++pending >= 400) { await batch.commit(); batch = db.batch(); pending = 0; }
+        }
+      }
+      if (!dryRun && pending) await batch.commit();
+      return responseJson(res, 200, { ok: true, dryRun, scanned: snap.size, changedIdeas: changed.length, changed });
+    }
+
+    // ── POST /api/inspirations?action=delete-ideas ───────────────
+    // Body: { codes?: string[], inspirationId?: string, force?: boolean }
+    // Deletes Claude-generated ideas by code and/or all ideas of one inspiration.
+    if ((method === 'POST' || method === 'DELETE') && action === 'delete-ideas') {
+      const body = parseBody(req);
+      let codes = Array.isArray(body.codes) ? body.codes : [];
+      const inspirationId = String(body.inspirationId || '').trim();
+      if (inspirationId) {
+        const snap = await inspirationsRef.doc(inspirationId).get();
+        if (!snap.exists) return responseJson(res, 404, { ok: false, error: 'Inspiration not found' });
+        codes = codes.concat(snap.data().generatedIdeas || []);
+      }
+      if (!codes.length) return responseJson(res, 400, { ok: false, error: 'codes array or inspirationId required' });
+      if (codes.length > MAX_DELETE) return responseJson(res, 400, { ok: false, error: `Max ${MAX_DELETE} codes per request` });
+      const result = await deleteIdeas(db, codes, { force: body.force === true });
+      return responseJson(res, 200, { ok: true, ...result });
+    }
+
+    // ── POST /api/inspirations?action=delete ─────────────────────
+    // Body: { id: string, deleteIdeas?: boolean, force?: boolean }
+    // Deletes an inspiration source; optionally its generated ideas too.
+    if ((method === 'POST' || method === 'DELETE') && action === 'delete') {
+      const body = parseBody(req);
+      const id = String(body.id || req.query?.id || '').trim();
+      if (!/^INS-[A-Z0-9]{4,30}$/.test(id)) return responseJson(res, 400, { ok: false, error: 'valid inspiration id required' });
+      const docRef = inspirationsRef.doc(id);
+      const snap = await docRef.get();
+      if (!snap.exists) return responseJson(res, 404, { ok: false, error: 'Inspiration not found' });
+      let ideasResult = null;
+      if (body.deleteIdeas === true) {
+        ideasResult = await deleteIdeas(db, snap.data().generatedIdeas || [], { force: body.force === true });
+      }
+      await docRef.delete();
+      return responseJson(res, 200, { ok: true, deleted: id, ideas: ideasResult });
+    }
+
+    return responseJson(res, 400, { ok: false, error: 'Unknown action. Use: list, ideas, push-ideas, create, delete, delete-ideas, rewrite-wording, replace-text' });
 
   } catch (err) {
     console.error('Inspirations API error:', err?.message || err);

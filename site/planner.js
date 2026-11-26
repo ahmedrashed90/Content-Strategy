@@ -44,21 +44,6 @@ const reviewTag=(status)=>pill(status==='مرفوض'?'مؤرشف':status==='مط
 const ideaKind=(idea)=>kindLabel[idea?.kind]||'غير معروف';
 /** Used = the idea was assigned in at least one Marketing task (current or earlier). */
 export const ideaWasUsed=(plan,code)=>ideaAssets(plan,code).some(asset=>Boolean(asset.marketingTaskId)||(asset.previousMarketingTasks||[]).length>0);
-// One read-only idea bank for both review and assignment lists. Grouped slides
-// represent one idea, and retired records stay in historical task links only.
-export function activeIdeaRows(plan){
-  if(!plan)return [];
-  const assets=plan.assets||[],activeCodes=new Set(assets.filter(a=>!a.retiredFromIdeaBank).map(a=>a.code));
-  const rows=[...assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),
-    ...(plan.carousels||[]).filter(a=>!a.retiredFromIdeaBank&&taskCodes(plan,a.code).some(code=>activeCodes.has(code)))];
-  const seen=new Set();
-  return rows.filter(a=>a.code&&!seen.has(a.code)&&seen.add(a.code));
-}
-// The status buttons are global shortcuts; the dropdown remains a combined filter.
-export function selectGlobalIdeaReview(state,status){
-  Object.assign(state,{ideaSourceTab:'all',ideaReviewFilter:status||'all',ideaKind:'all',ideaCategoryFilter:'all',ideaSearch:''});
-}
-
 const usageTag=(plan,code)=>ideaWasUsed(plan,code)?pill('تم الاستخدام','p-used'):pill('لم يتم الاستخدام','p-unused');
 const cleanVisualText = value => String(value||'').replace(/الشريحة\\s+\\d+\\s+\\(I\\d+\\)\\s*[:—-]?\\s*/g,'').trim();
 const imageCards = idea => {
@@ -232,23 +217,22 @@ export function ideasPage(state){
   if(!plan)return importPanel(state);
   const sourceTab=state.ideaSourceTab||'all';
   const kind=state.ideaKind||'all',review=state.ideaReviewFilter||'all',category=state.ideaCategoryFilter||'all',search=(state.ideaSearch||'').toLocaleLowerCase();
-  const rawIdeas=activeIdeaRows(plan).filter(a=>reviewStatusFor(plan,a.code)!=='مرفوض');
-  // Source and usage are independent: an assigned Claude idea is still Claude.
-  const usedIdeas=rawIdeas.filter(a=>ideaWasUsed(plan,a.code));
-  const claudeIdeas=rawIdeas.filter(a=>a.source==='claude');
-  const manualIdeas=rawIdeas.filter(a=>a.source!=='claude');
-  const allIdeas=sourceTab==='used'?usedIdeas:sourceTab==='claude'?claudeIdeas:sourceTab==='manual'?manualIdeas:rawIdeas;
+  const rawIdeas=[...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))].filter(a=>reviewStatusFor(plan,a.code)!=='مرفوض');
+  const allIdeas=sourceTab==='used'?rawIdeas.filter(a=>ideaWasUsed(plan,a.code)):sourceTab==='claude'?rawIdeas.filter(a=>a.source==='claude'&&!ideaWasUsed(plan,a.code)):sourceTab==='manual'?rawIdeas.filter(a=>a.source!=='claude'&&!ideaWasUsed(plan,a.code)):rawIdeas.filter(a=>!ideaWasUsed(plan,a.code));
+  const usedCount=rawIdeas.filter(a=>ideaWasUsed(plan,a.code)).length;
+  const claudeCount=rawIdeas.filter(a=>a.source==='claude'&&!ideaWasUsed(plan,a.code)).length;
+  const manualCount=rawIdeas.filter(a=>a.source!=='claude'&&!ideaWasUsed(plan,a.code)).length;
   const ideas=allIdeas.filter(a=>(kind==='all'||mediaType(a)===kind)
     && (category==='all'||(category==='بيعي'?a.marketingCategory?.startsWith('بيعي'):a.marketingCategory===category))
     && (review==='all'||reviewStatusFor(plan,a.code)===review)
     &&(!search||`${a.code} ${a.title} ${executorFor(plan,a.code)}`.toLocaleLowerCase().includes(search)));
   const actions=`<button type="button" class="btn btn-primary" data-action="manual-open">+ إضافة فكرة</button><button class="btn" data-action="toggle-idea-import">${state.ideaImportOpen?'إغلاق الاستيراد':'استيراد أو استبدال JSON'}</button>`;
   const panel=state.ideaImportOpen?ideaBatchPanel(state):'';
-  const sourceTabs=[['الكل','all',rawIdeas.length],['أفكار مستخدمة','used',usedIdeas.length],['Claude','claude',claudeIdeas.length],['يدوي','manual',manualIdeas.length]];
-  const tiles=[['كل الأفكار','all',rawIdeas.length],['بانتظار المراجعة','بانتظار المراجعة',rawIdeas.filter(a=>reviewStatusFor(plan,a.code)==='بانتظار المراجعة').length],['معتمد','معتمد',rawIdeas.filter(a=>ideaIsApproved(plan,a.code)).length]];
+  const sourceTabs=[['الكل','all',rawIdeas.length-usedCount],['أفكار مستخدمة','used',usedCount],['Claude','claude',claudeCount],['يدوي','manual',manualCount]];
+  const tiles=[['كل الأفكار','all',allIdeas.length],['بانتظار المراجعة','بانتظار المراجعة',allIdeas.filter(a=>reviewStatusFor(plan,a.code)==='بانتظار المراجعة').length],['معتمد','معتمد',allIdeas.filter(a=>ideaIsApproved(plan,a.code)).length]];
   return `<div class="ideas-controls-center"><div class="ui-page-actions">${actions}</div>`
     +`<div class="ideas-source-tabs" aria-label="مصدر الأفكار">${sourceTabs.map(([label,value,count])=>`<button class="ideas-source-tab ${sourceTab===value?'is-active':''}" type="button" data-action="ideas-source-tab" data-source="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div>`
-    +`<div class="ideas-review-strip" aria-label="فلاتر مراحل المراجعة">${tiles.map(([label,value,count])=>`<button class="ideas-review-pill ${review===value?'is-selected':''}" type="button" data-action="ideas-filter-review" title="عرض هذه الحالة من جميع المصادر والتصنيفات" data-status="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div></div>`
+    +`<div class="ideas-review-strip" aria-label="فلاتر مراحل المراجعة">${tiles.map(([label,value,count])=>`<button class="ideas-review-pill ${review===value?'is-selected':''}" type="button" data-action="ideas-filter-review" data-status="${e(value)}">${e(label)} <small>${count}</small></button>`).join('')}</div></div>`
     +panel+`<div class="p-filter ideas-filters"><label for="idea-kind">نوع المحتوى</label><select id="idea-kind">${[['all','صورة وفيديو'],['video','فيديو'],['image','صورة']].map(([k,v])=>option(k,v,kind)).join('')}</select><label for="idea-category">تصنيف الفكرة</label><select id="idea-category">${[['all','كل التصنيفات'],['تعريفي - بالبراند','تعريفي - بالبراند'],['تعريفي - بالويب سايت','تعريفي - بالويب سايت'],['تعريفي - مواصفات السيارات','تعريفي - مواصفات السيارات'],['بيعي','بيعي (قسط وكاش)'],['بيعي - قسط','بيعي - قسط'],['بيعي - كاش','بيعي - كاش']].map(([k,v])=>option(k,v,category)).join('')}</select><label for="idea-review-filter">حالة مراجعة الفكرة</label><select id="idea-review-filter">${[['all','كل حالات المراجعة'],['بانتظار المراجعة','بانتظار المراجعة'],['معتمد','معتمد']].map(([k,v])=>option(k,v,review)).join('')}</select><label for="idea-search">البحث عن فكرة</label><input id="idea-search" placeholder="ابحث باسم الفكرة" value="${e(state.ideaSearch||'')}"/><button class="btn" data-action="apply-idea-search">بحث</button></div>`
     +`<div class="p-ideas-grid ideas-v15-grid">${ideas.map(a=>{const status=reviewStatusFor(plan,a.code),linked=ideaIsLinked(plan,a.code),assets=ideaAssets(plan,a.code),first=assets[0];return `<article class="card p-idea idea-review-card${a.source==='claude'?' claude-idea-card':''}"><div class="p-idea-head">${a.source==='claude'?'<span class="idea-source-badge">Claude</span>':''}${a.marketingCategory?`<span class="idea-category-label">${e(a.marketingCategory)}</span>`:""}${pill(ideaKind(a))}${mediaType(a)==='image'&&mediaTotal(plan,a)>1?pill(`${mediaTotal(plan,a)} صور`):''}</div><h2>${e(a.title)}</h2><p>${e(shorten(a.message||a.audienceAndGoal||a.hook||'',150))}</p><div class="idea-review-meta"><span>المراجعة: ${reviewTag(status)} ${usageTag(plan,a.code)}</span><span>المنفذ: <strong>${e(executorFor(plan,a.code))}</strong></span><span>التسليم: <strong>${first?.dueDate?dl(first.dueDate):'لم يُحدد'}</strong></span></div><div class="p-idea-footer"><span class="idea-linked-indicator">${linked?`مرتبط بتاسك ${e(first?.marketingTaskNo||'')}`:status==='معتمد'?'جاهز للتكليف بعد اختيار السيارات':'بانتظار قرار المراجعة'}</span><div class="p-actions"><button class="btn p-small" data-action="open-asset" data-id="${e(a.code)}">${status==='معتمد'?'عرض البريف':'مراجعة الفكرة'}</button>${status==='معتمد'?`<button class="btn btn-primary p-small" data-action="bridge-open-asset" data-id="${e(a.code)}">${linked?'متابعة التكليف':'إنشاء تكليف'}</button>`:''}</div></div></article>`;}).join('')||'<div class="card panel ideas-no-results">لا توجد أفكار مطابقة للبحث والفلاتر الحالية.</div>'}</div>`;
 }
@@ -401,7 +385,7 @@ export function toBriefText(plan,code){
   const a=getIdea(plan,code);
   if(!a)return '';
   const related=taskCodes(plan,code).map(id=>plan.assets.find(x=>x.code===id)).filter(Boolean);
-  let lines=[`محمد ذعار العجمي للسيارات - MZJ`,`بريف إبداعي: ${a.title}`,
+  let lines=[`محمد ذعار العجمي للسيارات`,`بريف إبداعي: ${a.title}`,
     `المنفذ: ${executorFor(plan,code)}`,
     `التسليم: ${related.map(r=>`${r.title||a.title} ${r.dueDate} (${r.deliveryDay})`).join(' | ')}`,
     `النوع: ${ideaKind(a)}`,''];
@@ -463,5 +447,5 @@ export function toCreativeTreatmentText(plan,code){
 
 export function teamHandoffText(plan,person,week=0){
  const assets=plan.assets.filter(a=>(person==='الكل'||a.executor===person)&&(!week||a.week===week)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)||a.code.localeCompare(b.code));
- return `MZJ - تكليفات الإنتاج\nتبدأ التكليفات 20 نوفمبر 2026\nالمنفذ: ${person}\n\n`+assets.map(a=>toBriefText(plan,a.code)).join('\n\n'+('=').repeat(45)+'\n\n');
+ return `محمد ذعار العجمي - تكليفات الإنتاج\nتبدأ التكليفات 20 نوفمبر 2026\nالمنفذ: ${person}\n\n`+assets.map(a=>toBriefText(plan,a.code)).join('\n\n'+('=').repeat(45)+'\n\n');
 }

@@ -70,6 +70,24 @@ export async function updateInspiration(id, changes) {
   await api.updateDoc(ref, filtered);
 }
 
+// Delete goes through the server API (Admin SDK) with the owner's ID token,
+// because Firestore rules keep client-side deletes closed.
+export async function deleteInspiration(id, { deleteIdeas = false } = {}) {
+  const { auth } = await connectFirebase();
+  const user = auth.currentUser;
+  if (!user) throw Error('سجل الدخول أولًا');
+  const token = await user.getIdToken();
+  const result = await fetch('/api/inspirations?action=delete', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, deleteIdeas }),
+    cache: 'no-store',
+  });
+  const data = await result.json().catch(() => null);
+  if (!result.ok || !data?.ok) throw Error(data?.error || 'تعذر حذف مصدر الإلهام');
+  return data;
+}
+
 // ─── State ───────────────────────────────────────────────────────
 
 export function newInspirationState() {
@@ -175,6 +193,7 @@ export function inspirationsPage(state) {
         <div class="p-actions">
           ${item.status === 'جديد' ? `<button class="btn p-small" data-action="ins-archive" data-id="${e(item.id)}">أرشفة</button>` : ''}
           ${item.status === 'مؤرشف' ? `<button class="btn p-small" data-action="ins-reactivate" data-id="${e(item.id)}">استرجاع</button>` : ''}
+          <button class="btn p-small btn-danger" data-action="ins-delete" data-id="${e(item.id)}" data-gen="${genCount}">حذف</button>
           ${item.notes ? `<div class="ins-notes"><small>ملاحظات:</small> ${e(item.notes)}</div>` : ''}
         </div>
       </div>
