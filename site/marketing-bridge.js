@@ -1,5 +1,5 @@
 import { connectFirebase } from './firebase.js';
-import { getIdea, taskCodes, ideaIsApproved, nowInRiyadh, toCreativeTreatmentText } from './planner.js';
+import { getIdea, taskCodes, ideaIsApproved, ideaWasUsed, activeIdeaRows, nowInRiyadh, toCreativeTreatmentText } from './planner.js';
 import { PLAN_ID, updateManyAssets, linkMarketingTask, listAssignmentDrafts, saveAssignmentDraft, deleteAssignmentDraft } from './plan-firebase.js';
 import { validISODate } from './idea-import.js';
 
@@ -49,7 +49,6 @@ const SALES_CATEGORIES = new Set(['بيعي - قسط','بيعي - كاش','بي�
 const sameCategoryGroup = (a,b) => (SALES_CATEGORIES.has(a)&&SALES_CATEGORIES.has(b)) || a===b;
 const eligible = idea => idea && !idea.retiredFromIdeaBank && !idea.requiresVerification && idea.sourceStatus!=='موقوف' && CAMPAIGN_CATEGORIES.includes(idea.marketingCategory);
 const selectionCodes = bridge => [...new Set(bridge.selectedCodes||[])];
-const ideaRows = plan => plan ? [...plan.assets.filter(a=>a.kind!=='carousel_slide'&&!a.retiredFromIdeaBank),...(plan.carousels||[]).filter(a=>taskCodes(plan,a.code).some(code=>!plan.assets.find(x=>x.code===code)?.retiredFromIdeaBank))] : [];
 const selectedIdeas = state => selectionCodes(state.bridge).map(code=>getIdea(state.plan,code)).filter(Boolean);
 const defaultAssignment = () => ({assignee:'',dueOn:nowInRiyadh()});
 const assignmentPerson = (bridge,assignee) => bridge.executors.find(row=>row.user_id+'|'+row.department_id===assignee);
@@ -337,7 +336,7 @@ export function toggleBridgeIdea(state,code,checked) {
 }
 export function selectBridgeIdea(state, code, add=true) {
  const idea=getIdea(state.plan,code);
- if(idea && !eligible(idea))throw Error('هذه الفكرة موقوفة أو ليست ضمن البنك النشط');
+ if(idea && !eligible(idea))throw Error('هذه الفكرة موقوفة أو ليست ضمن البنك النشط أو لا تحمل تصنيفًا معتمدًا');
  const first=idea ? state.plan?.assets.find(asset=>asset.code===taskCodes(state.plan,code)[0]) : null;
  if(idea && !sameCategoryGroup(idea.marketingCategory,state.bridge.category||''))Object.assign(state.bridge,{category:idea.marketingCategory,selectedCodes:[]});
  if(idea && state.bridge.category && idea.marketingCategory!==state.bridge.category && SALES_CATEGORIES.has(idea.marketingCategory) && SALES_CATEGORIES.has(state.bridge.category))state.bridge.category='بيعي';
@@ -514,13 +513,16 @@ function assignmentPdfOptions(bridge){
 }
 export function bridgePage(state) {
   const bridge=state.bridge,plan=state.plan;
-  const all=ideaRows(plan).filter(row=>eligible(row)&&ideaIsApproved(plan,row.code));
+  // Approval controls visibility, not source or previous assignments. Retired
+  // and explicitly paused ideas keep their existing exclusion. A legacy idea
+  // without a supported category remains visible but cannot bypass eligibility.
+  const all=activeIdeaRows(plan).filter(row=>!row.requiresVerification&&row.sourceStatus!=='موقوف'&&ideaIsApproved(plan,row.code));
   const selected=selectedIdeas(state).filter(row=>eligible(row)&&sameCategoryGroup(row.marketingCategory,bridge.category));
   const q=String(bridge.ideaSearch||'').trim().toLocaleLowerCase();
   const usageFilter=bridge.ideaUsageFilter||'all';
-  const isLinked=row=>{const a=taskCodes(plan,row.code).map(c=>plan.assets.find(x=>x.code===c)).filter(Boolean);return a.some(x=>x.marketingTaskId||(x.previousMarketingTasks||[]).length);};
-  const visible=all.filter(row=>(!bridge.category||sameCategoryGroup(row.marketingCategory,bridge.category))&&
-    (usageFilter==='all'||(usageFilter==='used'?isLinked(row):!isLinked(row)))&&
+  const matchesCategory=(row,category)=>!category||(category==='بيعي'?SALES_CATEGORIES.has(row.marketingCategory):row.marketingCategory===category);
+  const visible=all.filter(row=>matchesCategory(row,bridge.category)&&
+    (usageFilter==='all'||(usageFilter==='used'?ideaWasUsed(plan,row.code):!ideaWasUsed(plan,row.code)))&&
     (!q||[row.code,row.title,row.marketingCategory,row.executor,row.marketingExecutorName].join(' ').toLocaleLowerCase().includes(q)));
   const current=selected.find(row=>row.code===bridge.ideaCode)||null;
   const activeAssets=current?taskCodes(plan,current.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean):[];
@@ -550,21 +552,22 @@ export function bridgePage(state) {
     'بيعي - قسط','بيعي - كاش',
   ];
   const categoryLabel=(c)=>c==='بيعي'?'بيعي (قسط وكاش)':c;
-  const categoryCount=(c)=>c==='بيعي'?all.filter(row=>SALES_CATEGORIES.has(row.marketingCategory)).length:all.filter(row=>row.marketingCategory===c).length;
+  const categoryCount=c=>all.filter(row=>matchesCategory(row,c)).length;
   const isCategoryActive=(c)=>c?((c==='بيعي'&&bridge.category==='بيعي')||c===bridge.category):!bridge.category;
   const categories=`<button type="button" class="bridge-category-tab ${isCategoryActive('')?'active':''}" data-action="bridge-pick-category" data-category="">كل التصنيفات <span>${all.length}</span></button>`+
     DISPLAY_CATEGORIES.map(c=>`<button type="button" class="bridge-category-tab ${isCategoryActive(c)?'active':''}" data-action="bridge-pick-category" data-category="${escape(c)}">${escape(categoryLabel(c))} <span>${categoryCount(c)}</span></button>`).join('');
   const ideaCards=visible.map(idea=>{
     const checked=selectionCodes(bridge).includes(idea.code);
     const focused=idea.code===bridge.ideaCode;
-    const assets=taskCodes(plan,idea.code).map(code=>plan.assets.find(item=>item.code===code)).filter(Boolean);
-    const linked=assets.some(asset=>asset.marketingTaskId||(asset.previousMarketingTasks||[]).length);
+    const linked=ideaWasUsed(plan,idea.code);
+    const available=eligible(idea);
+    const disabled=!available||(bridge.category&&!sameCategoryGroup(idea.marketingCategory,bridge.category));
     return `<article class="bridge-idea-option ${focused?'bridge-idea-selected':''}">
-      <button type="button" class="bridge-idea-open" data-action="bridge-focus-idea" data-idea="${escape(idea.code)}" aria-current="${focused}">
+      <button type="button" class="bridge-idea-open" data-action="bridge-focus-idea" data-idea="${escape(idea.code)}" aria-current="${focused}" ${available?'':'disabled'}>
         <span class="bridge-idea-code">${escape(idea.code)}</span><strong>${escape(idea.title)}</strong>
-        <small>${escape(idea.marketingCategory)} · ${idea.kind==='video'?'فيديو':'صورة'}${linked?' · تم التكليف سابقًا':''}</small>
+        <small>${escape(idea.marketingCategory||'بدون تصنيف')} · ${idea.kind==='video'?'فيديو':'صورة'}${linked?' · تم التكليف سابقًا':''}${available?'':' · يلزم تصنيف معتمد للتكليف'}</small>
       </button>
-      <label class="bridge-idea-select-label" title="إضافة هذه الفكرة إلى التكليف"><input type="checkbox" name="bridge-select-idea" value="${escape(idea.code)}" ${checked?'checked':''} ${bridge.category&&!sameCategoryGroup(idea.marketingCategory,bridge.category)?'disabled':''}/></label>
+      <label class="bridge-idea-select-label" title="${available?'إضافة هذه الفكرة إلى التكليف':'يلزم تصنيف معتمد للتكليف'}"><input type="checkbox" name="bridge-select-idea" value="${escape(idea.code)}" ${checked?'checked':''} ${disabled?'disabled':''}/></label>
     </article>`;
   }).join('');
   return `<div class="bridge-studio-toolbar" role="group" aria-label="فلاتر التصنيفات وتحديث البيانات">

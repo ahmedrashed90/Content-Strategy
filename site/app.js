@@ -3,7 +3,7 @@ import { INITIAL_BASELINE, PLATFORM_ORDER } from './baseline.js';
 import { FIREBASE_CONFIG, OWNER_UID } from './config.js';
 import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaseline, createStoredBaseline } from './firebase.js';
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost, deleteAssignmentDraft } from './plan-firebase.js';
-import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
+import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,selectGlobalIdeaReview,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, bridgeAssignmentReady, validAssignmentRow, readAssignmentRow, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments, collectAssignmentPdfReport, validateAssignmentPdfMeta } from './marketing-bridge.js';
 import { downloadAssignmentPdf } from './assignment-pdf.js';
@@ -1010,8 +1010,7 @@ async function saveManualIdea(form) {
   state.planSaving=true;state.manualIdeaError='';render();
   try {
     state.plan=await importPublishingIdeas([idea]);
-    state.manualIdeaDraft=null;state.ideaSourceTab='manual';state.ideaKind='all';
-    state.ideaReviewFilter='بانتظار المراجعة';state.ideaSearch='';
+    state.manualIdeaDraft=null;selectGlobalIdeaReview(state,'بانتظار المراجعة');state.ideaSourceTab='manual';
     toast('تم حفظ الفكرة الجديدة في بنك الأفكار وإرسالها للمراجعة.');
   }catch(error){
     state.manualIdeaError=error?.message==='idea-already-exists'?'كود الفكرة موجود بالفعل. حاول الحفظ مرة أخرى.':
@@ -1029,7 +1028,7 @@ async function saveIdeaBatch(){
   try {
     const loaded=await importPublishingIdeas(entries);
     state.plan=loaded;state.pendingIdeaBatch=null;state.ideaImportOpen=false;
-    state.ideaKind='all';state.ideaReviewFilter='بانتظار المراجعة';state.ideaSearch='';
+    selectGlobalIdeaReview(state,'بانتظار المراجعة');
     toast(`تم حفظ ${entries.length} فكرة جديدة، وتخطي ${pending.duplicates.length} مكررة. لم تتغير المنشورات القديمة.`);
   }catch(error){
     console.warn('Idea batch import failed:',error?.code||error?.message);
@@ -1052,7 +1051,7 @@ async function saveReplacementBatch(){
   try{
     const loaded=await replacePublishingIdeas(entries,state.pendingIdeaBatch.batchId);
     state.plan=loaded;state.pendingIdeaBatch=null;state.ideaReplaceMode=false;state.ideaImportOpen=false;
-    state.ideaKind='all';state.ideaReviewFilter='بانتظار المراجعة';state.ideaSearch='';
+    selectGlobalIdeaReview(state,'بانتظار المراجعة');
     toast('تم استبدال بنك الأفكار النشط مع الاحتفاظ بالتاريخ والمنشورات والتكليفات القديمة.');
   }catch(error){
     console.warn('Idea bank replacement failed:',error?.code||error?.message);
@@ -1600,7 +1599,7 @@ app.addEventListener('click', async event => {
   if(control?.dataset.action==='bridge-reload'){state.bridge.error='';void reloadBridge(state.bridge).then(render);return;}
   if(control?.dataset.action==='bridge-check-task'){void checkBridgeTask(state).then(()=>{toast('\u062a\u0645 \u062a\u062d\u062f\u064a\u062b \u062d\u0627\u0644\u0629 \u0627\u0644\u062a\u0643\u0644\u064a\u0641');render()}).catch(error=>toast(error.message||'\u062a\u0639\u0630\u0631 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u062d\u0627\u0644\u0629'));return;}
   if(control?.dataset.action==='bridge-stock-filter'){state.bridge.stockSearch=document.getElementById('bridge-stock-search')?.value||'';render();return;}
-  if(control?.dataset.action==='bridge-open-asset'){selectBridgeIdea(state,control.dataset.id||'');state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);return;}
+  if(control?.dataset.action==='bridge-open-asset'){try{selectBridgeIdea(state,control.dataset.id||'');state.bridge.ideaUsageFilter='all';state.bridge.ideaSearch='';state.view='bridge';state.mobileNav=false;render();if(!state.bridge.stock.length)void reloadBridge(state.bridge).then(render);}catch(error){toast(error?.message||'تعذر تجهيز الفكرة للتكليف');}return;}
   if (!control) return;
   const action = control.dataset.action;
   if (action === 'theme-preview') {
@@ -1805,7 +1804,7 @@ app.addEventListener('click', async event => {
   if(action==='clear-plan-filter'){state.planFilter='';state.calendarExecutor='all';state.calendarPlatform='all';state.calendarMedia='all';state.calendarStatus='all';render();return;}
   if(action==='apply-idea-search'){state.ideaSearch=app.querySelector('#idea-search')?.value||'';render();return;}
   if(action==='ideas-source-tab'){state.ideaSourceTab=control.dataset.source||'all';state.ideaReviewFilter='all';render();return;}
-  if(action==='ideas-filter-review'){state.ideaReviewFilter=control.dataset.status||'all';render();return;}
+  if(action==='ideas-filter-review'){selectGlobalIdeaReview(state,control.dataset.status);render();return;}
   if(action==='copy-brief'){await copyValue(toBriefText(state.plan,control.dataset.id));return;}
   if(action==='download-brief'){
     downloadText(toBriefText(state.plan,control.dataset.id),`MZJ-Brief-${control.dataset.id}.txt`);return;
