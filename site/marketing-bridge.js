@@ -487,7 +487,8 @@ export function collectAssignmentPdfReport(state,form,metadata=state.bridge.pdfR
     const finalRows=rows.map((row,index)=>({executor:row.executor,requirement:row.requirement,dueOn:row.dueOn,
       publishOn:(!row.photography||!hasProduction&&index===rows.length-1)?agenda?.date||'لا يوجد':'',
       fundOn:(!row.photography||!hasProduction&&index===rows.length-1)?campaign?.date||'لا يوجد':''}));
-    const category=idea.marketingCategory;
+    // Sales ideas (قسط/كاش) stay together in one PDF table; other categories keep their own table.
+    const category=SALES_CATEGORIES.has(idea.marketingCategory)?'بيعي - الموسم':idea.marketingCategory;
     if(!groups.has(category))groups.set(category,{number:groups.size+1,category,ideas:[]});
     groups.get(category).ideas.push({code,title:idea.title,rows:finalRows});
   }
