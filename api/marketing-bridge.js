@@ -1,6 +1,3 @@
-import { mayOmitDeadline } from '../site/assignment-executor.js';
-import { validISODate } from '../site/idea-import.js';
-import { nowInRiyadh } from '../site/planner.js';
 import { createVerify } from 'node:crypto';
 
 // This function runs on the strategy project's server, not in the browser.
@@ -103,25 +100,6 @@ export default async function handler(request,response) {
         return responseJson(response,400,{ok:false,error:'Invalid strategy idea'});
       upstream.searchParams.set('ideaCode',ideaCode);
       upstream.searchParams.set('planId',planId);
-    }
-    if (assign) {
-      const items = payload.items;
-      if (!Array.isArray(items) || !items.length || items.length > 100 ||
-          items.some(item => !item || (item.dueOn != null && item.dueOn !== '' &&
-            (!validISODate(item.dueOn) || item.dueOn < nowInRiyadh()))))
-        return responseJson(response,400,{ok:false,error:'تاريخ تسليم غير صالح'});
-      const undated = items.filter(item => item.dueOn == null || item.dueOn === '');
-      if (undated.length) {
-        const readKey = env('MZJ_STRATEGY_READ_KEY');
-        if (readKey.length < 32) return responseJson(response,503,{ok:false,error:'Executor directory unavailable'});
-        const directory = await fetch(new URL('executors',upstream),{
-          headers:{Authorization:`Bearer ${readKey}`,Accept:'application/json'},redirect:'error',signal:AbortSignal.timeout(8000)
-        });
-        if (!directory.ok) throw Error('Executor directory unavailable');
-        const {executors} = await directory.json();
-        if (undated.some(item => !mayOmitDeadline(executors,item.assigneeId,item.departmentId)))
-          return responseJson(response,400,{ok:false,error:'موعد التسليم مطلوب لهذا المنفذ'});
-      }
     }
     const upstreamResponse = await fetch(upstream,{
       method:read?'GET':'POST',

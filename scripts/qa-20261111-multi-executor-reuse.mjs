@@ -1,4 +1,3 @@
-import {mayOmitDeadline} from '../site/assignment-executor.js';
 // Offline integration simulation: reused approved ideas, independent executors,
 // Drive photography handoff, stable retry, and preserved prior task links.
 import assert from 'node:assert/strict';
@@ -10,7 +9,7 @@ import {validISODate} from '../site/idea-import.js';
 
 const raw=fs.readFileSync(new URL('../site/marketing-bridge.js',import.meta.url),'utf8');
 let attempts=[],created=new Map(), firestoreFails=true, linked=[];
-const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText,validISODate,mayOmitDeadline,
+const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText,validISODate,
  PLAN_ID:'mzj-2026-launch-cycle-01',
  updateManyAssets:async()=>{},
  linkMarketingTask:async links=>{
@@ -31,7 +30,7 @@ const modified=raw.replace(/^import\s.+;\s*$/gm,'').replace(/\bexport (async fun
  .replace(/async function fetchBridge\(resource, options=\{\}\) \{[\s\S]*?\n\}/,
   'async function fetchBridge(resource, options={}) { return globalThis.__qaFetch(resource,options); }');
 vm.createContext(context);
-vm.runInContext(`${modified}\nglobalThis.__qa={newBridgeState,bridgePage,assignBridgeIdea};`,context);
+vm.runInContext(`${modified}\nglobalThis.__qa={newBridgeState,bridgePage,assignBridgeIdea,bridgeIdeaMissing,bridgeAssignmentReady,readAssignmentRow,validAssignmentRow};`,context);
 const {newBridgeState,bridgePage,assignBridgeIdea}=context.__qa;
 const oldTask='old-task-0100';
 const idea={code:'V01',kind:'video',title:'مواصفات سيارة',marketingCategory:'تعريفي - مواصفات السيارات',
@@ -103,3 +102,49 @@ await assignBridgeIdea(state,captureOnly);
 assert.equal(created.size,3);
 assert.equal(attempts.at(-1).items[0].deliveryMode,'drive_link');
 console.log('PASS: reused approved ideas, per-executor dates, photographer/editor payload, RTL brief fields, deterministic retry, history preservation, capture-only tasks.');
+
+// The optional deadline applies to Ahmed Nagi alone, and Clear is not today.
+const {bridgeIdeaMissing,bridgeAssignmentReady,readAssignmentRow,validAssignmentRow}=context.__qa;
+bridge.stock=idea.approvedVehicles;
+bridge.chosenStocks=bridge.stock.map(car=>JSON.stringify(['car_name','statement','model_year','exterior_color','interior_color'].map(key=>String(car[key]||'').trim())));
+bridge.mode='single';
+bridge.taskTypeId='task-type';
+bridge.placementsByIdea={V01:{kind:'none'}};
+bridge.assignmentsByIdea.V01=[{assignee:'photographer|photo-dept',dueOn:'2027-07-01'}];
+const clearForm={...form,elements:{namedItem:name=>({taskTypeId:{value:'task-type'},assignee_V01_0:{value:'photographer|photo-dept'},dueOn_V01_0:{value:''}}[name])}};
+const cleared=readAssignmentRow(clearForm,'V01',0,bridge.assignmentsByIdea.V01[0]);
+assert.equal(cleared.dueOn,'','Clear never restores an old date');
+// Exercise the actual outgoing assignment while the previous date still exists.
+await assignBridgeIdea(state,clearForm);
+assert.equal(attempts.at(-1).items[0].dueOn,'');
+assert.equal(idea.dueDate,'');
+assert.equal(linked.at(-1).assignees[0].dueOn,'');
+bridge.assignmentsByIdea.V01=[cleared];
+bridge.placementsByIdea={V01:{kind:'none'}};
+assert.equal(bridgeIdeaMissing(state,'V01').length,0);
+assert.equal(bridgeAssignmentReady(state),true);
+const clearedHtml=bridgePage(state);
+const dateInput=clearedHtml.match(/<input name="dueOn_V01_0"[^>]+>/)[0];
+assert(dateInput.includes('value=""')&&!dateInput.includes('required'));
+assert(clearedHtml.includes('موعد التسليم (اختياري)'));
+assert(!clearedHtml.match(/<button[^>]+class="btn btn-primary bridge-submit"[^>]*disabled/));
+assert.equal(readAssignmentRow({elements:{namedItem:()=>null}},'V01',0,cleared).dueOn,'','Inactive idea preserves clear');
+assert.equal(validAssignmentRow(bridge,{...cleared,dueOn:'2027-08-01'}),true);
+assert.equal(validAssignmentRow(bridge,{...cleared,dueOn:'2027-02-31'}),false);
+assert.equal(validAssignmentRow(bridge,{...cleared,dueOn:'2020-01-01'}),false);
+bridge.executors.push({user_id:'other-photo',department_id:'photo-dept',full_name:'مصور آخر',department_name:'قسم التصوير'});
+assert.equal(validAssignmentRow(bridge,{assignee:'other-photo|photo-dept',dueOn:''}),false);
+bridge.assignmentsByIdea.V01=[cleared,{assignee:'editor|edit-dept',dueOn:''}];
+assert.equal(bridgeAssignmentReady(state),false);
+const required=bridgePage(state).match(/<input name="dueOn_V01_1"[^>]+>/)[0];
+assert(required.includes('required')&&required.includes('value=""'));
+const beforeInvalid=attempts.length;
+await assert.rejects(()=>assignBridgeIdea(state,{...clearForm,elements:{namedItem:name=>({taskTypeId:{value:'task-type'},assignee_V01_0:{value:'photographer|photo-dept'},dueOn_V01_0:{value:''},assignee_V01_1:{value:'editor|edit-dept'},dueOn_V01_1:{value:''}}[name])}}),/تاريخ تسليم/);
+assert.equal(attempts.length,beforeInvalid);
+bridge.assignmentsByIdea.V01[1].dueOn='2027-08-05';
+assert.equal(bridgeAssignmentReady(state),true);
+await assignBridgeIdea(state,clearForm);
+assert.equal(attempts.at(-1).items[0].dueOn,'');
+assert.equal(attempts.at(-1).items[1].dueOn,'2027-08-05');
+assert.equal(idea.dueDate,'2027-08-05','Dated editor remains primary');
+console.log('PASS: Ahmed Nagi clear/date UI, readiness, exact payload, independent editor deadline and name-only exception.');
