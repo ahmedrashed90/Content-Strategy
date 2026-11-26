@@ -385,7 +385,7 @@ export function toBriefText(plan,code){
   const a=getIdea(plan,code);
   if(!a)return '';
   const related=taskCodes(plan,code).map(id=>plan.assets.find(x=>x.code===id)).filter(Boolean);
-  let lines=[`محمد ذعار العجمي للسيارات - MZJ`,`بريف إبداعي: ${a.title}`,
+  let lines=[`محمد ذعار العجمي للسيارات`,`بريف إبداعي: ${a.title}`,
     `المنفذ: ${executorFor(plan,code)}`,
     `التسليم: ${related.map(r=>`${r.title||a.title} ${r.dueDate} (${r.deliveryDay})`).join(' | ')}`,
     `النوع: ${ideaKind(a)}`,''];
@@ -447,5 +447,5 @@ export function toCreativeTreatmentText(plan,code){
 
 export function teamHandoffText(plan,person,week=0){
  const assets=plan.assets.filter(a=>(person==='الكل'||a.executor===person)&&(!week||a.week===week)).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)||a.code.localeCompare(b.code));
- return `MZJ - تكليفات الإنتاج\nتبدأ التكليفات 20 نوفمبر 2026\nالمنفذ: ${person}\n\n`+assets.map(a=>toBriefText(plan,a.code)).join('\n\n'+('=').repeat(45)+'\n\n');
+ return `محمد ذعار العجمي - تكليفات الإنتاج\nتبدأ التكليفات 20 نوفمبر 2026\nالمنفذ: ${person}\n\n`+assets.map(a=>toBriefText(plan,a.code)).join('\n\n'+('=').repeat(45)+'\n\n');
 }

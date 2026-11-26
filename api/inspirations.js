@@ -55,6 +55,68 @@ function parseBody(req) {
   return body && typeof body === 'object' ? body : {};
 }
 
+
+// ─── Wording rules applied to every idea brief ──────────────────
+// 1) The brand is written «محمد ذعار العجمي» in briefs, not «MZJ».
+//    URLs such as mzj.sa (lowercase) are untouched; #MZJ is dropped because
+//    #محمد_ذعار_العجمي is always present.
+// 2) The word «منقحة / منقح / المنقحة» is replaced by plain wording because
+//    the team does not understand it.
+const BRAND_AR = 'محمد ذعار العجمي';
+const SKIP_KEYS = new Set(['code', 'kind', 'status', 'reviewStatus', 'executor', 'source', 'inspirationId',
+  'marketingCategory', 'platforms', 'importedBatchId', 'sourceIdeaCode', 'sourceLegacyCode', 'sourceSet',
+  'reviewedByUid', 'sourceVerifiedByUid', 'marketingTaskId', 'marketingTaskNo', 'marketingItemId',
+  'integrationRequestKey', 'dueDate', 'week', 'deliveryDay', 'reviewHistory', 'previousMarketingTasks',
+  'integrationDraft', 'comments', 'reviewNotes']);
+
+function rewriteString(value, key = '') {
+  let out = value;
+  if (key === 'hashtags' || /hashtag/i.test(key)) {
+    out = out.replace(/#MZJ(?![A-Za-z0-9_؀-ۿ])/g, '');
+    if (!out.includes('#محمد_ذعار_العجمي')) out = `#محمد_ذعار_العجمي ${out}`;
+    return out.replace(/[ \t]{2,}/g, ' ').trim();
+  }
+  out = out
+    // «MZJ (محمد ذعار العجمي...)» / «محمد ذعار العجمي (MZJ)» → one name only
+    .replace(/MZJ\s*[\(（]\s*محمد\s*(?:بن\s*)?ذعار\s*العجمي(\s*للسيارات)?\s*[\)）]/g, (_, s) => BRAND_AR + (s || ''))
+    .replace(/(محمد\s*(?:بن\s*)?ذعار\s*العجمي(?:\s*للسيارات)?)\s*[\(（]\s*MZJ\s*[\)）]/g, '$1')
+    .replace(/(محمد\s*(?:بن\s*)?ذعار\s*العجمي(?:\s*للسيارات)?)\s*[—\-–|/]\s*MZJ(?![A-Za-z0-9])/g, '$1')
+    .replace(/MZJ\s*[—\-–|/]\s*(محمد\s*(?:بن\s*)?ذعار\s*العجمي)/g, '$1')
+    .replace(/#MZJ(?![A-Za-z0-9_؀-ۿ])/g, '#محمد_ذعار_العجمي')
+    .replace(/(?<![A-Za-z0-9_\-.\/])MZJ(?![A-Za-z0-9_\-])/g, BRAND_AR)
+    .replace(/#محمد_ذعار_العجمي(\s+#محمد_ذعار_العجمي)+/g, '#محمد_ذعار_العجمي')
+    // «منقحة» wording
+    .replace(/(?:و?ب?ال)منقح(?:ة|ه|ات)?(?![؀-ۿ])/g, 'بعد إخفاء البيانات الحساسة')
+    .replace(/منقح(?:ة|ه|ات)?(?![؀-ۿ])/g, 'مع إخفاء البيانات الحساسة')
+    .replace(/[ \t]{2,}/g, ' ');
+  return out;
+}
+
+function rewriteValue(value, key = '') {
+  if (typeof value === 'string') return rewriteString(value, key);
+  if (Array.isArray(value)) return value.map(v => rewriteValue(v, key));
+  if (value && typeof value === 'object' && !(typeof value.toDate === 'function')) {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = SKIP_KEYS.has(k) ? v : rewriteValue(v, key === 'hashtagsByPlatform' ? 'hashtags' : k);
+    }
+    return out;
+  }
+  return value;
+}
+
+// Returns only the top-level fields that actually change.
+function rewriteIdea(data) {
+  const changes = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (SKIP_KEYS.has(k) || v == null || typeof v === 'number' || typeof v === 'boolean') continue;
+    if (typeof v === 'object' && typeof v.toDate === 'function') continue;
+    const next = rewriteValue(v, k);
+    if (JSON.stringify(next) !== JSON.stringify(v)) changes[k] = next;
+  }
+  return changes;
+}
+
 const MAX_DELETE = 300;
 const CODE_RE = /^[A-Za-z0-9._-]{1,80}$/;
 
@@ -214,6 +276,7 @@ export default async function handler(req, res) {
       for (const item of prepared.items) {
         const doc = {
           ...item,
+          ...rewriteIdea(item),
           source: 'claude',
           status: 'لم يبدأ',
           reviewStatus: 'بانتظار المراجعة',
@@ -272,6 +335,37 @@ export default async function handler(req, res) {
       return responseJson(res, 201, { ok: true, id });
     }
 
+
+    // ── POST /api/inspirations?action=rewrite-wording ────────────
+    // Body: { dryRun?: boolean (default true), codes?: string[] }
+    // Applies the wording rules (MZJ → محمد ذعار العجمي, remove «منقحة») to
+    // every stored idea (or only the given codes). dryRun reports without writing.
+    if (method === 'POST' && action === 'rewrite-wording') {
+      const body = parseBody(req);
+      const dryRun = body.dryRun !== false;
+      const only = Array.isArray(body.codes) ? new Set(body.codes.map(String)) : null;
+      const assetsRef = db.collection('contentPlans').doc(PLAN_ID).collection('assets');
+      const snap = await assetsRef.get();
+      const changed = [];
+      const samples = [];
+      let batch = db.batch(), pending = 0;
+      for (const doc of snap.docs) {
+        const data = doc.data();
+        if (only && !only.has(data.code || doc.id)) continue;
+        const changes = rewriteIdea(data);
+        const keys = Object.keys(changes);
+        if (!keys.length) continue;
+        changed.push({ code: data.code || doc.id, fields: keys });
+        if (samples.length < 6) samples.push({ code: data.code || doc.id, before: String(data.title || ''), after: String(changes.title ?? data.title ?? '') });
+        if (!dryRun) {
+          batch.update(doc.ref, { ...changes, updatedAt: FieldValue.serverTimestamp() });
+          if (++pending >= 400) { await batch.commit(); batch = db.batch(); pending = 0; }
+        }
+      }
+      if (!dryRun && pending) await batch.commit();
+      return responseJson(res, 200, { ok: true, dryRun, scanned: snap.size, changedIdeas: changed.length, changed, samples });
+    }
+
     // ── POST /api/inspirations?action=delete-ideas ───────────────
     // Body: { codes?: string[], inspirationId?: string, force?: boolean }
     // Deletes Claude-generated ideas by code and/or all ideas of one inspiration.
@@ -308,7 +402,7 @@ export default async function handler(req, res) {
       return responseJson(res, 200, { ok: true, deleted: id, ideas: ideasResult });
     }
 
-    return responseJson(res, 400, { ok: false, error: 'Unknown action. Use: list, ideas, push-ideas, create, delete, delete-ideas' });
+    return responseJson(res, 400, { ok: false, error: 'Unknown action. Use: list, ideas, push-ideas, create, delete, delete-ideas, rewrite-wording' });
 
   } catch (err) {
     console.error('Inspirations API error:', err?.message || err);
