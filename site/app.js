@@ -7,7 +7,7 @@ import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,t
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
 import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, bridgeAssignmentReady, validAssignmentRow, readAssignmentRow, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
-import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
+import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, deleteInspiration, inspirationsPage } from './inspirations.js';
 import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor, openPublicationIdeaEditor, closePublicationIdeaEditor, savePublicationIdeaEditor, openPublicationDeleteConfirmation, closePublicationDeleteConfirmation, deletePublicationAgenda } from './publication.js';
 
 // Remember the last opened screen locally; production data and API routes are untouched.
@@ -1596,6 +1596,19 @@ app.addEventListener('click', async event => {
   if(action==='ins-archive'){
     const id=control.dataset.id;if(!id)return;
     try{await updateInspiration(id,{status:'مؤرشف'});const item=state.inspirations.items.find(x=>x.id===id);if(item)item.status='مؤرشف';toast('تم أرشفة مصدر الإلهام.');}catch(err){toast(err?.message||'تعذرت الأرشفة');}
+    render();return;
+  }
+  if(action==='ins-delete'){
+    const id=control.dataset.id;if(!id)return;
+    const gen=Number(control.dataset.gen||0);
+    if(!window.confirm('حذف مصدر الإلهام نهائيًا؟ لا يمكن التراجع.'))return;
+    const withIdeas=gen>0&&window.confirm(`هذا المصدر له ${gen} فكرة مولّدة. تحذف الأفكار كمان؟\n(موافق = حذف الأفكار، إلغاء = الإبقاء عليها)\nالأفكار المرتبطة بتاسك في التسويق لن تُحذف.`);
+    try{
+      const res=await deleteInspiration(id,{deleteIdeas:withIdeas});
+      state.inspirations.items=state.inspirations.items.filter(x=>x.id!==id);
+      const n=res?.ideas?.deleted?.length||0;
+      toast(n?`تم حذف المصدر و${n} فكرة.`:'تم حذف مصدر الإلهام.');
+    }catch(err){toast(err?.message||'تعذر الحذف');}
     render();return;
   }
   if(action==='ins-reactivate'){

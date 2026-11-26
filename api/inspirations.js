@@ -1,5 +1,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { prepareIdeaBatch, IDEA_BATCH_SCHEMA } from '../site/idea-import.js';
 
 // ─── Config ──────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ function getDb() {
   return getFirestore();
 }
 
-// ─── Auth: API key check ─────────────────────────────────────────
+// ─── Auth: API key (Claude) OR owner Firebase ID token (dashboard) ─
 function requireApiKey(req) {
   const key = env('MZJ_INSPIRATIONS_API_KEY');
   if (key.length < 32) throw Error('Inspirations API key not configured');
@@ -33,20 +34,93 @@ function requireApiKey(req) {
   if (!match || match[1] !== key) throw Error('Unauthorized');
 }
 
+async function requireOwnerToken(req) {
+  const owner = env('MZJ_STRATEGY_OWNER_UID');
+  if (!owner) throw Error('Unauthorized');
+  const token = /^Bearer ([A-Za-z0-9._-]{100,6500})$/.exec(String(req.headers.authorization || ''))?.[1];
+  if (!token) throw Error('Unauthorized');
+  getDb();
+  const decoded = await getAuth().verifyIdToken(token).catch(() => null);
+  if (!decoded || decoded.uid !== owner) throw Error('Unauthorized');
+}
+
+async function authorize(req) {
+  try { requireApiKey(req); return 'api-key'; }
+  catch { await requireOwnerToken(req); return 'owner'; }
+}
+
+function parseBody(req) {
+  let body = req.body;
+  if (typeof body === 'string') body = body ? JSON.parse(body) : {};
+  return body && typeof body === 'object' ? body : {};
+}
+
+const MAX_DELETE = 300;
+const CODE_RE = /^[A-Za-z0-9._-]{1,80}$/;
+
+// Delete generated ideas (assets) safely: only ideas created by Claude through
+// this API (source === 'claude'). Ideas already linked to a Marketing task are
+// kept unless force === true. Codes are also removed from every inspiration's
+// generatedIdeas; an inspiration left with no ideas returns to «جديد».
+async function deleteIdeas(db, codes, { force = false } = {}) {
+  const planRef = db.collection('contentPlans').doc(PLAN_ID);
+  const assetsRef = planRef.collection('assets');
+  const inspirationsRef = planRef.collection('inspirations');
+  const unique = [...new Set(codes.map(c => String(c || '').trim()).filter(c => CODE_RE.test(c)))].slice(0, MAX_DELETE);
+  const deleted = [], notFound = [], protectedCodes = [], linked = [];
+  if (!unique.length) return { deleted, notFound, protected: protectedCodes, linked };
+
+  const snaps = await db.getAll(...unique.map(c => assetsRef.doc(c)));
+  const toDelete = [];
+  snaps.forEach((snap, i) => {
+    const code = unique[i];
+    if (!snap.exists) { notFound.push(code); return; }
+    const d = snap.data();
+    if (d.source !== 'claude') { protectedCodes.push(code); return; }
+    if (d.marketingTaskId && !force) { linked.push(code); return; }
+    toDelete.push(snap.ref);
+    deleted.push(code);
+  });
+
+  for (let i = 0; i < toDelete.length; i += 400) {
+    const batch = db.batch();
+    toDelete.slice(i, i + 400).forEach(ref => batch.delete(ref));
+    await batch.commit();
+  }
+
+  if (deleted.length) {
+    const insSnap = await inspirationsRef.get();
+    const set = new Set(deleted);
+    const batch = db.batch();
+    let writes = 0;
+    insSnap.docs.forEach(doc => {
+      const list = Array.isArray(doc.data().generatedIdeas) ? doc.data().generatedIdeas : [];
+      if (!list.some(c => set.has(c))) return;
+      const remaining = list.filter(c => !set.has(c));
+      const update = { generatedIdeas: remaining, updatedAt: FieldValue.serverTimestamp() };
+      if (!remaining.length && doc.data().status === 'تم التوليد') update.status = 'جديد';
+      batch.update(doc.ref, update);
+      writes++;
+    });
+    if (writes) await batch.commit();
+  }
+  return { deleted, notFound, protected: protectedCodes, linked };
+}
+
 // ─── Handler ─────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const method = String(req.method || 'GET').toUpperCase();
 
   // CORS for Claude integration
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
   if (method === 'OPTIONS') return res.status(204).end();
 
   try {
-    requireApiKey(req);
+    await authorize(req);
   } catch (err) {
-    return responseJson(res, 401, { ok: false, error: err.message });
+    return responseJson(res, 401, { ok: false, error: 'Unauthorized' });
   }
 
   const action = String(req.query?.action || '').trim();
@@ -94,6 +168,8 @@ export default async function handler(req, res) {
           marketingCategory: d.marketingCategory || '',
           status: d.status || '',
           retiredFromIdeaBank: d.retiredFromIdeaBank || false,
+          source: d.source || '',
+          inspirationId: d.inspirationId || '',
         };
       });
       return responseJson(res, 200, { ok: true, ideas, total: ideas.length });
@@ -196,7 +272,43 @@ export default async function handler(req, res) {
       return responseJson(res, 201, { ok: true, id });
     }
 
-    return responseJson(res, 400, { ok: false, error: 'Unknown action. Use: list, ideas, push-ideas, create' });
+    // ── POST /api/inspirations?action=delete-ideas ───────────────
+    // Body: { codes?: string[], inspirationId?: string, force?: boolean }
+    // Deletes Claude-generated ideas by code and/or all ideas of one inspiration.
+    if ((method === 'POST' || method === 'DELETE') && action === 'delete-ideas') {
+      const body = parseBody(req);
+      let codes = Array.isArray(body.codes) ? body.codes : [];
+      const inspirationId = String(body.inspirationId || '').trim();
+      if (inspirationId) {
+        const snap = await inspirationsRef.doc(inspirationId).get();
+        if (!snap.exists) return responseJson(res, 404, { ok: false, error: 'Inspiration not found' });
+        codes = codes.concat(snap.data().generatedIdeas || []);
+      }
+      if (!codes.length) return responseJson(res, 400, { ok: false, error: 'codes array or inspirationId required' });
+      if (codes.length > MAX_DELETE) return responseJson(res, 400, { ok: false, error: `Max ${MAX_DELETE} codes per request` });
+      const result = await deleteIdeas(db, codes, { force: body.force === true });
+      return responseJson(res, 200, { ok: true, ...result });
+    }
+
+    // ── POST /api/inspirations?action=delete ─────────────────────
+    // Body: { id: string, deleteIdeas?: boolean, force?: boolean }
+    // Deletes an inspiration source; optionally its generated ideas too.
+    if ((method === 'POST' || method === 'DELETE') && action === 'delete') {
+      const body = parseBody(req);
+      const id = String(body.id || req.query?.id || '').trim();
+      if (!/^INS-[A-Z0-9]{4,30}$/.test(id)) return responseJson(res, 400, { ok: false, error: 'valid inspiration id required' });
+      const docRef = inspirationsRef.doc(id);
+      const snap = await docRef.get();
+      if (!snap.exists) return responseJson(res, 404, { ok: false, error: 'Inspiration not found' });
+      let ideasResult = null;
+      if (body.deleteIdeas === true) {
+        ideasResult = await deleteIdeas(db, snap.data().generatedIdeas || [], { force: body.force === true });
+      }
+      await docRef.delete();
+      return responseJson(res, 200, { ok: true, deleted: id, ideas: ideasResult });
+    }
+
+    return responseJson(res, 400, { ok: false, error: 'Unknown action. Use: list, ideas, push-ideas, create, delete, delete-ideas' });
 
   } catch (err) {
     console.error('Inspirations API error:', err?.message || err);
