@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import {newBridgeState,bridgePage,bridgeAssignmentReady,collectAssignmentPdfReport,validateAssignmentPdfMeta} from '../site/marketing-bridge.js';
+import {newBridgeState,bridgePage,bridgeAssignmentReady,collectAssignmentPdfReport,collectDraftsPdfReport,validateAssignmentPdfMeta} from '../site/marketing-bridge.js';
 import {nowInRiyadh} from '../site/planner.js';
 import {encodeAssignmentPdf} from '../site/assignment-pdf.js';
 const date=(offset)=>{const d=new Date(nowInRiyadh()+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);};
@@ -13,18 +13,26 @@ const form={elements:{namedItem:name=>controls[name]||null}};
 const before=JSON.stringify(state);
 const report=collectAssignmentPdfReport(state,form,{season:'عيد الفطر',seasonFrom:date(8),seasonTo:date(14),campaignEnd:date(20)});
 assert.equal(JSON.stringify(state),before,'export is read-only');
-assert.equal(report.title,'أجندة فبراير + حملة فبراير');assert.equal(report.groups.length,2);
-assert.equal(report.groups[0].ideas.length,2);assert.equal(report.groups[1].ideas[0].rows[1].requirement,'صورة');
+assert.equal(report.title,'أجندة فبراير + حملة فبراير');assert.equal(report.groups.length,1,'sales qest/cash stay in one table');assert.equal(report.groups[0].category,'بيعي - الموسم');
+assert.equal(report.groups[0].ideas.length,3);assert.equal(report.groups[0].ideas[1].rows[1].requirement,'صورة');
 assert.deepEqual(report.groups[0].ideas[0].rows[0],{executor:'أحمد ناجي',requirement:'تصوير',dueOn:'',publishOn:'',fundOn:''});
 assert.equal(report.groups[0].ideas[0].rows[1].dueOn,date(6));assert.equal(report.groups[0].ideas[0].rows[1].publishOn,date(11));assert.equal(report.groups[0].ideas[0].rows[1].fundOn,date(12));
-assert.equal(report.groups[0].ideas[1].rows[0].publishOn,'لا يوجد');assert.equal(report.groups[0].ideas[1].rows[0].fundOn,'لا يوجد');
-assert.equal(report.groups[1].ideas[0].rows[1].fundOn,'لا يوجد');
+assert.equal(report.groups[0].ideas[2].rows[0].publishOn,'لا يوجد');assert.equal(report.groups[0].ideas[2].rows[0].fundOn,'لا يوجد');
+assert.equal(report.groups[0].ideas[1].rows[1].fundOn,'لا يوجد');
 assert.equal(report.campaignEnd,date(20));assert.equal(report.season,'عيد الفطر');
 assert.throws(()=>validateAssignmentPdfMeta({seasonFrom:date(10),seasonTo:date(1)}));
 assert.throws(()=>validateAssignmentPdfMeta({campaignEnd:'2027-02-31'}));
 assert.match(bridgePage(state),/type="button" class="btn bridge-pdf-export" data-action="bridge-export-pdf"\s*>/);
 controls.dueOn_V01_1.value='';assert.throws(()=>collectAssignmentPdfReport(state,form),/تاريخ التسليم/);controls.dueOn_V01_1.value=date(6);
 bridge.assignmentsByIdea.V02[0].dueOn='';assert(!bridgeAssignmentReady(state));assert.throws(()=>collectAssignmentPdfReport(state,form),/أكمل الاختيارات/);bridge.assignmentsByIdea.V02[0].dueOn=date(5);
+// One PDF for several saved drafts (sales + brand), merged in fixed order.
+const brand={code:'B01',kind:'video',title:'فكرة براند',marketingCategory:'تعريفي - بالبراند',reviewStatus:'معتمد',creativeApprovedAt:'2026-11-26T00:00:00Z',approvedCarMode:'none',approvedVehicles:[]};
+const state2={bridge:{...bridge,formatIdsByIdea:{...bridge.formatIdsByIdea,B01:['video']}},plan:{assets:[brand,...ideas],carousels:[]}};
+const d1={selectedCodes:['B01'],category:'تعريفي - بالبراند',taskTypeId:'type',assignmentsByIdea:{B01:[{assignee:'photo|p',dueOn:''},{assignee:'editor|m',dueOn:date(3)}]},formatIdsByIdea:{B01:['video']},placementsByIdea:{B01:{kind:'shared',agendaDraftId:'agenda',agendaDate:date(8),campaignDraftId:'campaign',campaignDate:date(9)}},carModesByIdea:{B01:'none'},carSelectionsByIdea:{B01:[]}};
+const d2={selectedCodes:['V01','I01','V02'],category:'بيعي',taskTypeId:'type',assignmentsByIdea:bridge.assignmentsByIdea,formatIdsByIdea:bridge.formatIdsByIdea,placementsByIdea:bridge.placementsByIdea,carModesByIdea:bridge.carModesByIdea,carSelectionsByIdea:bridge.carSelectionsByIdea};
+const all=collectDraftsPdfReport(state2,[d1,d2],{season:'عيد الفطر'});
+assert.equal(all.groups.length,2);assert.deepEqual(all.groups.map(g=>g.category),['بيعي - الموسم','تعريفي - بالبراند']);assert.deepEqual(all.groups.map(g=>g.number),[1,2]);assert.equal(all.groups[0].ideas.length,3);
+assert.throws(()=>collectDraftsPdfReport(state2,[]),/لا توجد مسودات/);
 // Rendering contract: native download without invoking assignment submission.
 const app=readFileSync(new URL('../site/app.js',import.meta.url),'utf8');const block=app.slice(app.indexOf("if(control?.dataset.action==='bridge-export-pdf')"),app.indexOf("if(control?.dataset.action==='bridge-show-history-task')"));
 assert(block.includes('collectAssignmentPdfReport(state,form)'));assert(block.includes('downloadAssignmentPdf(report)'));assert(!/assignBridgeIdea|submitBridgeAssignment|fetch\(/.test(block));

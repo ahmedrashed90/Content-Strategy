@@ -5,7 +5,7 @@ import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaselin
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost, deleteAssignmentDraft } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, bridgeAssignmentReady, validAssignmentRow, readAssignmentRow, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments, collectAssignmentPdfReport, validateAssignmentPdfMeta } from './marketing-bridge.js';
+import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, bridgeAssignmentReady, validAssignmentRow, readAssignmentRow, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments, collectAssignmentPdfReport, collectDraftsPdfReport, validateAssignmentPdfMeta } from './marketing-bridge.js';
 import { downloadAssignmentPdf } from './assignment-pdf.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, deleteInspiration, inspirationsPage } from './inspirations.js';
@@ -1566,6 +1566,16 @@ app.addEventListener('click', async event => {
       await downloadAssignmentPdf(report);toast('تم تجهيز ملف PDF للتنزيل.');
     }catch(error){toast(error?.message||'تعذر تصدير ملف PDF.');}
     finally{state.bridge.pdfExporting=false;refreshBridgeConfirmButton();}
+    return;
+  }
+  if(control?.dataset.action==='bridge-export-drafts-pdf'){
+    if(state.bridge.pdfExporting||state.bridge.busy)return;
+    try{
+      const report=collectDraftsPdfReport(state,state.bridge.savedDrafts);
+      state.bridge.pdfExporting=true;control.disabled=true;
+      await downloadAssignmentPdf(report);toast('تم تجهيز ملف PDF واحد لكل المسودات.');
+    }catch(error){toast(error?.message||'تعذر تصدير ملف PDF.');}
+    finally{state.bridge.pdfExporting=false;control.disabled=false;}
     return;
   }
   if(control?.dataset.action==='bridge-show-history-task'){

@@ -488,7 +488,8 @@ export function collectAssignmentPdfReport(state,form,metadata=state.bridge.pdfR
     const finalRows=rows.map((row,index)=>({executor:row.executor,requirement:row.requirement,dueOn:row.dueOn,
       publishOn:(!row.photography||!hasProduction&&index===rows.length-1)?agenda?.date||'لا يوجد':'',
       fundOn:(!row.photography||!hasProduction&&index===rows.length-1)?campaign?.date||'لا يوجد':''}));
-    const category=idea.marketingCategory;
+    // Sales ideas (قسط/كاش) stay together in one PDF table; other categories keep their own table.
+    const category=SALES_CATEGORIES.has(idea.marketingCategory)?'بيعي - الموسم':idea.marketingCategory;
     if(!groups.has(category))groups.set(category,{number:groups.size+1,category,ideas:[]});
     groups.get(category).ideas.push({code,title:idea.title,rows:finalRows});
   }
@@ -498,6 +499,33 @@ export function collectAssignmentPdfReport(state,form,metadata=state.bridge.pdfR
   return {title:meta.title||(joined&&joined.length<=160?joined:'خطة التنفيذ والنشر والتمويل'),
     season:meta.season,seasonFrom:meta.seasonFrom,seasonTo:meta.seasonTo,campaignEnd:meta.campaignEnd,
     groups:[...groups.values()]};
+}
+
+const PDF_GROUP_ORDER=['بيعي - الموسم','تعريفي - بالبراند','تعريفي - مواصفات السيارات','تعريفي - بالويب سايت'];
+/** One PDF for every saved draft: each draft is evaluated exactly like a single assignment
+ * (same validation, nothing is written), then all their tables are merged in a fixed order. */
+export function collectDraftsPdfReport(state,drafts,metadata=state.bridge.pdfReportMeta||{}) {
+  if(!drafts?.length)throw Error('لا توجد مسودات محفوظة لتصديرها.');
+  const meta=validateAssignmentPdfMeta(metadata);
+  const groups=[];const titles=[];
+  for(const draft of drafts){
+    const codes=(draft.selectedCodes||[]).filter(code=>eligible(getIdea(state.plan,code))&&ideaIsApproved(state.plan,code));
+    if(!codes.length)throw Error('إحدى المسودات لا تحتوي أفكارًا معتمدة متاحة.');
+    const draftState={...state,bridge:{...state.bridge,selectedCodes:codes,category:draft.category||'',ideaCode:'',
+      taskTypeId:draft.taskTypeId||'',assignmentsByIdea:structuredClone(draft.assignmentsByIdea||{}),
+      formatIdsByIdea:structuredClone(draft.formatIdsByIdea||{}),placementsByIdea:structuredClone(draft.placementsByIdea||{}),
+      carModesByIdea:structuredClone(draft.carModesByIdea||{}),carSelectionsByIdea:structuredClone(draft.carSelectionsByIdea||{}),
+      chosenStocks:[],activeAssignmentIdeaCode:''}};
+    let report;
+    try{report=collectAssignmentPdfReport(draftState,null,meta);}
+    catch(error){throw Error('مسودة ('+codes.length+' أفكار): '+(error?.message||error));}
+    titles.push(report.title);groups.push(...report.groups);
+  }
+  groups.sort((a,b)=>{const ia=PDF_GROUP_ORDER.indexOf(a.category),ib=PDF_GROUP_ORDER.indexOf(b.category);return (ia<0?99:ia)-(ib<0?99:ib);});
+  groups.forEach((group,index)=>{group.number=index+1;});
+  const joined=[...new Set(titles.filter(Boolean))].join(' + ');
+  return {title:meta.title||(joined&&joined.length<=160?joined:'خطة التنفيذ والنشر والتمويل'),
+    season:meta.season,seasonFrom:meta.seasonFrom,seasonTo:meta.seasonTo,campaignEnd:meta.campaignEnd,groups};
 }
 function assignmentPdfOptions(bridge){
   const meta=bridge.pdfReportMeta||{};
@@ -575,7 +603,7 @@ export function bridgePage(state) {
         <button class="btn" data-action="bridge-reload" ${bridge.loading?'disabled':''}>تحديث المنفذين والمقاسات والاستوك</button></div>
     </div>
     ${bridge.draftLoadError?`<div class="notice warning">${escape(bridge.draftLoadError)}</div>`:''}
-    ${bridge.draftsOpen?`<section class="bridge-drafts-panel" aria-label="مسودات التكليفات"><header><strong>مسودات التكليفات المحفوظة في Firestore</strong><button type="button" class="btn p-small" data-action="bridge-open-drafts">إغلاق</button></header><div class="bridge-drafts-items">${bridge.savedDrafts.map(d=>`<article class="bridge-saved-draft"><div><strong>${escape(d.selectedCodes?.length||0)} فكرة</strong><small>آخر تعديل: ${escape(d.updatedAt?.toDate?.()?.toLocaleString?.('ar-SA')||'محفوظة في قاعدة البيانات')}</small></div><button type="button" class="btn p-small" data-action="bridge-resume-draft" data-draft="${escape(d.id)}">استكمال المسودة</button><button type="button" class="btn p-small" data-action="bridge-delete-saved-draft" data-draft="${escape(d.id)}">حذف</button></article>`).join('')||'<p>لا توجد مسودات محفوظة. اختر أفكارًا ثم اضغط «حفظ مسودة التكليف».</p>'}</div></section>`:''}
+    ${bridge.draftsOpen?`<section class="bridge-drafts-panel" aria-label="مسودات التكليفات"><header><strong>مسودات التكليفات المحفوظة في Firestore</strong><span><button type="button" class="btn p-small" data-action="bridge-pdf-options-open">بيانات التقرير</button> <button type="button" class="btn p-small" data-action="bridge-export-drafts-pdf" ${bridge.pdfExporting||!bridge.savedDrafts.length?'disabled':''}>تصدير PDF لكل المسودات (ملف واحد)</button> <button type="button" class="btn p-small" data-action="bridge-open-drafts">إغلاق</button></span></header><div class="bridge-drafts-items">${bridge.savedDrafts.map(d=>`<article class="bridge-saved-draft"><div><strong>${escape(d.selectedCodes?.length||0)} فكرة</strong><small>آخر تعديل: ${escape(d.updatedAt?.toDate?.()?.toLocaleString?.('ar-SA')||'محفوظة في قاعدة البيانات')}</small></div><button type="button" class="btn p-small" data-action="bridge-resume-draft" data-draft="${escape(d.id)}">استكمال المسودة</button><button type="button" class="btn p-small" data-action="bridge-delete-saved-draft" data-draft="${escape(d.id)}">حذف</button></article>`).join('')||'<p>لا توجد مسودات محفوظة. اختر أفكارًا ثم اضغط «حفظ مسودة التكليف».</p>'}</div></section>`:''}
     ${bridge.error?`<div id="bridge-error" role="alert" class="notice warning">${escape(bridge.error)}${bridge.error.includes('تكليف محفوظ')?` <button type="button" class="btn p-small" data-action="bridge-clear-draft">مسح التكليف المحفوظ</button>`:''}</div>`:''}
     ${!plan?'<div class="notice warning">حمّل خطة المحتوى أولًا.</div>':`
     <div class="bridge-studio">
