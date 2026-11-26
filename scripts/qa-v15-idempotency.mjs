@@ -1,3 +1,4 @@
+import {mayOmitDeadline} from '../site/assignment-executor.js';
 // Offline fault-injection for the integration's exact-once task creation behavior.
 // Simulates Firestore link failure after Marketing accepted the request.
 import fs from 'node:fs';
@@ -9,7 +10,7 @@ import {validISODate} from '../site/idea-import.js';
 const source=fs.readFileSync(new URL('../site/marketing-bridge.js',import.meta.url),'utf8');
 let changed=[];let apiCalls=[];let serverCreateCount=0;let failedOnce=false;
 const tasks=new Map();
-const context={crypto:webcrypto,TextEncoder,console,PLAN_ID:'mzj-2026-launch-cycle-01',getIdea,taskCodes,toBriefText,ideaIsApproved,nowInRiyadh,validISODate,
+const context={crypto:webcrypto,TextEncoder,console,PLAN_ID:'mzj-2026-launch-cycle-01',getIdea,taskCodes,toBriefText,ideaIsApproved,nowInRiyadh,validISODate,mayOmitDeadline,
   updateManyAssets:async(codes,update)=>{changed.push({codes,update});},
   linkMarketingTask:async links=>{if(!failedOnce){failedOnce=true;throw Error('simulated Firestore unavailable');}assert.equal(links.length,1);},
   __qaFetch:async(resource,options)=>{

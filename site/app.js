@@ -5,7 +5,7 @@ import { connectFirebase, listenToAuth, loginWithEmail, logout, getStoredBaselin
 import { loadPublishingPlan, createPublishingPlan, updatePublishingAsset, updatePostWithAssignment, updateManyAssets, updateReviewAssetRows, importPublishingIdeas, replacePublishingIdeas, createPublishingPost, deleteAssignmentDraft } from './plan-firebase.js';
 import { PEOPLE,PLATFORMS,POST_STATUSES,TASK_STATUSES,REVIEW_STATUSES,planPage,tasksPage,ideasPage,archivePage,schedulePage,postDetailPage,assetDetailPage,getIdea,taskCodes,ideaAssets,ideaIsApproved,ideaIsLinked,toBriefText,teamHandoffText,validatePlanSeed,nowInRiyadh } from './planner.js';
 import { prepareIdeaBatch, ideaBatchTemplate, validISODate } from './idea-import.js';
-import { newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
+import { bridgeAssignmentReady, assignmentDateValid, newBridgeState, reloadBridge, bridgePage, renderStockOptions, approveBridgeIdea, assignBridgeIdea, selectBridgeIdea, selectBridgeCategory, toggleBridgeIdea, checkBridgeTask, readPlacementForm, placementForIdea, deleteBridgePlanName, resetBridgeAssignment, clearPendingDraft, bridgeIdeaMissing, refreshBridgeSavedDrafts, persistBridgeAssignmentDraft, resumeBridgeAssignmentDraft, discardBridgeAssignmentDraft, fetchBridgeIdeaAssignments } from './marketing-bridge.js';
 import { newAgendaState, loadAgendaProducts, strategyAgendaPage, buildStrategicAgenda, validateStrategyAgenda, saveStrategyAgenda, strategyProducts, availableFormats } from './strategy-agenda.js';
 import { newInspirationState, refreshInspirations, createInspiration, updateInspiration, inspirationsPage } from './inspirations.js';
 import { newPublicationState, publicationPage, loadPublicationAgendas, loadPublicationAgenda, closePublicationAgenda, refreshPublicationAgenda, resetPublicationMedia, previewPublicationMedia, downloadPublicationMedia, publicationEntry, openPublicationCopyEditor, closePublicationCopyEditor, savePublicationCopyEditor, openPublicationIdeaEditor, closePublicationIdeaEditor, savePublicationIdeaEditor, openPublicationDeleteConfirmation, closePublicationDeleteConfirmation, deletePublicationAgenda } from './publication.js';
@@ -1127,7 +1127,7 @@ function rememberBridgeAssignmentForm(form) {
     const rows=[...section.querySelectorAll('.bridge-assignee-row')];
     state.bridge.assignmentsByIdea[code]=rows.map((row,index)=>({
       assignee:form.elements.namedItem('assignee_'+code+'_'+index)?.value||'',
-      dueOn:form.elements.namedItem('dueOn_'+code+'_'+index)?.value||nowInRiyadh()
+      dueOn:form.elements.namedItem('dueOn_'+code+'_'+index)?.value??''
     }));
   }
   // Each idea owns its output sizes. Keep the active selections in memory when
@@ -1153,7 +1153,7 @@ async function submitBridgeAssignment(form) {
   rememberBridgeAssignmentForm(form);
   const missingCode=state.bridge.selectedCodes.find(code=>{
     const rows=state.bridge.assignmentsByIdea[code]||[];
-    return !rows.length||rows.some(row=>!row.assignee||!row.dueOn);
+    return !rows.length||rows.some(row=>!row.assignee||!assignmentDateValid(state.bridge,row));
   });
   if(missingCode){
     selectBridgeIdea(state,missingCode,false);
@@ -1422,6 +1422,8 @@ function refreshBridgeConfirmButton(){
   if(state.view!=='bridge'||!state.bridge.ideaCode)return;
   const form=app.querySelector('#bridge-assign');if(form)rememberBridgeAssignmentForm(form);
   const missing=bridgeIdeaMissing(state,state.bridge.ideaCode);
+  const submit=form?.querySelector('.bridge-submit');
+  if(submit)submit.disabled=state.bridge.busy||!bridgeAssignmentReady(state);
   const button=app.querySelector('#bridge-approval .bridge-confirm');
   if(button)button.disabled=Boolean(state.bridge.busy||missing.length||state.plan?.assets.some(asset=>asset.code===state.bridge.ideaCode && asset.integrationDraft?.pending));
   const message=app.querySelector('#bridge-completion-hint');

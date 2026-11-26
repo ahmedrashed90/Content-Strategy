@@ -1,3 +1,4 @@
+import { mayOmitDeadline } from './assignment-executor.js';
 import { connectFirebase } from './firebase.js';
 import { getIdea, taskCodes, ideaIsApproved, nowInRiyadh, toCreativeTreatmentText } from './planner.js';
 import { PLAN_ID, updateManyAssets, linkMarketingTask, listAssignmentDrafts, saveAssignmentDraft, deleteAssignmentDraft } from './plan-firebase.js';
@@ -215,6 +216,12 @@ export function newBridgeState() {
 /** An assignment is ready to confirm only when ALL fields for that idea
  * are complete; the owner may fill them in any order. This validator also
  * protects the Firestore approval write, not only the disabled UI button. */
+export function assignmentDateValid(bridge, row) {
+  const [userId, departmentId] = String(row.assignee || '').split('|');
+  if (!row.dueOn) return mayOmitDeadline(bridge.executors, userId, departmentId);
+  return validISODate(row.dueOn) && row.dueOn >= nowInRiyadh();
+}
+
 export function bridgeIdeaMissing(state, ideaCode) {
   const bridge=state.bridge,plan=state.plan,idea=getIdea(plan,ideaCode);
   if(!idea || !selectionCodes(bridge).includes(ideaCode))return ['حدد الفكرة المعتمدة أولًا'];
@@ -230,7 +237,7 @@ export function bridgeIdeaMissing(state, ideaCode) {
   if(!assignments.length || assignments.length>10 || assignments.some(row=>{
     const [userId,departmentId]=String(row.assignee||'').split('|');
     return !bridge.executors.some(user=>user.user_id===userId&&user.department_id===departmentId)
-      || !validISODate(row.dueOn) || row.dueOn<nowInRiyadh();
+      || !assignmentDateValid(bridge,row);
   }) || new Set(assignments.map(row=>String(row.assignee||'').split('|')[0])).size!==assignments.length)
     missing.push('المنفذون ومواعيد التسليم لكل فكرة');
   const kind=imageOrVideo(idea);
@@ -428,6 +435,18 @@ function placementFields(bridge,idea){
     ${p.kind==='shared'?subPlacementFields(bridge,code,'agenda',p)+subPlacementFields(bridge,code,'campaign',p)+`<small>تظهر مسودة أجندة ومسودة حملة في قسم النشر بالتسويق.</small>`:''}
   </div>`;
 }
+export function bridgeAssignmentReady(state, selected = selectedIdeas(state).filter(row=>eligible(row)&&sameCategoryGroup(row.marketingCategory,state.bridge.category))) {
+  const {bridge,plan}=state;
+  const selectedCategories=new Set(selected.map(row=>row.marketingCategory));
+  // بيعي - قسط وبيعي - كاش تُعدّان مجموعة واحدة (بيعي) لأغراض الاعتماد
+  const isSalesGroup=[...selectedCategories].every(c=>SALES_CATEGORIES.has(c));
+  return selected.length>0&&selected.length===selectionCodes(bridge).length&&(selectedCategories.size===1||isSalesGroup)&&selected.every(row=>{
+    const assets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
+    return assets.length>0&&assets.every(asset=>asset.creativeApprovedAt&&(!asset.integrationDraft?.pending||asset.integrationRequestKey)) &&
+      !bridgeIdeaMissing(state,row.code).length;
+  });
+}
+
 export function bridgePage(state) {
   const bridge=state.bridge,plan=state.plan;
   const all=ideaRows(plan).filter(row=>eligible(row)&&ideaIsApproved(plan,row.code));
@@ -449,14 +468,7 @@ export function bridgePage(state) {
   const savedCars=(activeAssets[0]?.approvedVehicles||[]).map(stockId).sort();
   const selectionCurrent=confirmed&&savedMode===bridge.mode&&JSON.stringify(savedCars)===JSON.stringify([...bridge.chosenStocks].sort());
   const ideaMissing=current?bridgeIdeaMissing(state,current.code):[];
-  const selectedCategories=new Set(selected.map(row=>row.marketingCategory));
-  // بيعي - قسط وبيعي - كاش تُعدّان مجموعة واحدة (بيعي) لأغراض الاعتماد
-  const isSalesGroup=[...selectedCategories].every(c=>SALES_CATEGORIES.has(c));
-  const ready=selected.length>0&&selected.length===selectionCodes(bridge).length&&(selectedCategories.size===1||isSalesGroup)&&selected.every(row=>{
-    const assets=taskCodes(plan,row.code).map(code=>plan.assets.find(a=>a.code===code)).filter(Boolean);
-    return assets.length>0&&assets.every(asset=>asset.creativeApprovedAt&&(!asset.integrationDraft?.pending||asset.integrationRequestKey)) &&
-      !bridgeIdeaMissing(state,row.code).length;
-  });
+  const ready=bridgeAssignmentReady(state,selected);
   const typePref=bridge.category.startsWith('تعريفي')?'تعريف':bridge.category.startsWith('بيعي')?'بيع':'';
   const matching=bridge.taskTypes.filter(type=>String(type.name||'').includes(typePref));
   const taskTypeDefault=pendingDraft?.typeId||bridge.taskTypeId||(matching.length===1?matching[0].id:'');
@@ -526,7 +538,7 @@ export function bridgePage(state) {
                   return `<div class="bridge-assignee-row" data-idea="${escape(current.code)}" data-index="${index}">
                     <label>المنفذ ${index+1}<select name="assignee_${escape(current.code)}_${index}" required ${locked?'disabled':''}>
                       <option value="">اختر المنفذ</option>${bridge.executors.map(user=>opt(user.user_id+'|'+user.department_id,user.full_name,entry.assignee)).join('')}</select></label>
-                    <label>موعد التسليم<input name="dueOn_${escape(current.code)}_${index}" type="date" min="${nowInRiyadh()}" value="${escape(entry.dueOn||nowInRiyadh())}" required ${locked?'disabled':''}/></label>
+                    <label>موعد التسليم<input name="dueOn_${escape(current.code)}_${index}" type="date" min="${nowInRiyadh()}" value="${escape(entry.dueOn??nowInRiyadh())}" ${mayOmitDeadline(bridge.executors,person?.user_id,person?.department_id)?'':'required'} ${locked?'disabled':''}/></label>
                     <small>${photography?'رابط ملفات Google Drive':'رفع الملفات النهائية'}</small>
                     ${index>0&&!locked?`<button type="button" class="btn p-small" data-action="bridge-remove-assignee" data-idea="${escape(current.code)}" data-index="${index}">إزالة</button>`:''}</div>`;
                 }).join('')}</div>
@@ -585,13 +597,13 @@ export async function assignBridgeIdea(state,form) {
    const configured=assignmentsForIdea(bridge,idea.code);
    const rows=configured.map((entry,index)=>({
      assignee:String(form.elements.namedItem('assignee_'+idea.code+'_'+index)?.value||entry.assignee||''),
-     dueOn:String(form.elements.namedItem('dueOn_'+idea.code+'_'+index)?.value||entry.dueOn||'')
+     dueOn:String(form.elements.namedItem('dueOn_'+idea.code+'_'+index)?.value??entry.dueOn??'')
    }));
    const assignments=rows.map(entry=>{
      const [userId,departmentId]=entry.assignee.split('|');
      const person=bridge.executors.find(row=>row.user_id===userId&&row.department_id===departmentId);
      if(!person)throw Error('اختر منفذًا مؤهلًا للفكرة: '+idea.title);
-     if(!validISODate(entry.dueOn)||entry.dueOn<nowInRiyadh())throw Error('حدد تاريخ تسليم صحيحًا لكل منفذ في الفكرة: '+idea.title);
+     if(!assignmentDateValid(bridge,entry))throw Error('حدد تاريخ تسليم صحيحًا لكل منفذ في الفكرة: '+idea.title);
      return {assignee:entry.assignee,assigneeId:userId,departmentId,dueOn:entry.dueOn,
        name:person.full_name,deliveryMode:/تصوير|photograph|shoot/i.test(person.department_name)?'drive_link':'files'};
    });
@@ -660,7 +672,7 @@ export async function assignBridgeIdea(state,form) {
    const itemId=result.items?.find(row=>row.client_key===primary?.clientKey)?.id;
    const ideaAssignees=assignmentsByIdea[idea.code];
    const names=ideaAssignees.map(row=>row.name).join('، ');
-   const dueDate=ideaAssignees.find(row=>row.deliveryMode==='files')?.dueOn||ideaAssignees[0].dueOn;
+   const dueDate=ideaAssignees.find(row=>row.deliveryMode==='files')?.dueOn||ideaAssignees.find(row=>row.dueOn)?.dueOn||'';
    return assets.map(asset=>({code:asset.code,taskId:result.id,taskNo:result.taskNo,itemId:itemId||'',executorName:names,newDueDate:dueDate,
      assignees:ideaAssignees.map(a=>({name:a.name,dueOn:a.dueOn})),
      previousMarketingTasks:asset.previousMarketingTasks||[],previousTask:asset.marketingTaskId?{

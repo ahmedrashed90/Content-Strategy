@@ -1,3 +1,4 @@
+import {mayOmitDeadline} from '../site/assignment-executor.js';
 // Offline integration simulation: reused approved ideas, independent executors,
 // Drive photography handoff, stable retry, and preserved prior task links.
 import assert from 'node:assert/strict';
@@ -9,7 +10,7 @@ import {validISODate} from '../site/idea-import.js';
 
 const raw=fs.readFileSync(new URL('../site/marketing-bridge.js',import.meta.url),'utf8');
 let attempts=[],created=new Map(), firestoreFails=true, linked=[];
-const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText,validISODate,
+const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText,validISODate,mayOmitDeadline,
  PLAN_ID:'mzj-2026-launch-cycle-01',
  updateManyAssets:async()=>{},
  linkMarketingTask:async links=>{

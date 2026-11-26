@@ -1,3 +1,4 @@
+import {mayOmitDeadline} from '../site/assignment-executor.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -50,7 +51,7 @@ assert.throws(()=>prepareManualIdea({...image,imageSlides:[{...emptySlide()}]},p
 // Exercise the live assignment engine without external requests or mutable production data.
 const raw=fs.readFileSync(new URL('../site/marketing-bridge.js',import.meta.url),'utf8');
 const requests=[],linked=[];
-const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText,validISODate,
+const context={crypto:webcrypto,TextEncoder,console,getIdea,taskCodes,ideaIsApproved,nowInRiyadh,toCreativeTreatmentText,validISODate,mayOmitDeadline,
   PLAN_ID:'mzj-2026-launch-cycle-01',updateManyAssets:async()=>{},linkMarketingTask:async rows=>linked.push(...rows),
   __qaFetch:async(resource,{body})=>{assert.equal(resource,'assignments');requests.push(body);return {id:'new-task',taskNo:'TSK-9000',items:body.items.map((item,i)=>({client_key:item.clientKey,id:'item-'+i}))};}};
 const modified=raw.replace(/^import\s.+;\s*$/gm,'').replace(/\bexport (async function|function|const)\b/g,'$1')
