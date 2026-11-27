@@ -163,6 +163,7 @@ export async function buildAssignmentPdf(report){
 }
 export async function downloadAssignmentPdf(report){
   const blob=await buildAssignmentPdf(report),url=URL.createObjectURL(blob),link=document.createElement('a');
-  const filename=String(report.title||'تكليفات').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'-').trim().slice(0,110);
-  link.href=url;link.download=`MZJ-${filename||'تكليفات'}.pdf`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const single=report.groups?.length===1?report.groups[0].category:'';
+  const filename=String(single||report.title||'تكليفات').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'-').trim().slice(0,110);
+  link.href=url;link.download=`${filename||'تكليفات'}.pdf`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
 }

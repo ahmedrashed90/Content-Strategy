@@ -493,6 +493,8 @@ export function collectAssignmentPdfReport(state,form,metadata=state.bridge.pdfR
     if(!groups.has(category))groups.set(category,{number:groups.size+1,category,ideas:[]});
     groups.get(category).ideas.push({code,title:idea.title,rows:finalRows});
   }
+  const firstDate=idea=>idea.rows.map(r=>r.publishOn).find(d=>/^\d{4}-/.test(d||''))||'9999';
+  for(const g of groups.values())g.ideas.sort((a,b)=>firstDate(a).localeCompare(firstDate(b)));
   if(count>100)throw Error('التاسك الواحد يدعم 100 مطلوب كحد أقصى. قلل عدد الأفكار أو المنفذين.');
   const allNames=[...names.agenda,...names.campaign];
   const joined=[...new Set(allNames)].join(' + ');
